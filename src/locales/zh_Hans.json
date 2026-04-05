@@ -1860,6 +1860,8 @@
     "Balance Time": "余额时间",
     "Sub-account Balance Time": "子账户余额时间",
     "Statement Date": "账单日",
+    "Credit Limit": "信用额度",
+    "Available": "可用额度",
     "Description": "描述",
     "Your account description (optional)": "你的账户描述 (可选)",
     "Your sub-account description (optional)": "你的子账户描述 (可选)",

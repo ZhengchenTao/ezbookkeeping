@@ -204,6 +204,24 @@
             <f7-list-item
                 link="#" no-chevron
                 class="list-item-with-header-and-title"
+                :header="tt('Credit Limit')"
+                :title="formatCreditLimitDisplay(account)"
+                v-if="isAccountSupportCreditCardStatementDate"
+                @click="accountContext.showCreditLimitSheet = true"
+            >
+                <number-pad-sheet :min-value="0"
+                                  :max-value="TRANSACTION_MAX_AMOUNT"
+                                  :currency="account.currency"
+                                  :flip-negative="false"
+                                  v-model:show="accountContext.showCreditLimitSheet"
+                                  :model-value="account.creditLimit ?? 0"
+                                  @update:model-value="account.creditLimit = $event > 0 ? $event : undefined"
+                ></number-pad-sheet>
+            </f7-list-item>
+
+            <f7-list-item
+                link="#" no-chevron
+                class="list-item-with-header-and-title"
                 :class="{ 'disabled': editAccountId }"
                 :header="account.isLiability ? tt('Account Outstanding Balance') : tt('Account Balance')"
                 :title="formatAccountDisplayBalance(account)"
@@ -332,6 +350,24 @@
                                            v-model:show="accountContext.showCreditCardStatementDatePopup"
                                            v-model="account.creditCardStatementDate">
                 </list-item-selection-popup>
+            </f7-list-item>
+
+            <f7-list-item
+                link="#" no-chevron
+                class="list-item-with-header-and-title"
+                :header="tt('Credit Limit')"
+                :title="formatCreditLimitDisplay(account)"
+                v-if="isAccountSupportCreditCardStatementDate"
+                @click="accountContext.showCreditLimitSheet = true"
+            >
+                <number-pad-sheet :min-value="0"
+                                  :max-value="TRANSACTION_MAX_AMOUNT"
+                                  :currency="account.currency"
+                                  :flip-negative="false"
+                                  v-model:show="accountContext.showCreditLimitSheet"
+                                  :model-value="account.creditLimit ?? 0"
+                                  @update:model-value="account.creditLimit = $event > 0 ? $event : undefined"
+                ></number-pad-sheet>
             </f7-list-item>
 
             <f7-list-item :title="tt('Visible')" v-if="editAccountId">
@@ -550,6 +586,7 @@ interface AccountContext {
     showColorSelectionSheet: boolean;
     showCurrencyPopup: boolean;
     showCreditCardStatementDatePopup: boolean;
+    showCreditLimitSheet: boolean;
     showBalanceSheet: boolean;
     showBalanceDateTimeSheet: boolean;
     balanceDateTimeSheetMode: string;
@@ -600,6 +637,7 @@ const DEFAULT_ACCOUNT_CONTEXT: AccountContext = {
     showColorSelectionSheet: false,
     showCurrencyPopup: false,
     showCreditCardStatementDatePopup: false,
+    showCreditLimitSheet: false,
     showBalanceSheet: false,
     showBalanceDateTimeSheet: false,
     balanceDateTimeSheetMode: 'time'
@@ -619,6 +657,13 @@ const allCurrencies = computed<LocalizedCurrencyInfo[]>(() => getAllCurrencies()
 function formatAccountDisplayBalance(selectedAccount: Account): string {
     const balance = account.value.isLiability ? -selectedAccount.balance : selectedAccount.balance;
     return formatAmountToLocalizedNumeralsWithCurrency(balance, selectedAccount.currency);
+}
+
+function formatCreditLimitDisplay(selectedAccount: Account): string {
+    if (!selectedAccount.creditLimit) {
+        return tt('Not set');
+    }
+    return formatAmountToLocalizedNumeralsWithCurrency(selectedAccount.creditLimit, selectedAccount.currency);
 }
 
 function formatAccountBalanceDate(account: Account): string {

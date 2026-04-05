@@ -113,6 +113,7 @@
                             <div class="nested-list-item-title">
                                 <span>{{ account.name }}</span>
                                 <div class="item-footer" v-if="account.comment">{{ account.comment }}</div>
+                                <div class="item-footer" v-if="account.creditLimit">{{ tt('Available') }}: {{ getRemainingCredit(account) }}</div>
                             </div>
                             <div class="nested-list-item-after" v-if="account.type === AccountType.MultiSubAccounts.type">
                                 <span>{{ accountBalance(account) }}</span>
@@ -241,7 +242,7 @@ const props = defineProps<{
     f7router: Router.Router;
 }>();
 
-const { tt, getCurrentLanguageTextDirection } = useI18n();
+const { tt, getCurrentLanguageTextDirection, formatAmountToLocalizedNumeralsWithCurrency } = useI18n();
 const { showAlert, showToast, routeBackOnError } = useI18nUIComponents();
 
 const {
@@ -287,6 +288,14 @@ const noAvailableAccount = computed<boolean>(() => {
         return accountsStore.allVisibleAccountsCount < 1;
     }
 });
+
+function getRemainingCredit(account: Account): string {
+    if (!account.creditLimit) {
+        return '';
+    }
+    const remaining = account.creditLimit + account.balance; // balance is negative for credit cards
+    return formatAmountToLocalizedNumeralsWithCurrency(remaining, account.currency);
+}
 
 function hasAccount(accountCategory: AccountCategory, visibleOnly: boolean): boolean {
     return accountsStore.hasAccount(accountCategory, visibleOnly);

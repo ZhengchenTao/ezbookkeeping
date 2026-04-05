@@ -90,7 +90,8 @@ type Account struct {
 
 // AccountExtend represents account extend data stored in database
 type AccountExtend struct {
-	CreditCardStatementDate *int `json:"creditCardStatementDate"`
+	CreditCardStatementDate *int   `json:"creditCardStatementDate"`
+	CreditLimit             *int64 `json:"creditLimit"`
 }
 
 // AccountCreateRequest represents all parameters of account creation request
@@ -105,6 +106,7 @@ type AccountCreateRequest struct {
 	BalanceTime             int64                   `json:"balanceTime"`
 	Comment                 string                  `json:"comment" binding:"max=255"`
 	CreditCardStatementDate int                     `json:"creditCardStatementDate" binding:"min=0,max=28"`
+	CreditLimit             int64                   `json:"creditLimit" binding:"min=0"`
 	SubAccounts             []*AccountCreateRequest `json:"subAccounts" binding:"omitempty"`
 	ClientSessionId         string                  `json:"clientSessionId"`
 }
@@ -121,6 +123,7 @@ type AccountModifyRequest struct {
 	BalanceTime             *int64                  `json:"balanceTime" binding:"omitempty"`
 	Comment                 string                  `json:"comment" binding:"max=255"`
 	CreditCardStatementDate int                     `json:"creditCardStatementDate" binding:"min=0,max=28"`
+	CreditLimit             int64                   `json:"creditLimit" binding:"min=0"`
 	Hidden                  bool                    `json:"hidden"`
 	SubAccounts             []*AccountModifyRequest `json:"subAccounts" binding:"omitempty"`
 	ClientSessionId         string                  `json:"clientSessionId"`
@@ -171,6 +174,7 @@ type AccountInfoResponse struct {
 	Balance                 int64                    `json:"balance"`
 	Comment                 string                   `json:"comment"`
 	CreditCardStatementDate *int                     `json:"creditCardStatementDate,omitempty"`
+	CreditLimit             *int64                   `json:"creditLimit,omitempty"`
 	DisplayOrder            int32                    `json:"displayOrder"`
 	IsAsset                 bool                     `json:"isAsset,omitempty"`
 	IsLiability             bool                     `json:"isLiability,omitempty"`
@@ -181,10 +185,14 @@ type AccountInfoResponse struct {
 // ToAccountInfoResponse returns a view-object according to database model
 func (a *Account) ToAccountInfoResponse() *AccountInfoResponse {
 	var creditCardStatementDate *int
+	var creditLimit *int64
 
 	if a.ParentAccountId == LevelOneAccountParentId && a.Category == ACCOUNT_CATEGORY_CREDIT_CARD {
 		if a.Extend != nil {
 			creditCardStatementDate = a.Extend.CreditCardStatementDate
+			if a.Extend.CreditLimit != nil && *a.Extend.CreditLimit > 0 {
+				creditLimit = a.Extend.CreditLimit
+			}
 		} else {
 			creditCardStatementDate = &defaultCreditCardAccountStatementDate
 		}
@@ -202,6 +210,7 @@ func (a *Account) ToAccountInfoResponse() *AccountInfoResponse {
 		Balance:                 a.Balance,
 		Comment:                 a.Comment,
 		CreditCardStatementDate: creditCardStatementDate,
+		CreditLimit:             creditLimit,
 		DisplayOrder:            a.DisplayOrder,
 		IsAsset:                 assetAccountCategory[a.Category],
 		IsLiability:             liabilityAccountCategory[a.Category],

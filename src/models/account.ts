@@ -17,6 +17,7 @@ export class Account implements AccountInfoResponse {
     public balanceTime?: number;
     public comment: string;
     public creditCardStatementDate?: number;
+    public creditLimit?: number;
     public displayOrder: number;
     public visible: boolean;
     public subAccounts?: Account[];
@@ -24,7 +25,7 @@ export class Account implements AccountInfoResponse {
     private readonly _isAsset?: boolean;
     private readonly _isLiability?: boolean;
 
-    protected constructor(id: string, name: string, parentId: string, category: number, type: number, icon: string, color: string, currency: string, balance: number, comment: string, displayOrder: number, visible: boolean, balanceTime?: number, creditCardStatementDate?: number, isAsset?: boolean, isLiability?: boolean, subAccounts?: Account[]) {
+    protected constructor(id: string, name: string, parentId: string, category: number, type: number, icon: string, color: string, currency: string, balance: number, comment: string, displayOrder: number, visible: boolean, balanceTime?: number, creditCardStatementDate?: number, isAsset?: boolean, isLiability?: boolean, subAccounts?: Account[], creditLimit?: number) {
         this.id = id;
         this.name = name;
         this.parentId = parentId;
@@ -39,6 +40,7 @@ export class Account implements AccountInfoResponse {
         this.displayOrder = displayOrder;
         this.visible = visible;
         this.creditCardStatementDate = creditCardStatementDate;
+        this.creditLimit = creditLimit;
         this._isAsset = isAsset;
         this._isLiability = isLiability;
 
@@ -95,7 +97,8 @@ export class Account implements AccountInfoResponse {
             this.comment === other.comment &&
             this.displayOrder === other.displayOrder &&
             this.visible === other.visible &&
-            this.creditCardStatementDate === other.creditCardStatementDate;
+            this.creditCardStatementDate === other.creditCardStatementDate &&
+            this.creditLimit === other.creditLimit;
 
         if (!isEqual) {
             return false;
@@ -130,6 +133,7 @@ export class Account implements AccountInfoResponse {
         this.balanceTime = other.balanceTime;
         this.comment = other.comment;
         this.creditCardStatementDate = other.creditCardStatementDate;
+        this.creditLimit = other.creditLimit;
         this.visible = other.visible;
     }
 
@@ -181,6 +185,7 @@ export class Account implements AccountInfoResponse {
             balanceTime: (parentAccount || this.type === AccountType.SingleAccount.type) && this.balanceTime ? this.balanceTime : 0,
             comment: this.comment,
             creditCardStatementDate: !parentAccount && this.category === AccountCategory.CreditCard.type ? this.creditCardStatementDate : undefined,
+            creditLimit: !parentAccount && this.category === AccountCategory.CreditCard.type ? (this.creditLimit ?? 0) : undefined,
             subAccounts: !parentAccount ? subAccountCreateRequests : undefined,
             clientSessionId: !parentAccount ? clientSessionId : undefined
         };
@@ -214,6 +219,7 @@ export class Account implements AccountInfoResponse {
             balanceTime: parentAccount && (!this.id || this.id === '0') ? this.balanceTime : undefined,
             comment: this.comment,
             creditCardStatementDate: !parentAccount && this.category === AccountCategory.CreditCard.type ? this.creditCardStatementDate : undefined,
+            creditLimit: !parentAccount && this.category === AccountCategory.CreditCard.type ? (this.creditLimit ?? 0) : undefined,
             hidden: !this.visible,
             subAccounts: !parentAccount ? subAccountModifyRequests : undefined,
             clientSessionId: !parentAccount ? clientSessionId : undefined
@@ -365,7 +371,9 @@ export class Account implements AccountInfoResponse {
             this.balanceTime,
             this.creditCardStatementDate,
             this.isAsset,
-            this.isLiability
+            this.isLiability,
+            undefined,
+            this.creditLimit
         );
     }
 
@@ -387,7 +395,9 @@ export class Account implements AccountInfoResponse {
             this.creditCardStatementDate,
             this.isAsset,
             this.isLiability,
-            typeof(this.subAccounts) !== 'undefined' ? Account.cloneAccounts(this.subAccounts) : undefined);
+            typeof(this.subAccounts) !== 'undefined' ? Account.cloneAccounts(this.subAccounts) : undefined,
+            this.creditLimit
+        );
     }
 
     public createNewSubAccount(currency: string, balanceTime: number): Account {
@@ -446,7 +456,8 @@ export class Account implements AccountInfoResponse {
             accountResponse.creditCardStatementDate,
             accountResponse.isAsset,
             accountResponse.isLiability,
-            accountResponse.subAccounts ? Account.ofMulti(accountResponse.subAccounts) : undefined
+            accountResponse.subAccounts ? Account.ofMulti(accountResponse.subAccounts) : undefined,
+            accountResponse.creditLimit
         );
     }
 
@@ -560,7 +571,8 @@ export class AccountWithDisplayBalance extends Account {
             account.creditCardStatementDate,
             account.isAsset,
             account.isLiability,
-            account.subAccounts
+            account.subAccounts,
+            account.creditLimit
         );
 
         this.displayBalance = displayBalance;
@@ -582,6 +594,7 @@ export interface AccountCreateRequest {
     readonly balanceTime: number;
     readonly comment: string;
     readonly creditCardStatementDate?: number;
+    readonly creditLimit?: number;
     readonly subAccounts?: AccountCreateRequest[];
     readonly clientSessionId?: string;
 }
@@ -597,6 +610,7 @@ export interface AccountModifyRequest {
     readonly balanceTime?: number;
     readonly comment: string;
     readonly creditCardStatementDate?: number;
+    readonly creditLimit?: number;
     readonly hidden: boolean;
     readonly subAccounts?: AccountModifyRequest[];
     readonly clientSessionId?: string;
@@ -614,6 +628,7 @@ export interface AccountInfoResponse {
     readonly balance: number;
     readonly comment: string;
     readonly creditCardStatementDate?: number;
+    readonly creditLimit?: number;
     readonly displayOrder: number;
     readonly isAsset?: boolean;
     readonly isLiability?: boolean;

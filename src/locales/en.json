@@ -1860,6 +1860,8 @@
     "Balance Time": "Balance Time",
     "Sub-account Balance Time": "Sub-account Balance Time",
     "Statement Date": "Statement Date",
+    "Credit Limit": "Credit Limit",
+    "Available": "Available",
     "Description": "Description",
     "Your account description (optional)": "Your account description (optional)",
     "Your sub-account description (optional)": "Your sub-account description (optional)",

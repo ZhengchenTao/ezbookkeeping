@@ -713,6 +713,9 @@ func (a *AccountsApi) createNewAccountModel(uid int64, accountCreateReq *models.
 
 	if !isSubAccount && accountCreateReq.Category == models.ACCOUNT_CATEGORY_CREDIT_CARD {
 		accountExtend.CreditCardStatementDate = &accountCreateReq.CreditCardStatementDate
+		if accountCreateReq.CreditLimit > 0 {
+			accountExtend.CreditLimit = &accountCreateReq.CreditLimit
+		}
 	}
 
 	return &models.Account{
@@ -769,6 +772,9 @@ func (a *AccountsApi) getToUpdateAccount(uid int64, accountModifyReq *models.Acc
 
 	if !isSubAccount && accountModifyReq.Category == models.ACCOUNT_CATEGORY_CREDIT_CARD {
 		newAccountExtend.CreditCardStatementDate = &accountModifyReq.CreditCardStatementDate
+		if accountModifyReq.CreditLimit > 0 {
+			newAccountExtend.CreditLimit = &accountModifyReq.CreditLimit
+		}
 	}
 
 	newAccount := &models.Account{
@@ -802,6 +808,12 @@ func (a *AccountsApi) getToUpdateAccount(uid int64, accountModifyReq *models.Acc
 
 	if newAccountExtend.CreditCardStatementDate != oldAccountExtend.CreditCardStatementDate {
 		return newAccount
+	}
+
+	if newAccountExtend.CreditLimit != oldAccountExtend.CreditLimit {
+		if newAccountExtend.CreditLimit == nil || oldAccountExtend.CreditLimit == nil || *newAccountExtend.CreditLimit != *oldAccountExtend.CreditLimit {
+			return newAccount
+		}
 	}
 
 	return nil
