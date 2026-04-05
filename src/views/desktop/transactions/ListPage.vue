@@ -172,6 +172,16 @@
                                         </div>
                                     </v-card-text>
 
+                                    <v-card-text class="pt-0" v-if="filteredSingleAccount">
+                                        <v-card variant="tonal" class="d-inline-flex align-center px-4 py-2" rounded="lg">
+                                            <ItemIcon icon-type="account" :icon-id="filteredSingleAccount.icon" :color="filteredSingleAccount.color" />
+                                            <div class="ms-3">
+                                                <div class="text-subtitle-1 font-weight-bold">{{ filteredSingleAccount.name }}</div>
+                                                <div class="text-body-2 text-medium-emphasis">{{ filteredAccountBalanceText }}</div>
+                                            </div>
+                                        </v-card>
+                                    </v-card-text>
+
                                     <v-card-text class="transaction-calendar-container pt-0" v-if="pageType === TransactionListPageType.Calendar.type">
                                         <transaction-calendar day-has-transaction-class="font-weight-bold"
                                                               :readonly="loading" :is-dark-mode="isDarkMode"
@@ -775,7 +785,8 @@ const {
     tt,
     getAllRecentMonthDateRanges,
     getWeekdayLongName,
-    getCurrentNumeralSystemType
+    getCurrentNumeralSystemType,
+    formatAmountToLocalizedNumeralsWithCurrency
 } = useI18n();
 
 const {
@@ -874,6 +885,24 @@ const showFilterTagDialog = ref<boolean>(false);
 
 const isDarkMode = computed<boolean>(() => theme.global.name.value === ThemeType.Dark);
 const numeralSystem = computed<NumeralSystem>(() => getCurrentNumeralSystemType());
+
+const filteredSingleAccount = computed(() => {
+    if (queryAllFilterAccountIdsCount.value !== 1) return null;
+    return allAccountsMap.value[query.value.accountIds] ?? null;
+});
+
+const filteredAccountBalanceText = computed<string>(() => {
+    const account = filteredSingleAccount.value;
+    if (!account) return '';
+    if (account.creditLimit) {
+        const outstanding = -account.balance;
+        const available = account.creditLimit + account.balance;
+        return formatAmountToLocalizedNumeralsWithCurrency(outstanding, account.currency)
+            + ' · ' + tt('Available') + ' ' + formatAmountToLocalizedNumeralsWithCurrency(available, account.currency);
+    }
+    const displayBalance = account.isLiability ? -account.balance : account.balance;
+    return formatAmountToLocalizedNumeralsWithCurrency(displayBalance, account.currency);
+});
 
 const allPageCounts = computed<NameNumeralValue[]>(() => {
     const pageCounts: NameNumeralValue[] = [];

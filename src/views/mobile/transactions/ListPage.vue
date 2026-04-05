@@ -69,6 +69,16 @@
             </f7-link>
         </f7-toolbar>
 
+        <f7-card class="margin-vertical" v-if="filteredSingleAccount">
+            <f7-card-content class="display-flex align-items-center padding-half">
+                <ItemIcon icon-type="account" :icon-id="filteredSingleAccount.icon" :color="filteredSingleAccount.color" />
+                <div class="margin-inline-start-half">
+                    <div class="font-weight-bold">{{ filteredSingleAccount.name }}</div>
+                    <div><small>{{ filteredAccountBalanceText }}</small></div>
+                </div>
+            </f7-card-content>
+        </f7-card>
+
         <f7-block class="transaction-calendar-container margin-vertical" v-if="pageType === TransactionListPageType.Calendar.type">
             <transaction-calendar calendar-class="justify-content-center" week-day-name-type="short"
                                   :readonly="loading" :is-dark-mode="isDarkMode"
@@ -670,7 +680,8 @@ const {
     tt,
     getCurrentLanguageTextDirection,
     getCurrentNumeralSystemType,
-    getWeekdayShortName
+    getWeekdayShortName,
+    formatAmountToLocalizedNumeralsWithCurrency
 } = useI18n();
 
 const { showAlert, showToast, routeBackOnError } = useI18nUIComponents();
@@ -747,6 +758,24 @@ const showDeleteActionSheet = ref<boolean>(false);
 const textDirection = computed<TextDirection>(() => getCurrentLanguageTextDirection());
 const numeralSystem = computed<NumeralSystem>(() => getCurrentNumeralSystemType());
 const isDarkMode = computed<boolean>(() => environmentsStore.framework7DarkMode || false);
+
+const filteredSingleAccount = computed(() => {
+    if (queryAllFilterAccountIdsCount.value !== 1) return null;
+    return allAccountsMap.value[query.value.accountIds] ?? null;
+});
+
+const filteredAccountBalanceText = computed<string>(() => {
+    const account = filteredSingleAccount.value;
+    if (!account) return '';
+    if (account.creditLimit) {
+        const outstanding = -account.balance;
+        const available = account.creditLimit + account.balance;
+        return formatAmountToLocalizedNumeralsWithCurrency(outstanding, account.currency)
+            + ' · ' + tt('Available') + ' ' + formatAmountToLocalizedNumeralsWithCurrency(available, account.currency);
+    }
+    const displayBalance = account.isLiability ? -account.balance : account.balance;
+    return formatAmountToLocalizedNumeralsWithCurrency(displayBalance, account.currency);
+});
 
 const transactions = computed<TransactionMonthList[]>(() => {
     if (loading.value) {
