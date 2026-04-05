@@ -131,7 +131,7 @@
                                 </v-col>
                                 <v-col cols="12" :md="(!editAccountId || isNewAccount(selectedAccount)) && selectedAccount.balance ? 6 : 12"
                                        v-if="account.type === AccountType.SingleAccount.type || currentAccountIndex >= 0">
-                                    <amount-input :disabled="loading || submitting || (!!editAccountId && !isNewAccount(selectedAccount))"
+                                    <amount-input :disabled="loading || submitting"
                                                   :persistent-placeholder="true"
                                                   :currency="selectedAccount.currency"
                                                   :show-currency="true"
@@ -204,6 +204,9 @@ import { useAccountEditPageBase } from '@/views/base/accounts/AccountEditPageBas
 
 import { useUserStore } from '@/stores/user.ts';
 import { useAccountsStore } from '@/stores/account.ts';
+import { useTransactionsStore } from '@/stores/transaction.ts';
+
+import { KnownErrorCode } from '@/consts/api.ts';
 
 import { itemAndIndex } from '@/core/base.ts';
 import { AccountType } from '@/core/account.ts';
@@ -254,6 +257,7 @@ const {
 
 const userStore = useUserStore();
 const accountsStore = useAccountsStore();
+const transactionsStore = useTransactionsStore();
 
 const confirmDialog = useTemplateRef<ConfirmDialogType>('confirmDialog');
 const snackbar = useTemplateRef<SnackBarType>('snackbar');
@@ -261,6 +265,7 @@ const snackbar = useTemplateRef<SnackBarType>('snackbar');
 const showState = ref<boolean>(false);
 const activeTab = ref<string>('account');
 const currentAccountIndex = ref<number>(-1);
+const originalBalances = ref<Map<string, number>>(new Map());
 
 const selectedAccount = computed<Account>(() => {
     if (currentAccountIndex.value < 0) {
@@ -310,6 +315,15 @@ function open(options?: { id?: string, currentAccount?: Account, category?: numb
             accountId: editAccountId.value
         }).then(response => {
             setAccount(response);
+            originalBalances.value.clear();
+            if (account.value.id) {
+                originalBalances.value.set(account.value.id, account.value.balance);
+            }
+            for (const subAccount of subAccounts.value) {
+                if (subAccount.id) {
+                    originalBalances.value.set(subAccount.id, subAccount.balance);
+                }
+            }
             loading.value = false;
         }).catch(error => {
             loading.value = false;
@@ -337,7 +351,7 @@ function open(options?: { id?: string, currentAccount?: Account, category?: numb
     });
 }
 
-function save(): void {
+async function save(): Promise<void> {
     const problemMessage = inputEmptyProblemMessage.value;
 
     if (problemMessage) {
@@ -346,6 +360,30 @@ function save(): void {
     }
 
     submitting.value = true;
+
+    // Collect balance adjustments needed for existing accounts
+    let balanceChanged = false;
+    if (editAccountId.value) {
+        const allAccounts = [account.value, ...subAccounts.value];
+        for (const acc of allAccounts) {
+            if (!acc.id || isNewAccount(acc)) continue;
+            const origBalance = originalBalances.value.get(acc.id);
+            if (origBalance !== undefined && acc.balance !== origBalance) {
+                balanceChanged = true;
+                try {
+                    await transactionsStore.adjustAccountBalance({
+                        accountId: acc.id,
+                        targetBalance: acc.balance,
+                        currentBalance: origBalance
+                    });
+                } catch (error: unknown) {
+                    submitting.value = false;
+                    snackbar.value?.showError(error as { message: string });
+                    return;
+                }
+            }
+        }
+    }
 
     accountsStore.saveAccount({
         account: account.value,
@@ -365,6 +403,12 @@ function save(): void {
         showState.value = false;
     }).catch(error => {
         submitting.value = false;
+
+        if (balanceChanged && error.error && error.error.errorCode === KnownErrorCode.NothingWillBeUpdated) {
+            resolveFunc?.({ message: 'You have saved this account' });
+            showState.value = false;
+            return;
+        }
 
         if (!error.processed) {
             snackbar.value?.showError(error);

@@ -128,9 +128,6 @@ const routes: Router.RouteParameters[] = [
         path: '/',
         async: asyncResolve(HomePage),
         beforeEnter: [checkLogin],
-        options: {
-            animate: false,
-        }
     },
     {
         path: '/login',
@@ -160,7 +157,6 @@ const routes: Router.RouteParameters[] = [
         path: '/transaction/list',
         async: asyncResolve(TransactionListPage),
         beforeEnter: [checkLogin],
-        options: { animate: false }
     },
     {
         path: '/transaction/filter/amount',
@@ -186,7 +182,6 @@ const routes: Router.RouteParameters[] = [
         path: '/account/list',
         async: asyncResolve(AccountListPage),
         beforeEnter: [checkLogin],
-        options: { animate: false }
     },
     {
         path: '/account/add',
@@ -212,7 +207,6 @@ const routes: Router.RouteParameters[] = [
         path: '/statistic/transaction',
         async: asyncResolve(StatisticsTransactionPage),
         beforeEnter: [checkLogin],
-        options: { animate: false }
     },
     {
         path: '/statistic/settings',
@@ -263,7 +257,6 @@ const routes: Router.RouteParameters[] = [
         path: '/settings',
         async: asyncResolve(SettingsPage),
         beforeEnter: [checkLogin],
-        options: { animate: false }
     },
     {
         path: '/app_lock',

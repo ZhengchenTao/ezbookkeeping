@@ -544,7 +544,9 @@ func (t *Transaction) ToTransactionInfoResponse(tagIds []int64, editable bool) *
 	destinationAccountId := int64(0)
 	destinationAmount := int64(0)
 
-	if t.Type == TRANSACTION_DB_TYPE_TRANSFER_OUT {
+	if t.Type == TRANSACTION_DB_TYPE_MODIFY_BALANCE {
+		sourceAmount = t.RelatedAccountAmount // always return delta
+	} else if t.Type == TRANSACTION_DB_TYPE_TRANSFER_OUT {
 		destinationAccountId = t.RelatedAccountId
 		destinationAmount = t.RelatedAccountAmount
 	} else if t.Type == TRANSACTION_DB_TYPE_TRANSFER_IN {

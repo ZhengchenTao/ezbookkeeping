@@ -222,7 +222,6 @@
             <f7-list-item
                 link="#" no-chevron
                 class="list-item-with-header-and-title"
-                :class="{ 'disabled': editAccountId }"
                 :header="account.isLiability ? tt('Account Outstanding Balance') : tt('Account Balance')"
                 :title="formatAccountDisplayBalance(account)"
                 @click="accountContext.showBalanceSheet = true"
@@ -565,11 +564,13 @@ import { useI18nUIComponents, showLoading, hideLoading } from '@/lib/ui/mobile.t
 import { useAccountEditPageBase } from '@/views/base/accounts/AccountEditPageBase.ts';
 
 import { useAccountsStore } from '@/stores/account.ts';
+import { useTransactionsStore } from '@/stores/transaction.ts';
 
 import { itemAndIndex } from '@/core/base.ts';
 import type { LocalizedCurrencyInfo } from '@/core/currency.ts';
 import { AccountType } from '@/core/account.ts';
 import { ALL_ACCOUNT_ICONS } from '@/consts/icon.ts';
+import { KnownErrorCode } from '@/consts/api.ts';
 import { ALL_ACCOUNT_COLORS } from '@/consts/color.ts';
 import { TRANSACTION_MIN_AMOUNT, TRANSACTION_MAX_AMOUNT } from '@/consts/transaction.ts';
 import type { Account } from '@/models/account.ts';
@@ -631,6 +632,7 @@ const {
 } = useAccountEditPageBase();
 
 const accountsStore = useAccountsStore();
+const transactionsStore = useTransactionsStore();
 
 const DEFAULT_ACCOUNT_CONTEXT: AccountContext = {
     showIconSelectionSheet: false,
@@ -642,6 +644,8 @@ const DEFAULT_ACCOUNT_CONTEXT: AccountContext = {
     showBalanceDateTimeSheet: false,
     balanceDateTimeSheetMode: 'time'
 };
+
+const originalBalance = ref<number>(0);
 
 const accountContext = ref<AccountContext>(Object.assign({}, DEFAULT_ACCOUNT_CONTEXT));
 const subAccountContexts = ref<AccountContext[]>([]);
@@ -697,6 +701,7 @@ function init(): void {
             accountId: editAccountId.value
         }).then(response => {
             setAccount(response);
+            originalBalance.value = response.balance;
             subAccountContexts.value = [];
 
             for (let i = 0; i < subAccounts.value.length; i++) {
@@ -729,22 +734,43 @@ function save(): void {
     submitting.value = true;
     showLoading(() => submitting.value);
 
-    accountsStore.saveAccount({
-        account: account.value,
-        subAccounts: subAccounts.value,
-        isEdit: !!editAccountId.value,
-        clientSessionId: clientSessionId.value
-    }).then(() => {
-        submitting.value = false;
-        hideLoading();
+    const balanceChanged = !!editAccountId.value && account.value.balance !== originalBalance.value;
+    const adjustPromise = balanceChanged
+        ? transactionsStore.adjustAccountBalance({ accountId: editAccountId.value!, targetBalance: account.value.balance, currentBalance: originalBalance.value })
+        : Promise.resolve(true);
 
-        if (!editAccountId.value) {
-            showToast('You have added a new account');
-        } else {
-            showToast('You have saved this account');
-        }
+    adjustPromise.then(() => {
+        accountsStore.saveAccount({
+            account: account.value,
+            subAccounts: subAccounts.value,
+            isEdit: !!editAccountId.value,
+            clientSessionId: clientSessionId.value
+        }).then(() => {
+            submitting.value = false;
+            hideLoading();
 
-        router.back();
+            if (!editAccountId.value) {
+                showToast('You have added a new account');
+            } else {
+                showToast('You have saved this account');
+            }
+
+            router.back();
+        }).catch(error => {
+            submitting.value = false;
+            hideLoading();
+
+            if (balanceChanged && error.error && error.error.errorCode === KnownErrorCode.NothingWillBeUpdated) {
+                // Balance was adjusted but other fields unchanged — treat as success
+                showToast('You have saved this account');
+                router.back();
+                return;
+            }
+
+            if (!error.processed) {
+                showToast(error.message || error);
+            }
+        });
     }).catch(error => {
         submitting.value = false;
         hideLoading();

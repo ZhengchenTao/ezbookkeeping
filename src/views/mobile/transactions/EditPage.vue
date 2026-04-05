@@ -195,6 +195,7 @@
                 :class="{ 'disabled': !allVisibleAccounts.length || (mode === TransactionEditPageMode.Edit && transaction.type === TransactionType.ModifyBalance), 'readonly': mode === TransactionEditPageMode.View }"
                 :header="tt(sourceAccountTitle)"
                 :title="sourceAccountName"
+                :footer="sourceAccountBalanceDisplay"
                 @click="showSourceAccountSheet = true"
             >
                 <two-column-list-item-selection-sheet primary-key-field="id" primary-value-field="category"
@@ -218,6 +219,7 @@
                 :class="{ 'disabled': !allVisibleAccounts.length, 'readonly': mode === TransactionEditPageMode.View }"
                 :header="tt('Destination Account')"
                 :title="destinationAccountName"
+                :footer="destinationAccountBalanceDisplay"
                 v-if="transaction.type === TransactionType.Transfer"
                 @click="showDestinationAccountSheet = true"
             >
@@ -523,6 +525,7 @@ import {
 import { useSettingsStore } from '@/stores/setting.ts';
 import { useUserStore } from '@/stores/user.ts';
 import { useAccountsStore } from '@/stores/account.ts';
+import type { Account } from '@/models/account.ts';
 import { useTransactionCategoriesStore } from '@/stores/transactionCategory.ts';
 import { useTransactionTagsStore } from '@/stores/transactionTag.ts';
 import { useTransactionsStore } from '@/stores/transaction.ts';
@@ -572,7 +575,8 @@ const {
     formatDateTimeToLongDate,
     formatDateTimeToLongTime,
     formatGregorianTextualYearMonthDayToLongDate,
-    parseAmountFromLocalizedNumerals
+    parseAmountFromLocalizedNumerals,
+    formatAmountToLocalizedNumeralsWithCurrency
 } = useI18n();
 const { showAlert, showConfirm, showToast, routeBackOnError } = useI18nUIComponents();
 
@@ -677,6 +681,31 @@ const quickSaveButtonFloatingPosition = computed<string>(() => {
         default:
             return 'right-bottom';
     }
+});
+
+function getAccountBalanceDisplay(account: Account): string {
+    if (account.creditLimit) {
+        const outstanding = -account.balance;
+        const available = account.creditLimit + account.balance;
+        return formatAmountToLocalizedNumeralsWithCurrency(outstanding, account.currency)
+            + ' · ' + tt('Available') + ' ' + formatAmountToLocalizedNumeralsWithCurrency(available, account.currency);
+    }
+    const displayBalance = account.isLiability ? -account.balance : account.balance;
+    return formatAmountToLocalizedNumeralsWithCurrency(displayBalance, account.currency);
+}
+
+const sourceAccountBalanceDisplay = computed<string>(() => {
+    if (!transaction.value.sourceAccountId) return '';
+    const account = allVisibleAccounts.value.find(a => a.id === transaction.value.sourceAccountId);
+    if (!account) return '';
+    return getAccountBalanceDisplay(account);
+});
+
+const destinationAccountBalanceDisplay = computed<string>(() => {
+    if (!transaction.value.destinationAccountId) return '';
+    const account = allVisibleAccounts.value.find(a => a.id === transaction.value.destinationAccountId);
+    if (!account) return '';
+    return getAccountBalanceDisplay(account);
 });
 
 const sourceAmountClass = computed<Record<string, boolean>>(() => {

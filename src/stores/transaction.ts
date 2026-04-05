@@ -54,11 +54,12 @@ import {
     splitItemsToMap,
     countSplitItems
 } from '@/lib/common.ts';
-import { parseDateTimeFromUnixTimeWithTimezoneOffset } from '@/lib/datetime.ts';
+import { parseDateTimeFromUnixTimeWithTimezoneOffset, getCurrentUnixTime, getTimezoneOffsetMinutes } from '@/lib/datetime.ts';
 import { getAmountWithDecimalNumberCount } from '@/lib/numeral.ts';
 import { getCurrencyFraction } from '@/lib/currency.ts';
 import { getFirstVisibleCategoryId } from '@/lib/category.ts';
 import services, { type ApiResponsePromise } from '@/lib/services.ts';
+import { generateRandomUUID } from '@/lib/misc.ts';
 import logger from '@/lib/logger.ts';
 
 export interface TransactionListPartialFilter {
@@ -1166,6 +1167,59 @@ export const useTransactionsStore = defineStore('transactions', () => {
         });
     }
 
+    function adjustAccountBalance({ accountId, targetBalance, currentBalance }: { accountId: string, targetBalance: number, currentBalance: number }): Promise<boolean> {
+        return new Promise((resolve, reject) => {
+            const now = getCurrentUnixTime();
+            const utcOffset = getTimezoneOffsetMinutes(now);
+            const delta = targetBalance - currentBalance;
+
+            if (delta === 0) {
+                resolve(true);
+                return;
+            }
+
+            services.addTransaction({
+                type: TransactionType.ModifyBalance,
+                categoryId: '0',
+                time: now,
+                utcOffset: utcOffset,
+                sourceAccountId: accountId,
+                destinationAccountId: '0',
+                sourceAmount: delta,
+                destinationAmount: 0,
+                hideAmount: false,
+                tagIds: [],
+                pictureIds: [],
+                comment: '',
+                clientSessionId: generateRandomUUID()
+            }).then(response => {
+                const data = response.data;
+
+                if (!data || !data.success || !data.result) {
+                    reject({ message: 'Unable to adjust account balance' });
+                    return;
+                }
+
+                const accountsStore = useAccountsStore();
+                accountsStore.loadAllAccounts({ force: true }).then(() => {
+                    updateTransactionListInvalidState(true);
+                    resolve(true);
+                }).catch(() => {
+                    updateTransactionListInvalidState(true);
+                    resolve(true);
+                });
+            }).catch(error => {
+                if (error.response && error.response.data && error.response.data.errorMessage) {
+                    reject({ error: error.response.data });
+                } else if (!error.processed) {
+                    reject({ message: 'Unable to adjust account balance' });
+                } else {
+                    reject(error);
+                }
+            });
+        });
+    }
+
     function deleteTransaction({ transaction, defaultCurrency, beforeResolve }: { transaction: TransactionInfoResponse, defaultCurrency: string, beforeResolve?: BeforeResolveFunction }): Promise<boolean> {
         return new Promise((resolve, reject) => {
             services.deleteTransaction({
@@ -1472,6 +1526,7 @@ export const useTransactionsStore = defineStore('transactions', () => {
         getReconciliationStatements,
         getTransaction,
         saveTransaction,
+        adjustAccountBalance,
         moveAllTransactionsBetweenAccounts,
         deleteTransaction,
         recognizeReceiptImage,

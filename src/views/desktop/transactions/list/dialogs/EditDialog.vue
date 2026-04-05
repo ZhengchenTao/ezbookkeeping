@@ -211,6 +211,7 @@
                                                                    :disabled="loading || submitting || !allVisibleAccounts.length || (mode === TransactionEditPageMode.Edit && transaction.type === TransactionType.ModifyBalance)"
                                                                    :enable-filter="true" :filter-placeholder="tt('Find account')" :filter-no-items-text="tt('No available account')"
                                                                    :custom-selection-primary-text="sourceAccountName"
+                                                                   :custom-selection-secondary-text="sourceAccountBalanceDisplay"
                                                                    :label="tt(sourceAccountTitle)"
                                                                    :placeholder="tt(sourceAccountTitle)"
                                                                    :items="allVisibleCategorizedAccounts"
@@ -236,6 +237,7 @@
                                                                    :disabled="loading || submitting || !allVisibleAccounts.length"
                                                                    :enable-filter="true" :filter-placeholder="tt('Find account')" :filter-no-items-text="tt('No available account')"
                                                                    :custom-selection-primary-text="destinationAccountName"
+                                                                   :custom-selection-secondary-text="destinationAccountBalanceDisplay"
                                                                    :label="tt('Destination Account')"
                                                                    :placeholder="tt('Destination Account')"
                                                                    :items="allVisibleCategorizedAccounts"
@@ -510,6 +512,7 @@ import { SUPPORTED_IMAGE_EXTENSIONS } from '@/consts/file.ts';
 import { TransactionTemplate } from '@/models/transaction_template.ts';
 import type { TransactionPictureInfoBasicResponse } from '@/models/transaction_picture_info.ts';
 import { Transaction } from '@/models/transaction.ts';
+import type { Account } from '@/models/account.ts';
 
 import {
     getTimezoneOffsetMinutes,
@@ -567,7 +570,7 @@ const props = defineProps<{
     show?: boolean;
 }>();
 
-const { tt } = useI18n();
+const { tt, formatAmountToLocalizedNumeralsWithCurrency } = useI18n();
 
 const {
     mode,
@@ -643,6 +646,31 @@ const initOptions = ref<TransactionEditOptions | undefined>(undefined);
 
 let resolveFunc: ((response?: TransactionEditResponse) => void) | null = null;
 let rejectFunc: ((reason?: unknown) => void) | null = null;
+
+function getAccountBalanceDisplay(account: Account): string {
+    if (account.creditLimit) {
+        const outstanding = -account.balance;
+        const available = account.creditLimit + account.balance;
+        return formatAmountToLocalizedNumeralsWithCurrency(outstanding, account.currency)
+            + ' · ' + tt('Available') + ' ' + formatAmountToLocalizedNumeralsWithCurrency(available, account.currency);
+    }
+    const displayBalance = account.isLiability ? -account.balance : account.balance;
+    return formatAmountToLocalizedNumeralsWithCurrency(displayBalance, account.currency);
+}
+
+const sourceAccountBalanceDisplay = computed<string>(() => {
+    if (!transaction.value.sourceAccountId) return '';
+    const account = allVisibleAccounts.value.find(a => a.id === transaction.value.sourceAccountId);
+    if (!account) return '';
+    return getAccountBalanceDisplay(account);
+});
+
+const destinationAccountBalanceDisplay = computed<string>(() => {
+    if (!transaction.value.destinationAccountId) return '';
+    const account = allVisibleAccounts.value.find(a => a.id === transaction.value.destinationAccountId);
+    if (!account) return '';
+    return getAccountBalanceDisplay(account);
+});
 
 const sourceAmountColor = computed<string | undefined>(() => {
     if (transaction.value.type === TransactionType.Expense) {
