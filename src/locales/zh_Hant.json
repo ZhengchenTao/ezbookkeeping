@@ -1889,6 +1889,8 @@
     "Are you sure you want to move all transactions?": "您確定要移動所有交易？",
     "Unable to move transactions": "無法移動交易",
     "All transactions in this account have been moved.": "此帳戶中的所有交易已被移動。",
+    "Credit Limit": "信用額度",
+    "Available": "可用額度",
     "Reconciliation Statement": "對帳單",
     "Account Balance Trends": "帳戶餘額趨勢",
     "Update Closing Balance": "更新期末餘額",

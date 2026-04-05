@@ -245,7 +245,7 @@
                 v-if="pageTypeAndMode?.type === TransactionEditPageType.Transaction"
             >
                 <template #header>
-                    <div class="transaction-edit-datetime-header" @click="showDateTimeDialog('time')">{{ tt('Transaction Time') }}</div>
+                    <div class="transaction-edit-datetime-header" @click="showDateTimeDialog('date')">{{ tt('Transaction Time') }}</div>
                 </template>
                 <template #title>
                     <div class="transaction-edit-datetime-title">

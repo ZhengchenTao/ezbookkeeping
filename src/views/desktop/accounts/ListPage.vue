@@ -276,6 +276,10 @@
                                                                     </v-btn>
                                                                     <v-spacer/>
                                                                     <span class="account-balance ms-2">{{ accountBalance(element, activeSubAccount[element.id]) }}</span>
+                                                                    <small class="text-medium-emphasis ms-2"
+                                                                           v-if="!activeSubAccount[element.id] && element.creditLimit">
+                                                                        {{ tt('Available') }}: {{ getRemainingCredit(element) }}
+                                                                    </small>
                                                                 </div>
                                                             </v-card-text>
                                                         </v-card>
@@ -365,7 +369,7 @@ type ClearAllTransactionsDialogType = InstanceType<typeof ClearAllTransactionsDi
 
 const display = useDisplay();
 
-const { tt, getAllDateRanges, getCurrencyName, joinMultiText } = useI18n();
+const { tt, getAllDateRanges, getCurrencyName, joinMultiText, formatAmountToLocalizedNumeralsWithCurrency } = useI18n();
 
 const {
     loading,
@@ -471,6 +475,11 @@ function reload(force: boolean): void {
 
 function hasAccount(accountCategory: AccountCategory): boolean {
     return accountsStore.hasAccount(accountCategory, !showHidden.value);
+}
+
+function getRemainingCredit(account: Account): string {
+    const available = (account.creditLimit ?? 0) + account.balance;
+    return formatAmountToLocalizedNumeralsWithCurrency(available, account.currency);
 }
 
 function accountCurrency(account: Account): string | null {

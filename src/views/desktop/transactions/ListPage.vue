@@ -698,6 +698,7 @@ import { type NumeralSystem, AmountFilterType } from '@/core/numeral.ts';
 import { ThemeType } from '@/core/theme.ts';
 import { TransactionType } from '@/core/transaction.ts';
 import { TemplateType }  from '@/core/template.ts';
+import { AccountType } from '@/core/account.ts';
 import type { TransactionCategory } from '@/models/transaction_category.ts';
 import { type Transaction, TransactionTagFilter } from '@/models/transaction.ts';
 import type { TransactionTemplate } from '@/models/transaction_template.ts';
@@ -894,6 +895,11 @@ const filteredSingleAccount = computed(() => {
 const filteredAccountBalanceText = computed<string>(() => {
     const account = filteredSingleAccount.value;
     if (!account) return '';
+    if (account.type === AccountType.MultiSubAccounts.type) {
+        const result = accountsStore.getAccountSubAccountBalance(true, true, account);
+        if (!result) return '';
+        return formatAmountToLocalizedNumeralsWithCurrency(result.balance, result.currency);
+    }
     if (account.creditLimit) {
         const outstanding = -account.balance;
         const available = account.creditLimit + account.balance;
