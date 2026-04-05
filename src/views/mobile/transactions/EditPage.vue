@@ -459,10 +459,12 @@
                 <f7-actions-button @click="showTransactionPictures = true">{{ tt('Add Picture') }}</f7-actions-button>
             </f7-actions-group>
             <f7-actions-group v-if="pageTypeAndMode?.type === TransactionEditPageType.Transaction && mode === TransactionEditPageMode.View && transaction.type !== TransactionType.ModifyBalance">
+                <f7-actions-button @click="navigateToEdit()">{{ tt('Edit') }}</f7-actions-button>
                 <f7-actions-button @click="duplicate(false, false)">{{ tt('Duplicate') }}</f7-actions-button>
                 <f7-actions-button @click="duplicate(true, false)">{{ tt('Duplicate (With Time)') }}</f7-actions-button>
                 <f7-actions-button @click="duplicate(false, true)" v-if="transaction.geoLocation">{{ tt('Duplicate (With Geographic Location)') }}</f7-actions-button>
                 <f7-actions-button @click="duplicate(true, true)" v-if="transaction.geoLocation">{{ tt('Duplicate (With Time and Geographic Location)') }}</f7-actions-button>
+                <f7-actions-button color="red" @click="remove()">{{ tt('Delete') }}</f7-actions-button>
             </f7-actions-group>
             <f7-actions-group>
                 <f7-actions-button bold close>{{ tt('Cancel') }}</f7-actions-button>
@@ -640,6 +642,7 @@ const pictureInput = useTemplateRef<HTMLInputElement>('pictureInput');
 const isSupportClipboard = !!navigator.clipboard;
 
 const loadingError = ref<unknown | null>(null);
+const isFirstEntry = ref<boolean>(true);
 const removingPictureId = ref<string | null>(null);
 const transactionDateTimeSheetMode = ref<string>('time');
 const showTimeInDefaultTimezone = ref<boolean>(false);
@@ -1319,12 +1322,49 @@ function duplicate(withTime?: boolean, withGeoLocation?: boolean): void {
     props.f7router.navigate(`/transaction/add?id=${transaction.value.id}&type=${transaction.value.type}&withTime=${withTime ?? false}&withGeoLocation=${withGeoLocation ?? false}`);
 }
 
+function navigateToEdit(): void {
+    props.f7router.navigate(`/transaction/edit?id=${transaction.value.id}&type=${transaction.value.type}`);
+}
+
+function remove(): void {
+    showConfirm('Are you sure you want to delete this transaction?', () => {
+        showLoading();
+        transactionsStore.deleteTransaction({
+            transaction: transaction.value,
+            defaultCurrency: defaultCurrency.value
+        }).then(() => {
+            hideLoading();
+            props.f7router.back();
+        }).catch(error => {
+            hideLoading();
+            if (!error.processed) {
+                showToast(error.message || error);
+            }
+        });
+    });
+}
+
 function onPageAfterIn(): void {
     routeBackOnError(props.f7router, loadingError);
 
     if (settingsStore.appSettings.autoGetCurrentGeoLocation && mode.value === TransactionEditPageMode.Add
         && !geoLocationStatus.value && !transaction.value.geoLocation) {
         updateGeoLocation(false);
+    }
+
+    if (isFirstEntry.value) {
+        isFirstEntry.value = false;
+        return;
+    }
+
+    if (mode.value === TransactionEditPageMode.View && query['id']) {
+        transactionsStore.getTransaction({ transactionId: query['id'], withPictures: true }).then(t => {
+            setTransactionModel(t, {}, true);
+        }).catch(error => {
+            if (!error.processed) {
+                showToast(error.message || error);
+            }
+        });
     }
 }
 

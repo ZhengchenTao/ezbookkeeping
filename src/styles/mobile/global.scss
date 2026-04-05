@@ -3,6 +3,15 @@ html, body {
     position: fixed;
 }
 
+:root {
+    --f7-page-transition-duration: 150ms;
+    --f7-sheet-transition-duration: 150ms;
+    --f7-actions-transition-duration: 150ms;
+    --f7-popup-transition-duration: 150ms;
+    --f7-dialog-transition-duration: 150ms;
+    --f7-popover-transition-duration: 150ms;
+}
+
 body {
     -ms-user-select: none;
     -webkit-user-select: none;
