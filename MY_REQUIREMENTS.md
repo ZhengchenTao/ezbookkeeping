@@ -14,7 +14,8 @@
 - 后端：`AccountExtend` JSON blob 新增 `CreditLimit` 字段（无需数据库迁移）
 - API：`AccountCreateRequest` / `AccountModifyRequest` / `AccountInfoResponse` 增加 `creditLimit`
 - 前端 model：`Account` 类增加 `creditLimit` 字段，同步序列化/反序列化
-- 移动端 EditPage：CreditCard 分类时显示信用额度输入项
+- 移动端 EditPage：CreditCard 分类时显示信用额度输入项（数字键盘）
+- 桌面端 EditDialog：CreditCard 分类时显示信用额度输入框（`amount-input`）
 - 移动端 ListPage：账户名下方显示「可用额度: ¥xxx」（= `creditLimit + balance`）
 - 桌面端 ListPage：账户卡片余额旁显示「Available: ¥xxx」
 - 语言包：中英繁均已添加 `"Credit Limit"` / `"Available"`
