@@ -7,16 +7,15 @@
 
 ## 一、UI / 主题
 
-### 1. ⚠️ 自选主题色
+### 1. ❌ 自选主题色（已实现后 revert）
 **描述：** 在设置页面增加主题色选择器，用户可自由选择应用主色调。
 
-**现状：** 主题色当前硬编码为 `#c67e48`，仅支持亮色/暗色切换。
+**现状：** 实现后效果不佳，已全部 revert。主题色仍为硬编码 `#c67e48`。
 
-**实现思路：**
-- 在设置页新增颜色选择器组件
-- 将所选颜色保存至 `localStorage`
-- 启动时读取颜色并注入 CSS 变量（Framework7 支持动态 primary color）
-- 涉及文件：`src/MobileApp.vue`、`src/lib/settings.ts`、设置页面
+**实现思路（留存备查）：**
+- 存 localStorage + 云同步，启动时注入 `--ebk-theme-color` CSS 变量
+- 移动端 f7params / 桌面端 Vuetify theme 从设置读取
+- 预设颜色复用账户 14 色调板
 
 ---
 
@@ -126,12 +125,15 @@
 
 ## 七、分类选择
 
-### 10. ❓ 分类选择默认全部展开（待定）
-**描述：** 在记账页选择分类时，默认展开所有一级分类。
+### 10. 🟢 分类选择默认全部展开（仅移动端）
+**描述：** 在移动端记账页选择分类时，默认展开所有一级分类。PC 端使用不同的分类选择组件，无需此设置。
 
-**实现思路：**
-- 修改 `TreeViewSelectionSheet.vue` 中展开状态的初始值
-- 涉及文件：`src/components/mobile/TreeViewSelectionSheet.vue`
+**已完成：**
+- 设置存 localStorage（字段 `expandCategoryTreeByDefault`，默认 `false`），即时生效无需 reload
+- `TreeViewSelectionSheet` 新增可选 prop `defaultExpanded`，`:opened` 改为 `props.defaultExpanded || isPrimaryItemHasSecondaryValue(item)`
+- 移动端 EditPage 三个分类 sheet（支出/收入/转账）均传入 `:default-expanded`
+- 设置仅在移动端设置页显示，PC 端无对应入口
+- 涉及文件：`src/components/mobile/TreeViewSelectionSheet.vue`、`src/views/mobile/transactions/EditPage.vue`、`src/views/mobile/SettingsPage.vue`
 
 ---
 
@@ -170,7 +172,7 @@
 
 | # | 需求 | 状态 |
 |---|------|------|
-| 1 | 自选主题色 | ⚠️ 待做 |
+| 1 | 自选主题色 | ❌ 已 revert |
 | 2 | 信用卡额度 | 🟢 已完成 |
 | 3 | 账户信息卡片 | 🟢 已完成 |
 | 4 | 调整余额入口 | 🟢 已完成 |
@@ -179,7 +181,7 @@
 | 7 | 小键盘布局 | 🟢 已完成 |
 | 8 | 详情编辑/删除 | 🟢 已完成 |
 | 9 | 点击时间默认日期选择器 | 🟢 已完成 |
-| 10 | 分类默认展开 | ❓ 待定 |
+| 10 | 分类默认展开 | 🟢 已完成 |
 | 11 | 全局动画加速 | 🟢 已完成 |
 | 12 | 点击卡顿优化 | 🔍 暂调查 |
 | 13 | 离线缓存 | ❌ 暂缓 |

@@ -36,6 +36,7 @@ export interface ApplicationSettings extends BaseApplicationSetting {
     showAccountBalance: boolean;
     swipeBack: boolean;
     animate: boolean;
+    expandCategoryTreeByDefault: boolean;
     // Application Lock
     applicationLock: boolean;
     applicationLockWebAuthn: boolean;
@@ -174,6 +175,7 @@ export const DEFAULT_APPLICATION_SETTINGS: ApplicationSettings = {
     showAccountBalance: true,
     swipeBack: true,
     animate: true,
+    expandCategoryTreeByDefault: false,
     // Application Lock
     applicationLock: false,
     applicationLockWebAuthn: false,

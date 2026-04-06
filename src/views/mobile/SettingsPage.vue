@@ -108,6 +108,15 @@
                 </template>
             </f7-list-item>
 
+            <f7-list-item>
+                <template #after-title>
+                    {{ tt('Expand Category List By Default') }}
+                </template>
+                <template #after>
+                    <f7-toggle :checked="expandCategoryTreeByDefault" @toggle:change="expandCategoryTreeByDefault = $event"></f7-toggle>
+                </template>
+            </f7-list-item>
+
             <f7-list-item :title="tt('Browser Cache Management')" link="/settings/browser_caches"></f7-list-item>
             <f7-list-item link="#" no-chevron :title="tt('Switch to Desktop Version')" @click="switchToDesktopVersion"></f7-list-item>
 
@@ -153,7 +162,6 @@ const version = `${getClientDisplayVersion()}`;
 const logouting = ref<boolean>(false);
 const showThemePopup = ref<boolean>(false);
 const showTimezonePopup = ref<boolean>(false);
-
 const currentNickName = computed<string>(() => userStore.currentUserNickname || tt('User'));
 
 const currentTheme = computed<string>({
@@ -174,6 +182,13 @@ const currentTimezoneName = computed<string>(() => {
     }
 
     return '';
+});
+
+const expandCategoryTreeByDefault = computed<boolean>({
+    get: () => settingsStore.appSettings.expandCategoryTreeByDefault,
+    set: value => {
+        settingsStore.setExpandCategoryTreeByDefault(value);
+    }
 });
 
 const isEnableSwipeBack = computed<boolean>({

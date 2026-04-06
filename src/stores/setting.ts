@@ -171,6 +171,11 @@ export const useSettingsStore = defineStore('settings', () => {
         appSettings.value.animate = value;
     }
 
+    function setExpandCategoryTreeByDefault(value: boolean): void {
+        updateApplicationSettingsValue('expandCategoryTreeByDefault', value);
+        appSettings.value.expandCategoryTreeByDefault = value;
+    }
+
     // Application Lock
     function setEnableApplicationLock(value: boolean): void {
         updateApplicationSettingsValue('applicationLock', value);
@@ -528,6 +533,7 @@ export const useSettingsStore = defineStore('settings', () => {
         setShowAccountBalance,
         setEnableSwipeBack,
         setEnableAnimate,
+        setExpandCategoryTreeByDefault,
         // -- Application Lock
         setEnableApplicationLock,
         setEnableApplicationLockWebAuthn,
