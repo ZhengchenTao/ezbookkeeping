@@ -135,6 +135,7 @@ export const ALL_ALLOWED_CLOUD_SYNC_APP_SETTING_KEY_TYPES: Record<string, UserAp
     'autoSaveTransactionDraft': UserApplicationCloudSettingType.String,
     'autoGetCurrentGeoLocation': UserApplicationCloudSettingType.Boolean,
     'alwaysShowTransactionPicturesInMobileTransactionEditPage': UserApplicationCloudSettingType.Boolean,
+    'expandCategoryTreeByDefault': UserApplicationCloudSettingType.Boolean,
     // Import Transaction Dialog
     'rememberLastSelectedFileTypeInImportTransactionDialog': UserApplicationCloudSettingType.Boolean,
     'lastSelectedFileTypeInImportTransactionDialog': UserApplicationCloudSettingType.String,
