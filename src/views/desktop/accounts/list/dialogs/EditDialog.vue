@@ -129,6 +129,17 @@
                                         v-model="account.creditCardStatementDate"
                                     ></v-autocomplete>
                                 </v-col>
+                                <v-col cols="12" md="6" v-if="currentAccountIndex < 0 && isAccountSupportCreditCardStatementDate">
+                                    <amount-input :disabled="loading || submitting"
+                                                  :persistent-placeholder="true"
+                                                  :currency="selectedAccount.currency"
+                                                  :show-currency="true"
+                                                  :flip-negative="false"
+                                                  :label="tt('Credit Limit')"
+                                                  :placeholder="tt('Credit Limit')"
+                                                  :model-value="account.creditLimit ?? 0"
+                                                  @update:model-value="account.creditLimit = $event > 0 ? $event : undefined"/>
+                                </v-col>
                                 <v-col cols="12" :md="(!editAccountId || isNewAccount(selectedAccount)) && selectedAccount.balance ? 6 : 12"
                                        v-if="account.type === AccountType.SingleAccount.type || currentAccountIndex >= 0">
                                     <amount-input :disabled="loading || submitting"
