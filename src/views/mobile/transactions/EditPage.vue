@@ -119,6 +119,7 @@
                                            secondary-icon-field="icon" secondary-icon-type="category" secondary-color-field="color"
                                            secondary-hidden-field="hidden"
                                            :enable-filter="true" :filter-placeholder="tt('Find category')" :filter-no-items-text="tt('No available category')"
+                                           :default-expanded="settingsStore.appSettings.expandCategoryTreeByDefault"
                                            :items="allCategories[CategoryType.Expense]"
                                            v-model:show="showCategorySheet"
                                            v-model="transaction.expenseCategoryId">
@@ -151,6 +152,7 @@
                                            secondary-icon-field="icon" secondary-icon-type="category" secondary-color-field="color"
                                            secondary-hidden-field="hidden"
                                            :enable-filter="true" :filter-placeholder="tt('Find category')" :filter-no-items-text="tt('No available category')"
+                                           :default-expanded="settingsStore.appSettings.expandCategoryTreeByDefault"
                                            :items="allCategories[CategoryType.Income]"
                                            v-model:show="showCategorySheet"
                                            v-model="transaction.incomeCategoryId">
@@ -183,6 +185,7 @@
                                            secondary-icon-field="icon" secondary-icon-type="category" secondary-color-field="color"
                                            secondary-hidden-field="hidden"
                                            :enable-filter="true" :filter-placeholder="tt('Find category')" :filter-no-items-text="tt('No available category')"
+                                           :default-expanded="settingsStore.appSettings.expandCategoryTreeByDefault"
                                            :items="allCategories[CategoryType.Transfer]"
                                            v-model:show="showCategorySheet"
                                            v-model="transaction.transferCategoryId">

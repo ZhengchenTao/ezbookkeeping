@@ -21,7 +21,7 @@
             </f7-list>
             <f7-treeview class="tree-view-selection-treeview">
                 <f7-treeview-item item-toggle
-                                  :opened="isPrimaryItemHasSecondaryValue(item)"
+                                  :opened="props.defaultExpanded || isPrimaryItemHasSecondaryValue(item)"
                                   :label="ti((primaryTitleField ? item[primaryTitleField] : item) as string, !!primaryTitleI18n)"
                                   :key="primaryKeyField ? item[primaryKeyField] : item"
                                   v-for="item in filteredItems">
@@ -59,6 +59,7 @@ import { type Framework7Dom, scrollSheetToTop } from '@/lib/ui/mobile.ts';
 
 interface MobileTwoLevelItemSelectionBaseProps extends TwoLevelItemSelectionBaseProps {
     show: boolean;
+    defaultExpanded?: boolean;
 }
 
 const props = defineProps<MobileTwoLevelItemSelectionBaseProps>();
