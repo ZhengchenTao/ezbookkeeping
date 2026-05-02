@@ -1,17 +1,45 @@
 name: Deploy Docker Image
 
 on:
-  workflow_dispatch
+  # 自动触发：build-image workflow 成功完成后跑
+  # workflow_run 是 cross-workflow 依赖：build 成功 → deploy 自动跟上
+  workflow_run:
+    workflows: ["Build Docker Image"]
+    types: [completed]
+    branches: [custom]
+  # 手动触发：保留作为应急通道（重新部署当前镜像 / 跑临时脚本）
+  workflow_dispatch:
 
 jobs:
-  build:
+  deploy:
     runs-on: ubuntu-latest
+    # 只在 build 成功后跑；手动触发时 workflow_run 字段不存在，
+    # || true 保证手动跑也能继续
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
     steps:
       - name: Execute custom script
+        # 用 > 覆盖而不是 >> 追加，避免历史脚本累积
         run: |
-          cat >> deploy.sh <<EOF
+          cat > deploy.sh <<'EOF'
           #!/bin/sh
+          set -e
           ${{ vars.CUSTOM_DEPLOY_SCRIPTS }}
           EOF
           chmod +x deploy.sh
           ./deploy.sh
+
+      - name: Deploy summary
+        if: always()
+        run: |
+          {
+            echo "## Deploy Summary"
+            echo ""
+            echo "| 项 | 值 |"
+            echo "|---|---|"
+            echo "| 触发方式 | \`${{ github.event_name }}\` |"
+            if [ "${{ github.event_name }}" = "workflow_run" ]; then
+              echo "| 触发自 | \`${{ github.event.workflow_run.name }}\` run #${{ github.event.workflow_run.run_number }} |"
+              echo "| 上游 build 结果 | \`${{ github.event.workflow_run.conclusion }}\` |"
+              echo "| 上游 build commit | \`${{ github.event.workflow_run.head_sha }}\` |"
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
