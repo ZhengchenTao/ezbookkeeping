@@ -23,6 +23,16 @@ jobs:
     # 第一个条件保证手动跑也能继续
     if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
     steps:
+      # 登录 Gitea Container Registry，否则 docker compose pull 私有镜像 401。
+      # 跟 build-image.yml 那步是同一个 PACKAGES_TOKEN，但每个 workflow 容器
+      # 是干净环境，凭据不会从 build 步骤继承过来，必须在这里再登一次。
+      - name: Login to Gitea Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: git.zhengchentao.win
+          username: ${{ gitea.actor }}
+          password: ${{ secrets.PACKAGES_TOKEN }}
+
       - name: Pull and restart ezbookkeeping
         # 部署逻辑直接内联在这。runner 容器挂了 host docker.sock，
         # 所以这里 docker 命令直接操作的是宿主机 docker daemon，
