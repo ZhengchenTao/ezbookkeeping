@@ -1,0 +1,93 @@
+name: Build Docker Image
+
+on:
+  workflow_dispatch:
+    inputs:
+      branch:
+        description: '要打包的分支'
+        required: true
+        default: 'custom'
+      tag:
+        description: '镜像 tag（留空则用 commit short hash）'
+        required: false
+        default: ''
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout target branch
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.branch }}
+          fetch-depth: 0
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+        with:
+          # 钉到 v0.13.2（自带 runc 1.1.x），避免 runc 1.2+ 的 procfs 安全检查
+          # 在 DSM 老内核（4.4.x）上撞 openat2/fsmount 不存在导致 build 失败
+          driver-opts: |
+            image=moby/buildkit:v0.13.2
+
+      - name: Login to Gitea Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: git.zhengchentao.win
+          username: ${{ gitea.actor }}
+          password: ${{ secrets.PACKAGES_TOKEN }}
+
+      - name: Determine image tag and revision
+        id: meta
+        run: |
+          if [ -n "${{ inputs.tag }}" ]; then
+            IMAGE_TAG="${{ inputs.tag }}"
+          else
+            IMAGE_TAG="$(git rev-parse --short HEAD)"
+          fi
+          echo "image_tag=$IMAGE_TAG" >> $GITHUB_OUTPUT
+          echo "full_sha=$(git rev-parse HEAD)" >> $GITHUB_OUTPUT
+          echo "==> Image tag: $IMAGE_TAG"
+
+      - name: Build and push
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          # 上游 Dockerfile 用 BUILD_PIPELINE 作为 CI 跳过开关：
+          # 设为 "1" 时 pkg/exchangerates 跳过依赖第三方 API 的活测试
+          # （加拿大银行/乌兹别克央行 API 国内不稳，跑就超时）
+          # CHECK_3RD_API 留空 → 三方 API 测试不跑；想跑设 "1"
+          build-args: |
+            BUILD_PIPELINE=1
+          # OCI 标签：
+          # - source 让 Gitea 收包时自动把镜像关联到对应 repo（不再需要手动去
+          #   "包设置 → 链接到仓库"）
+          # - revision 把构建时的 commit full SHA 烙进镜像 manifest，
+          #   docker inspect 能反推回源码版本
+          labels: |
+            org.opencontainers.image.source=https://git.zhengchentao.win/dev/ezbookkeeping
+            org.opencontainers.image.revision=${{ steps.meta.outputs.full_sha }}
+          tags: |
+            git.zhengchentao.win/dev/ezbookkeeping:${{ steps.meta.outputs.image_tag }}
+            git.zhengchentao.win/dev/ezbookkeeping:latest
+
+      - name: Build summary
+        # 写入 GITHUB_STEP_SUMMARY 让 Action 运行页面顶部显示真实构建信息。
+        # workflow 文件在 ci 分支，UI 顶部显示的 commit 是 ci 的 HEAD（workflow
+        # 触发位置），不是被构建的源代码 commit。这一步显式把"实际构建的源代码
+        # 信息"放到 summary 区，避免误读。always() 保证 build 失败也输出。
+        if: always()
+        run: |
+          {
+            echo "## Build Summary"
+            echo ""
+            echo "| 项 | 值 |"
+            echo "|---|---|"
+            echo "| 源分支 | \`${{ inputs.branch }}\` |"
+            echo "| 源 commit (full) | \`${{ steps.meta.outputs.full_sha }}\` |"
+            echo "| 源 commit (short) | \`${{ steps.meta.outputs.image_tag }}\` |"
+            echo "| 镜像 tag | \`git.zhengchentao.win/dev/ezbookkeeping:${{ steps.meta.outputs.image_tag }}\` + \`:latest\` |"
+            echo ""
+            echo "> ⚠️ 本次 workflow run 顶部显示的 commit 是 **ci 分支** 上 workflow 文件的 commit（dispatch 触发位置），**不是**被构建的源代码 commit。镜像实际构建自上面表格中的源 commit。"
+          } >> "$GITHUB_STEP_SUMMARY"

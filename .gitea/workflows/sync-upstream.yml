@@ -1,0 +1,39 @@
+name: Sync from upstream
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: '要同步的 release tag（留空则同步到 upstream/main 的最新 tag）'
+        required: false
+        default: ''
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.SYNC_TOKEN }}
+
+      - name: Sync main to release tag
+        run: |
+          git config user.name "gitea-actions"
+          git config user.email "actions@gitea.local"
+          git remote add upstream https://git.zhengchentao.win/mirror/ezbookkeeping.git
+          git fetch upstream --tags
+
+          if [ -n "${{ inputs.tag }}" ]; then
+            TARGET="${{ inputs.tag }}"
+          else
+            TARGET=$(git tag -l --sort=-v:refname | head -n 1)
+          fi
+
+          echo "==> Syncing main to $TARGET"
+          git rev-parse "$TARGET" || { echo "❌ Tag $TARGET not found"; exit 1; }
+
+          git checkout -B main origin/main
+          git reset --hard "$TARGET"
+          git push origin main --force-with-lease
+          git push origin --tags
