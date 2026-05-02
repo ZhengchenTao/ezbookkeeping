@@ -74,9 +74,11 @@ git.zhengchentao.win/dev/ezbookkeeping     （origin，本地唯一 remote）
 日常 feature commit 流程（全自动 CD）：
 
 1. 在 custom 上改代码 → commit → push
-2. **自动触发 build**（除非只改了 `**.md` / `.gitengine` / `LICENSE` / `screenshot/**`）
-3. build 成功 → **自动触发 deploy**（跑 repo Variables 里的 `CUSTOM_DEPLOY_SCRIPTS`）
+2. **自动触发 build**（除非只改了 `**.md` / `.gitignore` / `LICENSE` / `screenshot/**`）
+3. build 成功 → **自动触发 deploy**（内联在 deploy.yml 里：clone nas-infra → docker compose pull → up -d）
 4. 整条 push → build → deploy 链路无人工介入
+
+**并发取消策略**：build-image.yml 与 deploy.yml 都设了 `concurrency.cancel-in-progress: true`，连续多次 push 时**只构建+部署最新那一次**，中间的 in-progress run 自动取消。例：连续 3 次 push 间隔 30 秒，第 1 次 build 跑到 30%、第 2 次到来取消它、第 3 次又取消第 2，最终只 build + deploy 第 3 次的代码。省 CI 时间又保证最终一致性。
 
 如果想跳过 build/deploy（例如手动多次 push 调试），commit 时只改文档相关文件即可（落在 paths-ignore 范围内）。如果想强制重打某个旧 commit，去 Actions UI 手动触发 `Build Docker Image`，填要打包的 branch / tag。如果想只重新部署当前镜像（不重新 build），手动触发 `Deploy Docker Image` workflow。
 

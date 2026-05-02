@@ -26,6 +26,14 @@ on:
         required: false
         default: ''
 
+# 并发控制：同一分支的连续 push 只跑最新的，旧 in-progress run 会被取消
+# 例：连续 3 次 push，第 1 次 build 跑了 30s，第 2 次开始 → 取消第 1，第 2 跑；
+# 期间第 3 次又来 → 取消第 2，第 3 跑。最后只构建出最新代码，省 CI 时间。
+# group 包含 ref 是为了不同分支的 build 互不干扰（虽然当前只有 custom 用）
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   build:
     runs-on: ubuntu-latest
