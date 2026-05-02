@@ -31,49 +31,35 @@ git.zhengchentao.win/dev/ezbookkeeping     （origin，本地唯一 remote）
 | 分支 | 职责 | force push? |
 |---|---|---|
 | `main` | **锚定上游 release tag**（当前 v1.4.0）。被 `.gitea/workflows/sync-upstream.yml` `git reset --hard <tag>` 覆写 | 是（由 CI 做） |
-| `custom` | **所有个人改动都在这**：信用额度功能、UI 调整、个人需求清单等。具体改动清单见 [`FORK.md`](FORK.md)。日常开发分支 | 是（rebase 后人工做） |
-| `ci` | **origin 的 default branch**。只放 `.gitea/workflows/*.yml`。独立于 main 和 custom | 否 |
+| `custom` | **所有个人改动 + workflow 文件都在这**：信用额度功能、UI 调整、个人需求清单、`.gitea/workflows/*.yml` 等。具体改动清单见 [`FORK.md`](FORK.md)。日常开发分支，**default branch** | 是（rebase 后人工做） |
+| `ci` | 历史 default branch，2026-05-02 已让位给 custom。`.gitea/workflows/` 暂保留作过渡，验证稳定后清理 | 否 |
 
-⚠️ origin 的 default branch 是 `ci` 不是 main 也不是 custom。`git clone` 默认会落在 ci。要做开发先 `git checkout custom`。
+⚠️ **2026-05-02 起 default branch 是 `custom`**。`git clone` 默认 checkout custom，直接是开发分支。
 
-### ci 与 custom 不需要保持一致（这是设计，不是 bug）
+### 为什么 workflow 在 custom 不在独立分支（2026-05-02 演进）
 
-三分支各管各的，**ci 与 custom 内容不重叠**：
+最初 workflow 单独放 ci 分支以"meta/code 分离"，但 Gitea Actions runs 列表显示的 commit 是 workflow 文件所在 commit（即 ci 的 HEAD），不是被构建的代码 commit，UX 误导性强。改放 custom 后：
 
-- ci：只有 `.gitea/workflows/*.yml`
-- custom：fork 代码 + FORK.md / CLAUDE.md / .gitignore 等
-- 理论上没有共享文件（除了 inherit 自上游的部分，例如 ci 分支也有 README、Dockerfile 等基底文件，但很少改它们）
+- runs 列表的 commit 字段 = 真实代码 commit ✅
+- workflow_dispatch UI 直接从 default branch（custom）发现 workflow ✅
+- rebase 上游时 workflow 跟 custom 一起平移，无需额外处理 ✅
+- 代价：失去"workflow 与代码完全独立"的设计美感 —— 但实际上 workflow 本来就是为构建当前代码服务的，这个分离原本就是过度设计
 
-**Gitea Actions UI 顶部显示的 commit 是 ci 的 HEAD，不是被构建的源代码 commit**。这是因为 workflow 文件在 ci 分支，dispatch 触发时 UI 引用的是 workflow 文件所在 commit。但实际：
-
-1. `actions/checkout` 用 `ref: ${{ inputs.branch }}` 拉的是 custom
-2. 镜像 tag 用 custom 的 short SHA
-3. OCI label `org.opencontainers.image.revision` 是 custom 的 full SHA
-4. workflow 末尾 Build summary 步骤把上述源 commit 显式写入 `$GITHUB_STEP_SUMMARY`，运行页面有突出显示
-
-所以**真实构建的代码 commit** 在镜像本身、运行页面 summary 区都能看到，UI 顶部那个只是 dispatch 触发位置的 commit，**不是 bug，无需修复，看 summary 区即可**。
-
-如果哪天觉得这种割裂太烦，可选两个替代方案：
-- 把 workflow 挪到 custom，删 ci（UI commit 直接对得上，但失去 meta/code 分离）
-- 加 `push: branches: [custom]` 自动触发（每次 push 自动 build，更直观但费 CI 时间）
-
-当前选 `workflow_dispatch only + summary step` 是中间路径，节省 CI 又能看到真实信息。
+**不要再把 workflow 文件提交到 ci 分支**。要改 `.gitea/workflows/*.yml` 直接在 custom 上改、commit、push。
 
 ---
 
-## ci 分支 workflow 清单
+## custom 分支 workflow 清单
 
-ci 分支的 `.gitea/workflows/` 当前有 5 个 workflow：
+`.gitea/workflows/` 当前有 3 个 workflow（2026-05-02 起精简，删了上游残留的 docker-snapshot/docker-release）：
 
 | 文件 | 触发 | 干什么 | 状态 |
 |---|---|---|---|
 | `sync-upstream.yml` | 手动（`workflow_dispatch`，可填 tag） | 服务端把 `dev/main` 强制 reset 到 mirror 上的指定 release tag（默认最新），然后 `push --force-with-lease` + 推 tags | ✅ 在用 |
 | `build-image.yml` | 手动（可填要打包的分支 + 镜像 tag） | checkout 指定分支（默认 `custom`）→ 装 buildkit v0.13.2（钉版本）→ 登录 Gitea registry → 构建镜像（带 OCI 标签 source/revision，Gitea 自动关联包到 repo）→ push 到 `git.zhengchentao.win/dev/ezbookkeeping:<hash>` 与 `:latest`，`build-args: BUILD_PIPELINE=1` 跳过活 API 测试 | ✅ 在用，是日常发布通道 |
 | `deploy.yml` | 手动 | 跑 repo Variables 里 `CUSTOM_DEPLOY_SCRIPTS` 这条自定义脚本（通用钩子，可拼"build 完触发 NAS 端 docker compose pull/up"等） | 🟡 通用钩子，按需配 |
-| `docker-snapshot.yml` | `push: branches: main` 自动 | 上游模板风格的 snapshot build（用 `secrets.DOCKER_REPO`，会改 Dockerfile 里 FROM 走私有 mirror） | ⚠️ 上游残留，main 被 sync-upstream force-push 时会触发；当前未配 secret 估计直接失败。要么补全 secret，要么删除 |
-| `docker-release.yml` | `push: tags: v*` 自动 | 同上但 release 风格，tag 推送时触发 | ⚠️ 同 docker-snapshot.yml，未配 secret 会失败 |
 
-**结论**：日常只用 `sync-upstream` + `build-image` 两个，其他三个要么按需启用要么后续清理。
+**已删**：`docker-snapshot.yml`（push main 自动触发，未配 secrets.DOCKER_REPO 永远失败）、`docker-release.yml`（push tag 同样问题）。需要时再从 git 历史 cherry-pick 回来。
 
 ---
 
@@ -83,7 +69,7 @@ ci 分支的 `.gitea/workflows/` 当前有 5 个 workflow：
 2. 人工触发 `Sync from upstream` workflow → 服务端把 dev/main reset 到该 tag
 3. 本地 `git fetch && git checkout custom && git rebase origin/main`
 4. 解冲突（如有）→ 验证 → `git push --force-with-lease origin custom`
-5. ci 分支上的 build-image workflow 触发，构建新镜像
+5. 在 Gitea Actions UI 手动触发 build-image workflow，构建新镜像
 
 **为什么 rebase 不 merge**：个人项目，无团队协作语义要保留，线性历史更清爽。
 
@@ -94,7 +80,7 @@ ci 分支的 `.gitea/workflows/` 当前有 5 个 workflow：
 - 用户说"我的分支" / "切换到我的分支" → 指 `custom`
 - 用户说"rebase main" → 指 `git rebase origin/main`，目标是把 custom 的改动叠到最新上游 tag 之上
 - **不要在 `main` 分支上提交任何东西**（会被 CI 覆写）
-- **不要把工作流文件提交到 `custom` 或 `main`**（应该走 ci 分支）
+- **workflow 文件改动直接在 custom 上做**（2026-05-02 起，不再是 ci 分支）
 - force-push custom 是常规操作，但每次用 `--force-with-lease`，不直接 `--force`
 - 如果发现本地配了 upstream remote，那是历史遗留，不要依赖；以 origin/main 为准
 - `.claude/` 在 `.gitignore` 里（个人本地配置不入库），但 `CLAUDE.md` 本身入库
@@ -106,8 +92,10 @@ ci 分支的 `.gitea/workflows/` 当前有 5 个 workflow：
 - **2026-05-01**：rebase custom → origin/main (v1.4.0)。22 个 custom-only 提交（含一个旧的 `Merge branch 'main' into myrequirement` commit）压平为 21 个线性提交。已 force-push origin/custom（`08c69042` → `fe265259`）。
 - **2026-05-02**：修 Gitea Actions `Build Docker Image` 工作流。三层故障，全部不在本仓库代码里：
   - **TLS 雷**：`docker login` 走 host 进程不命中 PREROUTING REDIRECT，且 v6 撞 DSM nginx 的 CF Origin Cert。NAS 侧修：iptables 补 OUTPUT 对称规则 + `/etc/hosts` 显式 v4 兜底。详见 obsidian vault [[NAS/notes/内网证书路径]] §三.5/§三.6
-  - **buildkit 内核兼容**：runc 1.2+ 撞 DSM 4.4 内核。ci 分支 `.gitea/workflows/build-image.yml` 钉 `moby/buildkit:v0.13.2`（commit `acdbb5bf`）
-  - **backend 单元测试撞活 API**：`pkg/exchangerates/` 的 `TestExchangeRatesApiLatestExchangeRateHandler_*` 跑活 API（加拿大银行 / 乌兹别克央行），国内访问超时。upstream Dockerfile 已设 `ARG BUILD_PIPELINE`，测试代码看到 `BUILD_PIPELINE=1 && CHECK_3RD_API!=1` 时早退。修：workflow 加 `build-args: BUILD_PIPELINE=1`（commit `2dd8f099`），对齐上游 GH Actions（`.github/actions/build-linux-docker-and-package/action.yml` line 91）
+  - **buildkit 内核兼容**：runc 1.2+ 撞 DSM 4.4 内核。`.gitea/workflows/build-image.yml` 钉 `moby/buildkit:v0.13.2`（commit `acdbb5bf`）
+  - **backend 单元测试撞活 API**：`pkg/exchangerates/` 的 `TestExchangeRatesApiLatestExchangeRateHandler_*` 跑活 API（加拿大银行 / 乌兹别克央行），国内访问超时。upstream Dockerfile 已设 `ARG BUILD_PIPELINE`，测试代码看到 `BUILD_PIPELINE=1 && CHECK_3RD_API!=1` 时早退。修：workflow 加 `build-args: BUILD_PIPELINE=1`（commit `2dd8f099`），对齐上游 GH Actions
+- **2026-05-02 (后续)**：workflow 文件从 ci 分支迁到 custom，default branch 切到 custom（commit `555ecc1a`）。原因：Gitea Actions runs 列表的 commit 字段一直显示 ci 的 workflow commit，不是被构建的代码 commit，UX 误导性强。挪到 custom 后列表直接显示真实代码 commit。同时清理上游残留的 `docker-release.yml` / `docker-snapshot.yml`（依赖未配的 `secrets.DOCKER_REPO`，永远失败）
+- **2026-05-02 (numpad fix)**：FORK.md #11 定位 + 修复。小键盘点击卡顿真因是 `.numpad-button` 的 `touch-action: none`（上游 e178a079 引入）与 F7 tap 处理叠加，改为 `touch-action: manipulation`（commit `75b4d78d`）
 
 ## 给后续 Claude 会话：CI 故障排查路径
 
