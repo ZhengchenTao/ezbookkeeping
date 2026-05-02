@@ -531,7 +531,10 @@ watch(() => props.flipNegative, (newValue) => {
     align-items: center;
     box-sizing: border-box;
     user-select: none;
-    touch-action: none;
+    /* 上游设的 touch-action: none 在 F7 tap 处理下让 click 慢一拍（小键盘卡顿
+       的实际根因，不是网络/渲染）。改 manipulation：禁双击缩放 + 消除 300ms
+       老延迟，但保留 click 正常合成。详见 FORK.md #11 */
+    touch-action: manipulation;
 }
 
 .numpad-button-num {
