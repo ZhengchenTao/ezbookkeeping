@@ -1,6 +1,11 @@
-# ezBookkeeping 个人需求清单
+# ezBookkeeping 个人 fork 改动清单
 
-> 基于 fork 版本的定制开发需求，持续更新。
+> 本文件记录这个 fork 相对上游 [mayswind/ezbookkeeping](https://github.com/mayswind/ezbookkeeping) 的所有定制改动 + 进度状态。
+
+> 关联文档：
+> - [`CLAUDE.md`](CLAUDE.md) —— 仓库分支模型 / 上游同步流程 / CI 排查路径（meta 层）
+> - 部署：见自家 NAS infra repo `git.zhengchentao.win/dev/nas-infra` 的 README（compose-level）
+>
 > 标注：❌ 难/暂缓 | ❓ 待定 | 🔍 调查中 | 🟢 已完成
 
 ---

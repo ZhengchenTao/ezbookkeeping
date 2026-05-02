@@ -1,4 +1,9 @@
 # ezBookkeeping
+
+> **Personal fork notice**: This is a personal fork of [mayswind/ezbookkeeping](https://github.com/mayswind/ezbookkeeping). For the list of custom changes see [`FORK.md`](FORK.md); for branch model / upstream-sync flow / CI troubleshooting see [`CLAUDE.md`](CLAUDE.md). Upstream README content follows below.
+
+---
+
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](https://github.com/mayswind/ezbookkeeping/blob/master/LICENSE)
 [![Go Report](https://goreportcard.com/badge/github.com/mayswind/ezbookkeeping)](https://goreportcard.com/report/github.com/mayswind/ezbookkeeping)
 [![Latest Release](https://img.shields.io/github/release/mayswind/ezbookkeeping.svg?style=flat)](https://github.com/mayswind/ezbookkeeping/releases)
