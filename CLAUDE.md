@@ -56,7 +56,7 @@ git.zhengchentao.win/dev/ezbookkeeping     （origin，本地唯一 remote）
 | 文件 | 触发 | 干什么 | 状态 |
 |---|---|---|---|
 | `sync-upstream.yml` | 手动（`workflow_dispatch`，可填 tag） | 服务端把 `dev/main` 强制 reset 到 mirror 上的指定 release tag（默认最新），然后 `push --force-with-lease` + 推 tags | ✅ 在用 |
-| `build-image.yml` | 手动（可填要打包的分支 + 镜像 tag） | checkout 指定分支（默认 `custom`）→ 装 buildkit v0.13.2（钉版本）→ 登录 Gitea registry → 构建镜像（带 OCI 标签 source/revision，Gitea 自动关联包到 repo）→ push 到 `git.zhengchentao.win/dev/ezbookkeeping:<hash>` 与 `:latest`，`build-args: BUILD_PIPELINE=1` 跳过活 API 测试 | ✅ 在用，是日常发布通道 |
+| `build-image.yml` | **自动**（push 到 custom 触发，`paths-ignore` 屏蔽 `**.md` / `.gitignore` / `LICENSE` / `screenshot/**`）+ 手动备选 | checkout 触发分支（push 时即 custom；手动时用 `inputs.branch` 默认 custom）→ 装 buildkit v0.13.2（钉版本）→ 登录 Gitea registry → 构建镜像（带 OCI 标签 source/revision，Gitea 自动关联包到 repo）→ push 到 `git.zhengchentao.win/dev/ezbookkeeping:<hash>` 与 `:latest`，`build-args: BUILD_PIPELINE=1` 跳过活 API 测试 | ✅ 在用，是日常发布通道 |
 | `deploy.yml` | 手动 | 跑 repo Variables 里 `CUSTOM_DEPLOY_SCRIPTS` 这条自定义脚本（通用钩子，可拼"build 完触发 NAS 端 docker compose pull/up"等） | 🟡 通用钩子，按需配 |
 
 **已删**：`docker-snapshot.yml`（push main 自动触发，未配 secrets.DOCKER_REPO 永远失败）、`docker-release.yml`（push tag 同样问题）。需要时再从 git 历史 cherry-pick 回来。
@@ -69,7 +69,15 @@ git.zhengchentao.win/dev/ezbookkeeping     （origin，本地唯一 remote）
 2. 人工触发 `Sync from upstream` workflow → 服务端把 dev/main reset 到该 tag
 3. 本地 `git fetch && git checkout custom && git rebase origin/main`
 4. 解冲突（如有）→ 验证 → `git push --force-with-lease origin custom`
-5. 在 Gitea Actions UI 手动触发 build-image workflow，构建新镜像
+5. **build-image workflow 自动触发**（force-push 也算 push 事件），构建新镜像；不需要手动点
+
+日常 feature commit 流程：
+
+1. 在 custom 上改代码 → commit → push
+2. **自动触发 build**（除非只改了 `**.md` / `.gitignore` / `LICENSE` / `screenshot/**`）
+3. NAS 上 `docker compose pull && docker compose up -d` 拉新镜像
+
+如果想跳过 build（例如手动多次 push 调试），commit 时只改文档相关文件即可（落在 paths-ignore 范围内）。如果想强制重打某个旧 commit，去 Actions UI 手动触发 `Build Docker Image`，填要打包的 branch / tag。
 
 **为什么 rebase 不 merge**：个人项目，无团队协作语义要保留，线性历史更清爽。
 

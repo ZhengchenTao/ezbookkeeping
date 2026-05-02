@@ -1,10 +1,20 @@
 name: Build Docker Image
 
 on:
+  # 自动触发：push 到 custom 分支时跑（force-push 后的 rebase 也会触发，可接受）
+  # paths-ignore：纯文档/配置改动跳过，避免浪费 ~10 分钟构建
+  push:
+    branches: [custom]
+    paths-ignore:
+      - '**.md'
+      - '.gitignore'
+      - 'LICENSE'
+      - 'screenshot/**'
+  # 手动触发：保留作为应急通道（重新打包旧 commit / 用自定义 tag / 等）
   workflow_dispatch:
     inputs:
       branch:
-        description: '要打包的分支'
+        description: '要打包的分支（仅手动触发生效）'
         required: true
         default: 'custom'
       tag:
@@ -19,7 +29,9 @@ jobs:
       - name: Checkout target branch
         uses: actions/checkout@v4
         with:
-          ref: ${{ inputs.branch }}
+          # workflow_dispatch 时用用户填的 branch；push 触发时 inputs.branch 为空，
+          # fallback 到 github.ref_name（即触发的分支名，push 到 custom 时就是 custom）
+          ref: ${{ inputs.branch || github.ref_name }}
           fetch-depth: 0
 
       - name: Set up Docker Buildx
@@ -82,7 +94,8 @@ jobs:
             echo ""
             echo "| 项 | 值 |"
             echo "|---|---|"
-            echo "| 源分支 | \`${{ inputs.branch }}\` |"
+            echo "| 触发方式 | \`${{ github.event_name }}\` |"
+            echo "| 源分支 | \`${{ inputs.branch || github.ref_name }}\` |"
             echo "| 源 commit (full) | \`${{ steps.meta.outputs.full_sha }}\` |"
             echo "| 源 commit (short) | \`${{ steps.meta.outputs.image_tag }}\` |"
             echo "| 镜像 tag | \`git.zhengchentao.win/dev/ezbookkeeping:${{ steps.meta.outputs.image_tag }}\` + \`:latest\` |"
