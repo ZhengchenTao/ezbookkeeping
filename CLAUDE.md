@@ -61,9 +61,10 @@ git.zhengchentao.win/dev/ezbookkeeping     （origin，本地唯一 remote）
 ## 同步历史
 
 - **2026-05-01**：rebase custom → origin/main (v1.4.0)。22 个 custom-only 提交（含一个旧的 `Merge branch 'main' into myrequirement` commit）压平为 21 个线性提交。已 force-push origin/custom（`08c69042` → `fe265259`）。
-- **2026-05-02**：修 Gitea Actions `Build Docker Image` 工作流。两层 NAS 网络问题 + 一层 buildkit/内核问题，全部不在本仓库代码里：
+- **2026-05-02**：修 Gitea Actions `Build Docker Image` 工作流。三层故障，全部不在本仓库代码里：
   - **TLS 雷**：`docker login` 走 host 进程不命中 PREROUTING REDIRECT，且 v6 撞 DSM nginx 的 CF Origin Cert。NAS 侧修：iptables 补 OUTPUT 对称规则 + `/etc/hosts` 显式 v4 兜底。详见 obsidian vault [[NAS/notes/内网证书路径]] §三.5/§三.6
-  - **buildkit 内核兼容**：runc 1.2+ 撞 DSM 4.4 内核。本仓库 ci 分支 `.gitea/workflows/build-image.yml` 已钉 `moby/buildkit:v0.13.2`（commit `acdbb5bf`）
+  - **buildkit 内核兼容**：runc 1.2+ 撞 DSM 4.4 内核。ci 分支 `.gitea/workflows/build-image.yml` 钉 `moby/buildkit:v0.13.2`（commit `acdbb5bf`）
+  - **backend 单元测试撞活 API**：`pkg/exchangerates/` 的 `TestExchangeRatesApiLatestExchangeRateHandler_*` 跑活 API（加拿大银行 / 乌兹别克央行），国内访问超时。upstream Dockerfile 已设 `ARG BUILD_PIPELINE`，测试代码看到 `BUILD_PIPELINE=1 && CHECK_3RD_API!=1` 时早退。修：workflow 加 `build-args: BUILD_PIPELINE=1`（commit `2dd8f099`），对齐上游 GH Actions（`.github/actions/build-linux-docker-and-package/action.yml` line 91）
 
 ## 给后续 Claude 会话：CI 故障排查路径
 
@@ -73,5 +74,8 @@ git.zhengchentao.win/dev/ezbookkeeping     （origin，本地唯一 remote）
 |---|---|---|
 | `Login to Gitea Container Registry` 步骤报 `x509: certificate signed by unknown authority` | NAS 网络层（iptables / dnsmasq / DSM nginx 占 443） | obsidian vault `NAS/notes/内网证书路径.md` + `NAS/notes/IPv6 设计.md` |
 | `Build and push` 步骤里 `RUN ...` 在第二条之内就炸 `unsafe procfs detected` 之类 | buildkit/runc 与 DSM 内核版本 | `.gitea/workflows/build-image.yml` 的 `driver-opts` |
+| `Failed to pass unit testing` / `Failed to pass lint checking`（build.sh 报） | **先看 Dockerfile 顶部 `ARG`**，多半是 CI 跳过开关没传（如 `BUILD_PIPELINE` / `CHECK_3RD_API` / `SKIP_TESTS`）。**不要先去改测试代码** | `Dockerfile` 顶部 ARG + `.gitea/workflows/build-image.yml` 的 `build-args` |
 | `actions/checkout` 报 fetch 失败 | Gitea SSH/HTTPS 路径或 token 权限 | gitea-runner 的 `GITEA_RUNNER_REGISTRATION_TOKEN` + NPM `git.zhengchentao.win` 的 Advanced 配置 |
 | Dockerfile 里某条指令业务逻辑报错 | 真正的代码问题 | 本仓库 `Dockerfile` |
+
+**通用排查原则**：build.sh 报的"测试失败 / lint 失败"先看是不是上游已经设计了 CI 跳过路径。Dockerfile 的 `ARG` + `build.sh` 内的 `os.Getenv()` 检查通常成对出现（如 `BUILD_PIPELINE=1` → 跳过 3rd API 测试，`SKIP_TESTS=...` → 跳过指定测试名）。对齐上游 `.github/actions/` 下的传参，绝大多数情况能直接对齐。
