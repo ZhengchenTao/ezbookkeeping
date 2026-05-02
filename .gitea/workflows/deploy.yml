@@ -2,7 +2,6 @@ name: Deploy Docker Image
 
 on:
   # 自动触发：build-image workflow 成功完成后跑
-  # workflow_run 是 cross-workflow 依赖：build 成功 → deploy 自动跟上
   workflow_run:
     workflows: ["Build Docker Image"]
     types: [completed]
@@ -14,19 +13,41 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     # 只在 build 成功后跑；手动触发时 workflow_run 字段不存在，
-    # || true 保证手动跑也能继续
+    # 第一个条件保证手动跑也能继续
     if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
     steps:
-      - name: Execute custom script
-        # 用 > 覆盖而不是 >> 追加，避免历史脚本累积
+      - name: Pull and restart ezbookkeeping
+        # 部署逻辑直接内联在这。runner 容器挂了 host docker.sock，
+        # 所以这里 docker 命令直接操作的是宿主机 docker daemon，
+        # 容器层面相当于 "ssh 到 NAS 跑 docker compose"。
+        #
+        # NAS_INFRA_TOKEN secret 仅在 nas-infra 是私有仓库时需要；
+        # 公开仓库不设这个 secret 也能拉。
+        env:
+          NAS_INFRA_TOKEN: ${{ secrets.NAS_INFRA_TOKEN }}
         run: |
-          cat > deploy.sh <<'EOF'
-          #!/bin/sh
           set -e
-          ${{ vars.CUSTOM_DEPLOY_SCRIPTS }}
-          EOF
-          chmod +x deploy.sh
-          ./deploy.sh
+
+          TMPDIR=$(mktemp -d)
+          trap 'rm -rf "$TMPDIR"' EXIT
+
+          # 决定 clone URL：有 token 用 token（私有），没有用裸 URL（公开）
+          if [ -n "$NAS_INFRA_TOKEN" ]; then
+            CLONE_URL="https://x-access-token:${NAS_INFRA_TOKEN}@git.zhengchentao.win/dev/nas-infra.git"
+          else
+            CLONE_URL="https://git.zhengchentao.win/dev/nas-infra.git"
+          fi
+
+          git clone --depth 1 "$CLONE_URL" "$TMPDIR/nas-infra"
+          cd "$TMPDIR/nas-infra/ezbookkeeping"
+
+          docker compose pull
+          docker compose up -d
+
+          # 简单 health：列容器状态 + 输出最近日志
+          sleep 3
+          docker compose ps
+          docker compose logs --tail=30 ezbookkeeping
 
       - name: Deploy summary
         if: always()

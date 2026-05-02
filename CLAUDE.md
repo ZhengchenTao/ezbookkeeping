@@ -57,7 +57,7 @@ git.zhengchentao.win/dev/ezbookkeeping     （origin，本地唯一 remote）
 |---|---|---|---|
 | `sync-upstream.yml` | 手动（`workflow_dispatch`，可填 tag） | 服务端把 `dev/main` 强制 reset 到 mirror 上的指定 release tag（默认最新），然后 `push --force-with-lease` + 推 tags | ✅ 在用 |
 | `build-image.yml` | **自动**（push 到 custom 触发，`paths-ignore` 屏蔽 `**.md` / `.gitignore` / `LICENSE` / `screenshot/**`）+ 手动备选 | checkout 触发分支（push 时即 custom；手动时用 `inputs.branch` 默认 custom）→ 装 buildkit v0.13.2（钉版本）→ 登录 Gitea registry → 构建镜像（带 OCI 标签 source/revision，Gitea 自动关联包到 repo）→ push 到 `git.zhengchentao.win/dev/ezbookkeeping:<hash>` 与 `:latest`，`build-args: BUILD_PIPELINE=1` 跳过活 API 测试 | ✅ 在用，是日常发布通道 |
-| `deploy.yml` | **自动**（`workflow_run` 在 build-image 成功后跑）+ 手动备选 | 跑 repo Variables 里 `CUSTOM_DEPLOY_SCRIPTS` 这条自定义脚本，含 `set -e` 失败即停 | ✅ 自动 CD，需要先在 Gitea repo 设置 → Actions → Variables 里配 `CUSTOM_DEPLOY_SCRIPTS` 才有实际效果 |
+| `deploy.yml` | **自动**（`workflow_run` 在 build-image 成功后跑）+ 手动备选 | clone nas-infra → `docker compose pull && up -d` 重启 ezbookkeeping。脚本内联在 yml 里（早期版本走 `vars.CUSTOM_DEPLOY_SCRIPTS` 是过度设计，2026-05-02 移除）。私有 nas-infra 需要 `secrets.NAS_INFRA_TOKEN`，公开仓库不需要 | ✅ 自动 CD |
 
 **已删**：`docker-snapshot.yml`（push main 自动触发，未配 secrets.DOCKER_REPO 永远失败）、`docker-release.yml`（push tag 同样问题）。需要时再从 git 历史 cherry-pick 回来。
 
