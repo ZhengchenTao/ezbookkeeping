@@ -36,6 +36,29 @@ git.zhengchentao.win/dev/ezbookkeeping     （origin，本地唯一 remote）
 
 ⚠️ origin 的 default branch 是 `ci` 不是 main 也不是 custom。`git clone` 默认会落在 ci。要做开发先 `git checkout custom`。
 
+### ci 与 custom 不需要保持一致（这是设计，不是 bug）
+
+三分支各管各的，**ci 与 custom 内容不重叠**：
+
+- ci：只有 `.gitea/workflows/*.yml`
+- custom：fork 代码 + FORK.md / CLAUDE.md / .gitignore 等
+- 理论上没有共享文件（除了 inherit 自上游的部分，例如 ci 分支也有 README、Dockerfile 等基底文件，但很少改它们）
+
+**Gitea Actions UI 顶部显示的 commit 是 ci 的 HEAD，不是被构建的源代码 commit**。这是因为 workflow 文件在 ci 分支，dispatch 触发时 UI 引用的是 workflow 文件所在 commit。但实际：
+
+1. `actions/checkout` 用 `ref: ${{ inputs.branch }}` 拉的是 custom
+2. 镜像 tag 用 custom 的 short SHA
+3. OCI label `org.opencontainers.image.revision` 是 custom 的 full SHA
+4. workflow 末尾 Build summary 步骤把上述源 commit 显式写入 `$GITHUB_STEP_SUMMARY`，运行页面有突出显示
+
+所以**真实构建的代码 commit** 在镜像本身、运行页面 summary 区都能看到，UI 顶部那个只是 dispatch 触发位置的 commit，**不是 bug，无需修复，看 summary 区即可**。
+
+如果哪天觉得这种割裂太烦，可选两个替代方案：
+- 把 workflow 挪到 custom，删 ci（UI commit 直接对得上，但失去 meta/code 分离）
+- 加 `push: branches: [custom]` 自动触发（每次 push 自动 build，更直观但费 CI 时间）
+
+当前选 `workflow_dispatch only + summary step` 是中间路径，节省 CI 又能看到真实信息。
+
 ---
 
 ## ci 分支 workflow 清单
