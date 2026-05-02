@@ -14,6 +14,12 @@ on:
       - '.gitignore'
       - 'LICENSE'
       - 'screenshot/**'
+      # 这两个 workflow 改动不影响镜像内容，没必要 rebuild：
+      # - deploy.yml 改的是部署逻辑（compose pull/up），不动镜像
+      # - sync-upstream.yml 改的是 main reset 逻辑，跟 build 也无关
+      # build-image.yml 自己留着会触发，作为 workflow 改动的 self-test
+      - '.gitea/workflows/deploy.yml'
+      - '.gitea/workflows/sync-upstream.yml'
   # 手动触发：保留作为应急通道（重新打包旧 commit / 用自定义 tag / 等）
   workflow_dispatch:
     inputs:
