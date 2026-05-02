@@ -3,6 +3,10 @@ name: Build Docker Image
 on:
   # 自动触发：push 到 custom 分支时跑（force-push 后的 rebase 也会触发，可接受）
   # paths-ignore：纯文档/配置改动跳过，避免浪费 ~10 分钟构建
+  # ⚠️ 已知 quirk（2026-05-02 验证）：empty commit（git commit --allow-empty）
+  # 不会触发 paths-ignore 过滤的 workflow，Gitea 把 zero-paths-changed 当作
+  # "vacuously matches ignore list" 跳过。要强制触发必须至少改一个非 ignore 路径
+  # 的真实文件（改这个 yml 自己最稳）。
   push:
     branches: [custom]
     paths-ignore:
