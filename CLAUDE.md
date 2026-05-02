@@ -2,7 +2,11 @@
 
 本项目是 [mayswind/ezbookkeeping](https://github.com/mayswind/ezbookkeeping) 的个人 fork。
 
-工作流详细决策框架见个人笔记 `fork-工作流决策框架.md`。本文件只记录**这个仓库的具体事实**，避免 Claude 会话误判。
+> **本文件**：仓库分支模型、上游同步流程、CI 故障排查 —— meta 层
+> **[`FORK.md`](FORK.md)**：fork 相对上游的具体改动清单（feature 维度 + 进度状态）
+> **个人笔记**：通用 fork 工作流决策框架在 `fork-工作流决策框架.md`（不入库）
+
+本文件只记录**这个仓库的具体事实**，避免 Claude 会话误判。
 
 ---
 
@@ -27,10 +31,26 @@ git.zhengchentao.win/dev/ezbookkeeping     （origin，本地唯一 remote）
 | 分支 | 职责 | force push? |
 |---|---|---|
 | `main` | **锚定上游 release tag**（当前 v1.4.0）。被 `.gitea/workflows/sync-upstream.yml` `git reset --hard <tag>` 覆写 | 是（由 CI 做） |
-| `custom` | **所有个人改动都在这**：信用额度功能、UI 调整、个人需求清单等。日常开发分支 | 是（rebase 后人工做） |
+| `custom` | **所有个人改动都在这**：信用额度功能、UI 调整、个人需求清单等。具体改动清单见 [`FORK.md`](FORK.md)。日常开发分支 | 是（rebase 后人工做） |
 | `ci` | **origin 的 default branch**。只放 `.gitea/workflows/*.yml`。独立于 main 和 custom | 否 |
 
 ⚠️ origin 的 default branch 是 `ci` 不是 main 也不是 custom。`git clone` 默认会落在 ci。要做开发先 `git checkout custom`。
+
+---
+
+## ci 分支 workflow 清单
+
+ci 分支的 `.gitea/workflows/` 当前有 5 个 workflow：
+
+| 文件 | 触发 | 干什么 | 状态 |
+|---|---|---|---|
+| `sync-upstream.yml` | 手动（`workflow_dispatch`，可填 tag） | 服务端把 `dev/main` 强制 reset 到 mirror 上的指定 release tag（默认最新），然后 `push --force-with-lease` + 推 tags | ✅ 在用 |
+| `build-image.yml` | 手动（可填要打包的分支 + 镜像 tag） | checkout 指定分支（默认 `custom`）→ 装 buildkit v0.13.2（钉版本）→ 登录 Gitea registry → 构建镜像（带 OCI 标签 source/revision，Gitea 自动关联包到 repo）→ push 到 `git.zhengchentao.win/dev/ezbookkeeping:<hash>` 与 `:latest`，`build-args: BUILD_PIPELINE=1` 跳过活 API 测试 | ✅ 在用，是日常发布通道 |
+| `deploy.yml` | 手动 | 跑 repo Variables 里 `CUSTOM_DEPLOY_SCRIPTS` 这条自定义脚本（通用钩子，可拼"build 完触发 NAS 端 docker compose pull/up"等） | 🟡 通用钩子，按需配 |
+| `docker-snapshot.yml` | `push: branches: main` 自动 | 上游模板风格的 snapshot build（用 `secrets.DOCKER_REPO`，会改 Dockerfile 里 FROM 走私有 mirror） | ⚠️ 上游残留，main 被 sync-upstream force-push 时会触发；当前未配 secret 估计直接失败。要么补全 secret，要么删除 |
+| `docker-release.yml` | `push: tags: v*` 自动 | 同上但 release 风格，tag 推送时触发 | ⚠️ 同 docker-snapshot.yml，未配 secret 会失败 |
+
+**结论**：日常只用 `sync-upstream` + `build-image` 两个，其他三个要么按需启用要么后续清理。
 
 ---
 
