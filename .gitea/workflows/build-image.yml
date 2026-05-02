@@ -73,10 +73,8 @@ jobs:
             git.zhengchentao.win/dev/ezbookkeeping:latest
 
       - name: Build summary
-        # 写入 GITHUB_STEP_SUMMARY 让 Action 运行页面顶部显示真实构建信息。
-        # workflow 文件在 ci 分支，UI 顶部显示的 commit 是 ci 的 HEAD（workflow
-        # 触发位置），不是被构建的源代码 commit。这一步显式把"实际构建的源代码
-        # 信息"放到 summary 区，避免误读。always() 保证 build 失败也输出。
+        # 把构建出的镜像 tag 与源 commit 显式列在 Action run summary 区，
+        # 方便从 UI 一眼看到本次 build 产出。always() 保证 build 失败也输出。
         if: always()
         run: |
           {
@@ -88,6 +86,4 @@ jobs:
             echo "| 源 commit (full) | \`${{ steps.meta.outputs.full_sha }}\` |"
             echo "| 源 commit (short) | \`${{ steps.meta.outputs.image_tag }}\` |"
             echo "| 镜像 tag | \`git.zhengchentao.win/dev/ezbookkeeping:${{ steps.meta.outputs.image_tag }}\` + \`:latest\` |"
-            echo ""
-            echo "> ⚠️ 本次 workflow run 顶部显示的 commit 是 **ci 分支** 上 workflow 文件的 commit（dispatch 触发位置），**不是**被构建的源代码 commit。镜像实际构建自上面表格中的源 commit。"
           } >> "$GITHUB_STEP_SUMMARY"
