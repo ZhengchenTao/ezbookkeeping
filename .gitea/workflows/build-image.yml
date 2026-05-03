@@ -17,7 +17,7 @@ on:
       # sync-upstream.yml 改的是 main reset 逻辑，跟 build 无关
       # build-image.yml 自己留着会触发，作为 workflow 改动的 self-test
       - '.gitea/workflows/sync-upstream.yml'
-  # 手动触发：保留作为应急通道（重新打包旧 commit / 用自定义 tag / 等）
+  # 手动触发：保留作为应急通道（重新打包旧 commit、用自定义 tag 等）
   # 注意：手动触发也会跑 deploy job —— 如果只想 build 不部署，临时把 deploy
   # job 注释掉或在 deploy 里加 if 条件
   workflow_dispatch:
