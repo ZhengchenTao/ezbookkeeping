@@ -51,15 +51,18 @@ git.zhengchentao.win/dev/ezbookkeeping     （origin，本地唯一 remote）
 
 ## custom 分支 workflow 清单
 
-`.gitea/workflows/` 当前有 3 个 workflow（2026-05-02 起精简，删了上游残留的 docker-snapshot/docker-release）：
+`.gitea/workflows/` 当前有 2 个 workflow（2026-05-04 起 build+deploy 合并为单 workflow 双 job）：
 
 | 文件 | 触发 | 干什么 | 状态 |
 |---|---|---|---|
 | `sync-upstream.yml` | 手动（`workflow_dispatch`，可填 tag） | 服务端把 `dev/main` 强制 reset 到 mirror 上的指定 release tag（默认最新），然后 `push --force-with-lease` + 推 tags | ✅ 在用 |
-| `build-image.yml` | **自动**（push 到 custom 触发，`paths-ignore` 屏蔽 `**.md` / `.gitignore` / `LICENSE` / `screenshot/**`）+ 手动备选 | checkout 触发分支（push 时即 custom；手动时用 `inputs.branch` 默认 custom）→ 装 buildkit v0.13.2（钉版本）→ 登录 Gitea registry → 构建镜像（带 OCI 标签 source/revision，Gitea 自动关联包到 repo）→ push 到 `git.zhengchentao.win/dev/ezbookkeeping:<hash>` 与 `:latest`，`build-args: BUILD_PIPELINE=1` 跳过活 API 测试 | ✅ 在用，是日常发布通道 |
-| `deploy.yml` | **自动**（`workflow_run` 在 build-image 成功后跑）+ 手动备选 | clone nas-infra → `docker compose pull && up -d` 重启 ezbookkeeping。脚本内联在 yml 里（早期版本走 `vars.CUSTOM_DEPLOY_SCRIPTS` 是过度设计，2026-05-02 移除）。私有 nas-infra 需要 `secrets.NAS_INFRA_TOKEN`，公开仓库不需要 | ✅ 自动 CD |
+| `build-image.yml` | **自动**（push 到 custom 触发，`paths-ignore` 屏蔽 `**.md` / `.gitignore` / `LICENSE` / `screenshot/**` / `sync-upstream.yml`）+ 手动备选 | **两个 job 串联在同一 run 里**：①`build` job 装 buildkit v0.13.2 → 登录 Gitea registry → 构建镜像（带 OCI 标签 source/revision，Gitea 自动关联包到 repo）→ push 到 `git.zhengchentao.win/dev/ezbookkeeping:<hash>` 与 `:latest`，`build-args: BUILD_PIPELINE=1` 跳过活 API 测试。②`deploy` job (`needs: build`) 登录 registry → clone nas-infra → `docker compose pull && up -d` 重启 ezbookkeeping。私有 nas-infra 需要 `secrets.NAS_INFRA_TOKEN`，公开仓库不需要。UI 上 Actions 列表显示一条 run，run 详情里 dependency graph 显示 build → deploy | ✅ 日常发布通道 + 自动 CD |
 
-**已删**：`docker-snapshot.yml`（push main 自动触发，未配 secrets.DOCKER_REPO 永远失败）、`docker-release.yml`（push tag 同样问题）。需要时再从 git 历史 cherry-pick 回来。
+**已删**：
+- `docker-snapshot.yml` / `docker-release.yml`（2026-05-02，依赖未配的 `secrets.DOCKER_REPO`，永远失败）
+- `deploy.yml`（2026-05-04，合并进 `build-image.yml` 作为第二个 job，理由：原先 `workflow_run` 链触发会在 Actions 列表产生两条独立 run，UX 割裂；合并后单 run + dependency graph 看 build/deploy 状态一目了然）
+
+需要时再从 git 历史 cherry-pick 回来。
 
 ---
 
@@ -74,13 +77,13 @@ git.zhengchentao.win/dev/ezbookkeeping     （origin，本地唯一 remote）
 日常 feature commit 流程（全自动 CD）：
 
 1. 在 custom 上改代码 → commit → push
-2. **自动触发 build**（除非只改了 `**.md` / `.gitignore` / `LICENSE` / `screenshot/**`）
-3. build 成功 → **自动触发 deploy**（内联在 deploy.yml 里：clone nas-infra → docker compose pull → up -d）
-4. 整条 push → build → deploy 链路无人工介入
+2. **自动触发 build job**（除非只改了 `**.md` / `.gitignore` / `LICENSE` / `screenshot/**` / `sync-upstream.yml`）
+3. build 成功 → **同 run 内 deploy job 接力跑**（`needs: build` 串联）：clone nas-infra → docker compose pull → up -d
+4. 整条 push → build → deploy 链路无人工介入，UI 上是单条 run
 
-**并发取消策略**：build-image.yml 与 deploy.yml 都设了 `concurrency.cancel-in-progress: true`，连续多次 push 时**只构建+部署最新那一次**，中间的 in-progress run 自动取消。例：连续 3 次 push 间隔 30 秒，第 1 次 build 跑到 30%、第 2 次到来取消它、第 3 次又取消第 2，最终只 build + deploy 第 3 次的代码。省 CI 时间又保证最终一致性。
+**并发取消策略**：`build-image.yml` 设了 `concurrency.cancel-in-progress: true`，连续多次 push 时**只构建+部署最新那一次**（同 run 里 build/deploy 是原子单元，一起取消）。例：连续 3 次 push 间隔 30 秒，第 1 次 build 跑到 30%、第 2 次到来取消它、第 3 次又取消第 2，最终只 build + deploy 第 3 次的代码。省 CI 时间又保证最终一致性。
 
-如果想跳过 build/deploy（例如手动多次 push 调试），commit 时只改文档相关文件即可（落在 paths-ignore 范围内）。如果想强制重打某个旧 commit，去 Actions UI 手动触发 `Build Docker Image`，填要打包的 branch / tag。如果想只重新部署当前镜像（不重新 build），手动触发 `Deploy Docker Image` workflow。
+如果想跳过 build/deploy（例如手动多次 push 调试），commit 时只改文档相关文件即可（落在 paths-ignore 范围内）。如果想强制重打某个旧 commit，去 Actions UI 手动触发 `Build Docker Image`，填要打包的 branch / tag —— 注意手动触发也会跑 deploy job，**没有"只重新部署不重新 build"的单点入口了**（合并的代价，原 `deploy.yml` 那条路径已废）。临时只想重启容器：直接到 NAS 上 `docker compose up -d` 或在 Actions UI 临时禁用 deploy job。
 
 **为什么 rebase 不 merge**：个人项目，无团队协作语义要保留，线性历史更清爽。
 
@@ -107,6 +110,7 @@ git.zhengchentao.win/dev/ezbookkeeping     （origin，本地唯一 remote）
   - **backend 单元测试撞活 API**：`pkg/exchangerates/` 的 `TestExchangeRatesApiLatestExchangeRateHandler_*` 跑活 API（加拿大银行 / 乌兹别克央行），国内访问超时。upstream Dockerfile 已设 `ARG BUILD_PIPELINE`，测试代码看到 `BUILD_PIPELINE=1 && CHECK_3RD_API!=1` 时早退。修：workflow 加 `build-args: BUILD_PIPELINE=1`（commit `2dd8f099`），对齐上游 GH Actions
 - **2026-05-02 (后续)**：workflow 文件从 ci 分支迁到 custom，default branch 切到 custom（commit `555ecc1a`），随后**删掉 ci 分支**。原因：Gitea Actions runs 列表的 commit 字段一直显示 ci 的 workflow commit，不是被构建的代码 commit，UX 误导性强。挪到 custom 后列表直接显示真实代码 commit。同时清理上游残留的 `docker-release.yml` / `docker-snapshot.yml`（依赖未配的 `secrets.DOCKER_REPO`，永远失败）。仓库回到朴素的 main + custom 双分支模型
 - **2026-05-02 (numpad fix)**：FORK.md #11 定位 + 修复。小键盘点击卡顿真因是 `.numpad-button` 的 `touch-action: none`（上游 e178a079 引入）与 F7 tap 处理叠加，改为 `touch-action: manipulation`（commit `75b4d78d`）
+- **2026-05-04**：把 `deploy.yml` 合并进 `build-image.yml` 作为第二个 job（`needs: build`），删除 `deploy.yml`。原先 `workflow_run` 链路会在 Actions 列表产生两条独立 run（build 完一条、deploy 又一条），用户视角割裂；合并后 UI 列表单条 run，run 详情里 dependency graph 显示 build → deploy 串联。代价：失去"不 rebuild 只 redeploy"的 UI 单点触发，临时只想重启容器需直接 ssh NAS 跑 compose。`paths-ignore` 移除已不存在的 `deploy.yml` 项
 
 ## 给后续 Claude 会话：CI 故障排查路径
 
