@@ -1,6 +1,27 @@
 # ezBookkeeping
 
-> **Personal fork notice**: This is a personal fork of [mayswind/ezbookkeeping](https://github.com/mayswind/ezbookkeeping). For the list of custom changes see [`FORK.md`](FORK.md); for branch model / upstream-sync flow / CI troubleshooting see [`CLAUDE.md`](CLAUDE.md). Upstream README content follows below.
+> ## Personal fork notice
+>
+> This repository is a personal fork of [mayswind/ezbookkeeping](https://github.com/mayswind/ezbookkeeping) (MIT) with the following custom additions on top of upstream releases:
+>
+> - **信用卡账户**：信用额度字段，账户列表显示可用额度
+> - **账户筛选交易**：单账户筛选时顶部显示账户信息卡（图标 / 名称 / 余额 / 可用额度）
+> - **账户编辑**：直接修改余额字段，自动生成「余额调整」交易
+> - **记账页**：选择账户后实时显示余额或信用卡可用额度
+> - **小键盘**：自定义布局（计算器风格 4 列） + `touch-action` 修复点击延迟
+> - **移动端动画**：通用过渡 300ms → 150ms
+> - **交易详情**：移动端三点菜单加编辑/删除入口
+> - **分类选择**：移动端可设默认全部展开（云同步白名单）
+> - **交易时间**：移动端点击标题默认日期选择器
+>
+> Full list with implementation details: [`FORK.md`](FORK.md)
+> Branch model / upstream sync / CI troubleshooting: [`CLAUDE.md`](CLAUDE.md)
+>
+> All modifications are released under the same MIT License as upstream — see [`LICENSE`](LICENSE).
+>
+> ---
+>
+> Upstream README content follows below.
 
 ---
 
