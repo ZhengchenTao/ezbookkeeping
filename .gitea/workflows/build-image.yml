@@ -95,11 +95,11 @@ jobs:
           # - revision 把构建时的 commit full SHA 烙进镜像 manifest，
           #   docker inspect 能反推回源码版本
           labels: |
-            org.opencontainers.image.source=https://git.zhengchentao.win/dev/ezbookkeeping
+            org.opencontainers.image.source=https://git.zhengchentao.win/zhengchen.tao/ezbookkeeping
             org.opencontainers.image.revision=${{ steps.meta.outputs.full_sha }}
           tags: |
-            git.zhengchentao.win/dev/ezbookkeeping:${{ steps.meta.outputs.image_tag }}
-            git.zhengchentao.win/dev/ezbookkeeping:latest
+            git.zhengchentao.win/zhengchen.tao/ezbookkeeping:${{ steps.meta.outputs.image_tag }}
+            git.zhengchentao.win/zhengchen.tao/ezbookkeeping:latest
 
       - name: Build summary
         # 把构建出的镜像 tag 与源 commit 显式列在 Action run summary 区，
@@ -115,7 +115,7 @@ jobs:
             echo "| 源分支 | \`${{ inputs.branch || github.ref_name }}\` |"
             echo "| 源 commit (full) | \`${{ steps.meta.outputs.full_sha }}\` |"
             echo "| 源 commit (short) | \`${{ steps.meta.outputs.image_tag }}\` |"
-            echo "| 镜像 tag | \`git.zhengchentao.win/dev/ezbookkeeping:${{ steps.meta.outputs.image_tag }}\` + \`:latest\` |"
+            echo "| 镜像 tag | \`git.zhengchentao.win/zhengchen.tao/ezbookkeeping:${{ steps.meta.outputs.image_tag }}\` + \`:latest\` |"
           } >> "$GITHUB_STEP_SUMMARY"
 
   deploy:
