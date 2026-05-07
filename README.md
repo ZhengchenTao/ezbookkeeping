@@ -12,7 +12,6 @@
 > - **移动端动画**：通用过渡 300ms → 150ms
 > - **交易详情**：移动端三点菜单加编辑/删除入口
 > - **分类选择**：移动端可设默认全部展开（云同步白名单）
-> - **交易时间**：移动端点击标题默认日期选择器
 >
 > Full list with implementation details: [`FORK.md`](FORK.md)
 > Branch model / upstream sync / CI troubleshooting: [`CLAUDE.md`](CLAUDE.md)
