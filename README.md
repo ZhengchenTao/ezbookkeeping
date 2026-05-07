@@ -4,14 +4,14 @@
 >
 > This repository is a personal fork of [mayswind/ezbookkeeping](https://github.com/mayswind/ezbookkeeping) (MIT) with the following custom additions on top of upstream releases:
 >
-> - **信用卡账户**：信用额度字段，账户列表显示可用额度
-> - **账户筛选交易**：单账户筛选时顶部显示账户信息卡（图标 / 名称 / 余额 / 可用额度）
-> - **账户编辑**：直接修改余额字段，自动生成「余额调整」交易
-> - **记账页**：选择账户后实时显示余额或信用卡可用额度
-> - **小键盘**：自定义布局（计算器风格 4 列） + `touch-action` 修复点击延迟
-> - **移动端动画**：通用过渡 300ms → 150ms
-> - **交易详情**：移动端三点菜单加编辑/删除入口
-> - **分类选择**：移动端可设默认全部展开（云同步白名单）
+> - **Credit card accounts**: credit-limit field; account list shows available credit
+> - **Account-filtered transactions**: when filtering by a single account, show an account info card on top (icon / name / balance / available credit)
+> - **Account editing**: edit the balance field directly; a "balance adjustment" transaction is generated automatically
+> - **Add-transaction page**: live display of balance or available credit after selecting an account
+> - **Numpad**: custom layout (4-column calculator style) + `touch-action` fix for tap latency
+> - **Mobile animations**: generic transitions 300ms → 150ms
+> - **Transaction detail**: edit / delete entries added to the mobile three-dot menu
+> - **Category picker**: optional "expand all by default" on mobile (cloud-sync allowlisted)
 >
 > Full list with implementation details: [`FORK.md`](FORK.md)
 > Branch model / upstream sync / CI troubleshooting: [`CLAUDE.md`](CLAUDE.md)
