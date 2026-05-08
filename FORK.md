@@ -137,21 +137,24 @@
 - Tab 切换动画保持原样（设置中已有开关可控制）
 - 涉及文件：`src/styles/mobile/global.scss`
 
-### 11. 🟢 小键盘点击卡顿（两次修正）
+### 11. 🟢 小键盘点击卡顿（三次修正）
 **描述：** 移动端小键盘点击有延迟感。
 
-**第一阶段（2026-05-02）数字/运算键卡顿：** 根因是上游在 `.numpad-button` 上设了 `touch-action: none`（commit `e178a079` "code refactor" by MaysWind），与 F7 内部 tap 处理叠加后让 click 事件合成慢一拍。
-- 修复：`.numpad-button` 的 `touch-action: none` 改为 `touch-action: manipulation`（W3C 标准"快速点击"值，禁双击缩放消除老 300ms 延迟，但保留 click 正常合成）
+**第一阶段（2026-05-02）`touch-action: none` 引发的 300ms 双击延迟：** 上游在 `.numpad-button` 上设了 `touch-action: none`（commit `e178a079` "code refactor" by MaysWind），与浏览器双击缩放检测叠加后保留了老式 300ms 点击延迟。
+- 修复：`.numpad-button` 的 `touch-action: none` 改为 `touch-action: manipulation`（W3C 标准"快速点击"值，禁双击缩放）
 
-**第二阶段（2026-05-08）退格键卡顿：** backspace 单点仍有可感知延迟。根因是 `@click` + `@taphold` 组合让 F7 必须等 ~750ms 判别 tap vs hold，期间 click 事件被抑制。
-- 修复：弃用 `@click="backspace" @taphold="clear()"`，改为原生 `pointerdown`/`pointerup`/`pointercancel`/`pointerleave`：
-    - `pointerdown` 立即调 `backspace()`（删一位，零延迟）
-    - 同时启动 500ms 定时器，到点调 `clear()`（清空全部）
-    - 任何抬起/移出/取消事件 cancel 定时器
+**第二阶段（2026-05-08）退格键 `@taphold` 等待 750ms：** backspace 单点仍可感知延迟。根因是 `@click` + `@taphold` 让 F7 必须等 ~750ms 判别 tap vs hold，期间 click 被抑制。
+- 修复：弃用 `@click="backspace" @taphold="clear()"`，改为原生 `pointerdown`/`pointerup`/`pointercancel`/`pointerleave` + 自管定时器
 - 行为：单击立即删一位；按住不放先删一位、约 500ms 后清空全部
-- 涉及文件：`src/components/mobile/NumberPadSheet.vue`
 
-**附带认知：** 原 #11 假设是"全局点击响应慢"或"接口慢"，与 #12 离线缓存挂钩调研。实际诊断后跟那两条都无关，纯 CSS `touch-action` 与 F7 框架 tap 处理叠加导致。该认知值得记录避免后续误诊路径。
+**第三阶段（2026-05-08）所有数字/运算键也延迟：** 第一阶段修完后用户反馈数字键仍有"等一拍"感。怀疑 F7 整套 tap 处理（含 active-state 检测、`fastClicks` 兼容代码、tap-hold 全局监听）即便不显式声明 `@taphold` 也会给 `@click` 加上判别期。
+- 修复：把所有按键（数字 0-9、运算 ×−+、C 清空、小数点/双零、OK 确认）的 `@click` 全部换成 `@pointerdown.left`
+- 原理：`pointerdown` 在按下瞬间触发，绕开 F7 的 tap 合成路径。`.left` 修饰符限制只响应主键（触屏 button=0 始终满足，桌面右键不会误触发）
+- F7 的 `.active-state` 视觉反馈基于独立的 touchstart/touchend 监听，不依赖 `@click`，按下视觉效果保留
+
+涉及文件：`src/components/mobile/NumberPadSheet.vue`
+
+**附带认知：** 原 #11 假设是"全局点击响应慢"或"接口慢"，与 #12 离线缓存挂钩调研。实际诊断后跟那两条都无关——纯 F7 框架 tap 合成 + 双击缩放 + taphold 检测三者叠加。最终通过完全弃用 `@click` 改 pointer 事件解决。该认知值得记录避免后续误诊路径。
 
 ---
 
