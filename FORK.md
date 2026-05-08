@@ -84,7 +84,8 @@
   1     2     3      +
   C     0     .     OK
 ```
-- ⌫ 单击退格，长按清除；C 清除全部
+- ⌫ 单击退格；按住不放先删一位、约 500ms 后清空全部（长按响应细节见 #11 第二阶段）
+- C 一键清除全部
 - 涉及文件：`src/components/mobile/NumberPadSheet.vue`
 
 ---
@@ -136,17 +137,21 @@
 - Tab 切换动画保持原样（设置中已有开关可控制）
 - 涉及文件：`src/styles/mobile/global.scss`
 
-### 11. 🟢 小键盘点击卡顿（修正：范围非全局）
-**描述：** 移动端点击按钮有延迟感。
+### 11. 🟢 小键盘点击卡顿（两次修正）
+**描述：** 移动端小键盘点击有延迟感。
 
-**真因（2026-05-02 定位）：** **不是**全局点击/接口响应问题。诊断后确认仅小键盘有卡顿，其他按钮正常。根因是上游在 `.numpad-button` 上设了 `touch-action: none`（commit `e178a079` "code refactor" by MaysWind），与 F7 内部 tap 处理叠加后让 click 事件合成慢一拍。backspace（个人新增 `.numpad-backspace-button` 类）不受影响，刚好佐证范围。
+**第一阶段（2026-05-02）数字/运算键卡顿：** 根因是上游在 `.numpad-button` 上设了 `touch-action: none`（commit `e178a079` "code refactor" by MaysWind），与 F7 内部 tap 处理叠加后让 click 事件合成慢一拍。
+- 修复：`.numpad-button` 的 `touch-action: none` 改为 `touch-action: manipulation`（W3C 标准"快速点击"值，禁双击缩放消除老 300ms 延迟，但保留 click 正常合成）
 
-**已完成：**
-- `.numpad-button` 的 `touch-action: none` 改为 `touch-action: manipulation`
-- `manipulation` 是 W3C 标准的"快速点击"值：禁双击缩放（消除老 300ms 延迟）但保留 click 事件正常合成
+**第二阶段（2026-05-08）退格键卡顿：** backspace 单点仍有可感知延迟。根因是 `@click` + `@taphold` 组合让 F7 必须等 ~750ms 判别 tap vs hold，期间 click 事件被抑制。
+- 修复：弃用 `@click="backspace" @taphold="clear()"`，改为原生 `pointerdown`/`pointerup`/`pointercancel`/`pointerleave`：
+    - `pointerdown` 立即调 `backspace()`（删一位，零延迟）
+    - 同时启动 500ms 定时器，到点调 `clear()`（清空全部）
+    - 任何抬起/移出/取消事件 cancel 定时器
+- 行为：单击立即删一位；按住不放先删一位、约 500ms 后清空全部
 - 涉及文件：`src/components/mobile/NumberPadSheet.vue`
 
-**附带认知：** 原 #11 假设是"全局点击响应慢"或"接口慢"，与 #12 离线缓存挂钩调研。实际诊断后跟那两条都无关，纯 CSS `touch-action` 与框架 tap 处理叠加导致。该认知值得记录避免后续误诊路径。
+**附带认知：** 原 #11 假设是"全局点击响应慢"或"接口慢"，与 #12 离线缓存挂钩调研。实际诊断后跟那两条都无关，纯 CSS `touch-action` 与 F7 框架 tap 处理叠加导致。该认知值得记录避免后续误诊路径。
 
 ---
 

@@ -8,7 +8,11 @@
             </div>
             <div class="numpad-values">
                 <span id="numpad-value" class="numpad-value" :class="currentDisplayNumClass" @click="onDisplayValueClick">{{ currentDisplay }}</span>
-                <f7-button class="numpad-backspace-button" @click="backspace" @taphold="clear()">
+                <f7-button class="numpad-backspace-button"
+                           @pointerdown="onBackspacePointerDown"
+                           @pointerup="onBackspacePointerEnd"
+                           @pointercancel="onBackspacePointerEnd"
+                           @pointerleave="onBackspacePointerEnd">
                     <f7-icon class="icon-with-direction" f7="delete_left"></f7-icon>
                 </f7-button>
             </div>
@@ -326,6 +330,31 @@ function clear(): void {
     currentSymbol.value = '';
 }
 
+const BACKSPACE_HOLD_TO_CLEAR_MS = 500;
+let backspaceClearTimer: ReturnType<typeof setTimeout> | null = null;
+
+function onBackspacePointerDown(event: PointerEvent): void {
+    // 按下立刻删一位（消除 F7 taphold 判别期带来的点击延迟）
+    if (event.button !== undefined && event.button !== 0) {
+        return;
+    }
+    backspace();
+    if (backspaceClearTimer !== null) {
+        clearTimeout(backspaceClearTimer);
+    }
+    backspaceClearTimer = setTimeout(() => {
+        clear();
+        backspaceClearTimer = null;
+    }, BACKSPACE_HOLD_TO_CLEAR_MS);
+}
+
+function onBackspacePointerEnd(): void {
+    if (backspaceClearTimer !== null) {
+        clearTimeout(backspaceClearTimer);
+        backspaceClearTimer = null;
+    }
+}
+
 function paste(): void {
     showPastePopover.value = false;
 
@@ -442,6 +471,7 @@ function onSheetOpen(): void {
 }
 
 function onSheetClosed(): void {
+    onBackspacePointerEnd();
     close();
 }
 
