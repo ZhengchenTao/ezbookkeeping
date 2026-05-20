@@ -1,5 +1,13 @@
 # ezBookkeeping
 
+> ## 个人 fork 说明
+>
+> 这是 [mayswind/ezbookkeeping](https://github.com/mayswind/ezbookkeeping)（MIT）的个人 fork，在上游 release 基础上加了若干定制（信用卡账户、按账户筛选时的账户卡片、可编辑账户余额并自动生成调账流水、数字键盘自定义布局、移动端动效优化等）。
+>
+> 完整定制清单与实现细节见 [`FORK.md`](FORK.md)，分支模型 / 上游同步 / CI 排错见 [`CLAUDE.md`](CLAUDE.md)。
+>
+> 所有改动遵循与上游一致的 MIT License。
+
 > ## Personal fork notice
 >
 > This repository is a personal fork of [mayswind/ezbookkeeping](https://github.com/mayswind/ezbookkeeping) (MIT) with the following custom additions on top of upstream releases:
