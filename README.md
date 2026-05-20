@@ -2,11 +2,20 @@
 
 > ## 个人 fork 说明
 >
-> 这是 [mayswind/ezbookkeeping](https://github.com/mayswind/ezbookkeeping)（MIT）的个人 fork，在上游 release 基础上加了若干定制（信用卡账户、按账户筛选时的账户卡片、可编辑账户余额并自动生成调账流水、数字键盘自定义布局、移动端动效优化等）。
+> 这是 [mayswind/ezbookkeeping](https://github.com/mayswind/ezbookkeeping)（MIT）的个人 fork，在上游 release 基础上加了若干定制：
+>
+> - **信用卡账户**：账户加 credit-limit 字段；账户列表展示可用额度
+> - **按账户筛选交易**：单账户筛选时顶部展示账户信息卡（图标 / 名称 / 余额 / 可用额度）
+> - **编辑账户余额**：直接修改余额字段，自动生成一笔"余额调整"交易
+> - **添加交易页**：选中账户后实时展示该账户的余额或可用额度
+> - **数字键盘**：4 列计算器布局 + `touch-action` 修复点按延迟
+> - **移动端动效**：通用过渡 300ms → 150ms
+> - **交易详情**：移动端三点菜单加入编辑 / 删除入口
+> - **分类选择器**：移动端可选"默认全部展开"（已加入云同步白名单）
 >
 > 完整定制清单与实现细节见 [`FORK.md`](FORK.md)，分支模型 / 上游同步 / CI 排错见 [`CLAUDE.md`](CLAUDE.md)。
 >
-> 所有改动遵循与上游一致的 MIT License。
+> 所有改动遵循与上游一致的 MIT License，详见 [`LICENSE`](LICENSE)。
 
 > ## Personal fork notice
 >
