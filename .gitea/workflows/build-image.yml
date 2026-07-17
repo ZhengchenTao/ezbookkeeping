@@ -105,8 +105,20 @@ jobs:
           # 上游 Dockerfile 用 BUILD_PIPELINE 作为 CI 跳过开关：
           # 设为 "1" 时 pkg/exchangerates 跳过依赖第三方 API 的活测试
           # （加拿大银行/乌兹别克央行 API 国内不稳，跑就超时）
+          #
+          # HTTP(S)_PROXY / NO_PROXY 是 Docker 的【预定义 build-arg】，不用在
+          # Dockerfile 里 ARG 声明就能注入到 RUN 步骤，也不会写进镜像 history。
+          # 指向宿主机 xray（docker0 网关 172.17.0.1，RUN 步骤跑在默认 bridge 上，
+          # 够不到 127.0.0.1）。xray 路由：境外走 SG 节点，国内和自家 Gitea 直连。
+          #
+          # 不加会怎样（2026-07-17 run 471 实测）：apk 装 43 个包要 31 分钟，
+          # go mod 直接失败（proxy.golang.org 从这台机 30 秒超时）。
+          # 加上之后：apk 3 秒，go 模块 7 秒。
           build-args: |
             BUILD_PIPELINE=1
+            HTTP_PROXY=http://172.17.0.1:10809
+            HTTPS_PROXY=http://172.17.0.1:10809
+            NO_PROXY=localhost,127.0.0.1,git.aifacely.net,git.zhengchentao.win
           # image.source 仍指 git.zhengchentao.win —— 那才是本仓事实源，镜像只是
           # 暂存在 git.aifacely.net。nas-janitor 的清理靠这个精确值找自家产物。
           # revision 把构建时的 commit full SHA 烙进 manifest，docker inspect 能反推。
