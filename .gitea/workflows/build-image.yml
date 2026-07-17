@@ -1,8 +1,26 @@
 name: Build Docker Image
 
+# 2026-07-17：构建从 NAS runner（nas-runner-1）迁到云端 runner（cloud-runner-1，
+# 跑在 118.25.114.29 = git.aifacely.net 宿主机）。NAS 那台在加密机械盘上构建慢到
+# 不可用（同类项目 nas-auth 实测 27-42 分钟，迁过来热缓存 1 分 57 秒）。
+#
+# ⚠️ 本仓是公开仓（上游 fork）。部署目标主机 / host key 一律走 secrets，不写正文：
+#   secrets.NAS_CI_SSH_KEY           部署用私钥
+#   secrets.NAS_SSH_HOST             部署目标主机
+#   secrets.NAS_SSH_KNOWN_HOSTS      目标主机 host key（固定，不用 accept-new）
+#   secrets.AIFACELY_REGISTRY_TOKEN  推镜像用，需 read:package + write:package
+#
+# 迁回 NAS runner 时要改回来的五处（git log 里 2026-07-17 那次 commit 是完整对照）：
+#   1. registry / 镜像引用改回 git.zhengchentao.win/zhengchen.tao/ezbookkeeping
+#   2. action 引用改回 git.zhengchentao.win/mirror/*（那边也有同名镜像仓）
+#   3. 加回 setup-buildx-action 并钉 moby/buildkit:v0.13.2（DSM 老内核 4.4.x 上
+#      runc 1.2+ 的 procfs 安全检查撞 openat2/fsmount 不存在）
+#   4. nas-infra 里 ezbookkeeping/docker-compose.yml 的 image 引用改回去
+#   5. deploy 改回独立 job + 临时 clone nas-infra 跑 compose
+
 on:
   # 自动触发：push 到 custom 分支时跑（force-push 后的 rebase 也会触发，可接受）
-  # paths-ignore：纯文档/配置改动跳过，避免浪费 ~10 分钟构建
+  # paths-ignore：纯文档/配置改动跳过，避免浪费构建
   # ⚠️ 已知 quirk（2026-05-02 验证）：empty commit（git commit --allow-empty）
   # 不会触发 paths-ignore 过滤的 workflow，Gitea 把 zero-paths-changed 当作
   # "vacuously matches ignore list" 跳过。要强制触发必须至少改一个非 ignore 路径
@@ -18,8 +36,6 @@ on:
       # build-image.yml 自己留着会触发，作为 workflow 改动的 self-test
       - '.gitea/workflows/sync-upstream.yml'
   # 手动触发：保留作为应急通道（重新打包旧 commit、用自定义 tag 等等）
-  # 注意：手动触发也会跑 deploy job —— 如果只想 build 不部署，临时把 deploy
-  # job 注释掉或在 deploy 里加 if 条件
   workflow_dispatch:
     inputs:
       branch:
@@ -31,40 +47,39 @@ on:
         required: false
         default: ''
 
-# 并发控制：同一分支的连续 push 只跑最新的，旧 in-progress run 会被取消
-# 例：连续 3 次 push，第 1 次 build 跑了 30s，第 2 次开始 → 取消第 1，第 2 跑；
-# 期间第 3 次又来 → 取消第 2，第 3 跑。最后只构建+部署最新代码，省 CI 时间。
-# group 包含 ref 是为了不同分支的 build 互不干扰（虽然当前只有 custom 用）
+# 并发控制：同一分支的连续 push 只跑最新的，旧 in-progress run 会被取消。
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
+
+env:
+  REGISTRY: git.aifacely.net
+  IMAGE: git.aifacely.net/zhengchen.tao/ezbookkeeping
 
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
+      # action 走 Gitea 镜像仓的全 URL 引用 —— 对云端 runner 就是本机，clone 秒级。
+      # 用 `actions/checkout@v4` 短写法会被解析到 github.com，那台机在国内拉不动
+      # （实测 connection timed out / unexpected EOF）。
       - name: Checkout target branch
-        uses: actions/checkout@v4
+        uses: https://git.aifacely.net/mirror/checkout@v4
         with:
           # workflow_dispatch 时用用户填的 branch；push 触发时 inputs.branch 为空，
-          # fallback 到 github.ref_name（即触发的分支名，push 到 custom 时就是 custom）
+          # fallback 到 github.ref_name
           ref: ${{ inputs.branch || github.ref_name }}
           fetch-depth: 0
 
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-        with:
-          # 钉到 v0.13.2（自带 runc 1.1.x），避免 runc 1.2+ 的 procfs 安全检查
-          # 在 DSM 老内核（4.4.x）上撞 openat2/fsmount 不存在导致 build 失败
-          driver-opts: |
-            image=moby/buildkit:v0.13.2
+      # 不用 setup-buildx-action：mirror 里没有它，这里也不需要 —— 默认 docker
+      # driver 直接用宿主 daemon 的构建缓存，跨 run 持久。
 
       - name: Login to Gitea Container Registry
-        uses: docker/login-action@v3
+        uses: https://git.aifacely.net/mirror/login-action@v3
         with:
-          registry: git.zhengchentao.win
-          username: ${{ gitea.actor }}
-          password: ${{ secrets.PACKAGES_TOKEN }}
+          registry: ${{ env.REGISTRY }}
+          username: zhengchen.tao
+          password: ${{ secrets.AIFACELY_REGISTRY_TOKEN }}
 
       - name: Determine image tag and revision
         id: meta
@@ -79,31 +94,30 @@ jobs:
           echo "==> Image tag: $IMAGE_TAG"
 
       - name: Build and push
-        uses: docker/build-push-action@v5
+        uses: https://git.aifacely.net/mirror/build-push-action@v6
         with:
           context: .
           push: true
+          # provenance/sbom 关掉：默认会多推一层 attestation manifest，
+          # Gitea registry 支持不好。
+          provenance: false
+          sbom: false
           # 上游 Dockerfile 用 BUILD_PIPELINE 作为 CI 跳过开关：
           # 设为 "1" 时 pkg/exchangerates 跳过依赖第三方 API 的活测试
           # （加拿大银行/乌兹别克央行 API 国内不稳，跑就超时）
-          # CHECK_3RD_API 留空 → 三方 API 测试不跑；想跑设 "1"
           build-args: |
             BUILD_PIPELINE=1
-          # OCI 标签：
-          # - source 让 Gitea 收包时自动把镜像关联到对应 repo（不再需要手动去
-          #   "包设置 → 链接到仓库"）
-          # - revision 把构建时的 commit full SHA 烙进镜像 manifest，
-          #   docker inspect 能反推回源码版本
+          # image.source 仍指 git.zhengchentao.win —— 那才是本仓事实源，镜像只是
+          # 暂存在 git.aifacely.net。nas-janitor 的清理靠这个精确值找自家产物。
+          # revision 把构建时的 commit full SHA 烙进 manifest，docker inspect 能反推。
           labels: |
             org.opencontainers.image.source=https://git.zhengchentao.win/zhengchen.tao/ezbookkeeping
             org.opencontainers.image.revision=${{ steps.meta.outputs.full_sha }}
           tags: |
-            git.zhengchentao.win/zhengchen.tao/ezbookkeeping:${{ steps.meta.outputs.image_tag }}
-            git.zhengchentao.win/zhengchen.tao/ezbookkeeping:latest
+            ${{ env.IMAGE }}:${{ steps.meta.outputs.image_tag }}
+            ${{ env.IMAGE }}:latest
 
       - name: Build summary
-        # 把构建出的镜像 tag 与源 commit 显式列在 Action run summary 区，
-        # 方便从 UI 一眼看到本次 build 产出。always() 保证 build 失败也输出。
         if: always()
         run: |
           {
@@ -112,56 +126,38 @@ jobs:
             echo "| 项 | 值 |"
             echo "|---|---|"
             echo "| 触发方式 | \`${{ github.event_name }}\` |"
+            echo "| Runner | \`cloud-runner-1\`（云端，docker 模式） |"
             echo "| 源分支 | \`${{ inputs.branch || github.ref_name }}\` |"
             echo "| 源 commit (full) | \`${{ steps.meta.outputs.full_sha }}\` |"
             echo "| 源 commit (short) | \`${{ steps.meta.outputs.image_tag }}\` |"
-            echo "| 镜像 tag | \`git.zhengchentao.win/zhengchen.tao/ezbookkeeping:${{ steps.meta.outputs.image_tag }}\` + \`:latest\` |"
+            echo "| 镜像 tag | \`${{ env.IMAGE }}:${{ steps.meta.outputs.image_tag }}\` + \`:latest\` |"
           } >> "$GITHUB_STEP_SUMMARY"
 
-  deploy:
-    # needs: build 串起来 —— build 失败 deploy 自动跳过，无需 if 条件
-    needs: build
-    runs-on: ubuntu-latest
-    steps:
-      # 登录 Gitea Container Registry，否则 docker compose pull 私有镜像 401。
-      # 跟 build job 那步是同一个 PACKAGES_TOKEN，但每个 job 跑在独立 runner 上，
-      # 凭据不会从 build job 继承，必须在这里再登一次。
-      - name: Login to Gitea Container Registry
-        uses: docker/login-action@v3
-        with:
-          registry: git.zhengchentao.win
-          username: ${{ gitea.actor }}
-          password: ${{ secrets.PACKAGES_TOKEN }}
-
-      - name: Pull and restart ezbookkeeping
-        # 部署逻辑直接内联在这。runner 容器挂了 host docker.sock，
-        # 所以这里 docker 命令直接操作的是宿主机 docker daemon，
-        # 容器层面相当于 "ssh 到 NAS 跑 docker compose"。
-        #
-        # NAS_INFRA_TOKEN secret 仅在 nas-infra 是私有仓库时需要；
-        # 公开仓库不设这个 secret 也能拉。
-        env:
-          NAS_INFRA_TOKEN: ${{ secrets.NAS_INFRA_TOKEN }}
+      # ---- deploy ----
+      # 原来是独立 job：临时 clone infra 仓到 tmpdir 再跑 compose（runner 容器挂了
+      # host docker.sock）。现在合并进 build job，改成 ssh 过去触发 —— 目标侧用的是
+      # 正式部署目录，比临时 clone 更接近真实部署状态（临时 clone 拿不到同目录的
+      # .env.shared）。
+      #
+      # NAS 侧是 ssh 强制命令（nas-infra/scripts/ci-deploy.sh），这把 key 只能触发
+      # 白名单内的 compose 重启，拿不到 shell —— tao 在 sudoers 里是 NOPASSWD: ALL，
+      # 裸 key 等于把 NAS root 交给这个 job。ssh 最后那个参数会被当成
+      # SSH_ORIGINAL_COMMAND 做白名单精确匹配，不是在 NAS 上执行的 shell 命令。
+      - name: Deploy to NAS
         run: |
           set -e
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "${{ secrets.NAS_CI_SSH_KEY }}" > ~/.ssh/nas_ci
+          chmod 600 ~/.ssh/nas_ci
+          printf '%s\n' "${{ secrets.NAS_SSH_KNOWN_HOSTS }}" > ~/.ssh/known_hosts_nas
+          chmod 600 ~/.ssh/known_hosts_nas
+          ssh -i ~/.ssh/nas_ci \
+              -o UserKnownHostsFile=~/.ssh/known_hosts_nas \
+              -o StrictHostKeyChecking=yes \
+              -o BatchMode=yes \
+              -o ConnectTimeout=30 \
+              tao@${{ secrets.NAS_SSH_HOST }} "deploy ezbookkeeping"
 
-          TMPDIR=$(mktemp -d)
-          trap 'rm -rf "$TMPDIR"' EXIT
-
-          # 决定 clone URL：有 token 用 token（私有），没有用裸 URL（公开）
-          if [ -n "$NAS_INFRA_TOKEN" ]; then
-            CLONE_URL="https://x-access-token:${NAS_INFRA_TOKEN}@git.zhengchentao.win/dev/nas-infra.git"
-          else
-            CLONE_URL="https://git.zhengchentao.win/dev/nas-infra.git"
-          fi
-
-          git clone --depth 1 "$CLONE_URL" "$TMPDIR/nas-infra"
-          cd "$TMPDIR/nas-infra/ezbookkeeping"
-
-          docker compose pull
-          docker compose up -d
-
-          # 简单 health：列容器状态 + 输出最近日志
-          sleep 3
-          docker compose ps
-          docker compose logs --tail=30 ezbookkeeping
+      - name: Cleanup key
+        if: always()
+        run: rm -f ~/.ssh/nas_ci
