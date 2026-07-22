@@ -141,7 +141,8 @@
                                                         v-model="tags"
                                                         @change="onMove">
                                             <template #item="{ element }">
-                                                <tr class="transaction-tags-table-row-tag text-sm" v-if="showHidden || !element.hidden">
+                                                <tr class="transaction-tags-table-row-tag" v-if="showHidden || !element.hidden"
+                                                    @mouseenter="hoveredTagId = element.id" @mouseleave="hoveredTagId = ''">
                                                     <td>
                                                         <div class="d-flex align-center">
                                                             <div class="d-flex align-center" v-if="editingTag.id !== element.id">
@@ -174,95 +175,82 @@
 
                                                             <v-spacer/>
 
-                                                            <v-btn class="px-2 ms-2" color="default"
-                                                                   density="comfortable" variant="text"
-                                                                   :class="{ 'd-none': loading, 'hover-display': !loading }"
-                                                                   :prepend-icon="element.hidden ? mdiEyeOutline : mdiEyeOffOutline"
-                                                                   :loading="tagHiding[element.id]"
-                                                                   :disabled="loading || updating"
-                                                                   v-if="editingTag.id !== element.id"
-                                                                   @click="hide(element, !element.hidden)">
-                                                                <template #loader>
-                                                                    <v-progress-circular indeterminate size="20" width="2"/>
-                                                                </template>
-                                                                {{ element.hidden ? tt('Show') : tt('Hide') }}
-                                                            </v-btn>
-                                                            <v-btn class="px-2" color="default"
-                                                                   density="comfortable" variant="text"
-                                                                   :class="{ 'd-none': loading, 'hover-display': !loading }"
-                                                                   :prepend-icon="mdiFolderMoveOutline"
-                                                                   :loading="tagMoving[element.id]"
-                                                                   :disabled="loading || updating || allTagGroupsWithDefault.length < 2"
-                                                                   v-if="editingTag.id !== element.id">
-                                                                <template #loader>
-                                                                    <v-progress-circular indeterminate size="20" width="2"/>
-                                                                </template>
-                                                                {{ tt('Move') }}
-                                                                <v-menu activator="parent" max-height="500">
-                                                                    <v-list>
-                                                                        <v-list-subheader :title="tt('Move to...')"/>
-                                                                        <template :key="tagGroup.id" v-for="tagGroup in allTagGroupsWithDefault">
-                                                                            <v-list-item class="text-sm" density="compact"
-                                                                                         :value="tagGroup.id" v-if="activeTagGroupId !== tagGroup.id">
-                                                                                <v-list-item-title class="cursor-pointer"
-                                                                                                   @click="moveTagToGroup(element, tagGroup.id)">
-                                                                                    <div class="d-flex align-center">
-                                                                                        <span class="text-sm ms-3">{{ tagGroup.name }}</span>
-                                                                                    </div>
-                                                                                </v-list-item-title>
-                                                                            </v-list-item>
-                                                                        </template>
-                                                                    </v-list>
-                                                                </v-menu>
-                                                            </v-btn>
-                                                            <v-btn class="px-2" color="default"
-                                                                   density="comfortable" variant="text"
-                                                                   :class="{ 'd-none': loading, 'hover-display': !loading }"
-                                                                   :prepend-icon="mdiPencilOutline"
-                                                                   :loading="tagUpdating[element.id]"
-                                                                   :disabled="loading || updating"
-                                                                   v-if="editingTag.id !== element.id"
-                                                                   @click="edit(element)">
-                                                                <template #loader>
-                                                                    <v-progress-circular indeterminate size="20" width="2"/>
-                                                                </template>
-                                                                {{ tt('Edit') }}
-                                                            </v-btn>
-                                                            <v-btn class="px-2" color="default"
-                                                                   density="comfortable" variant="text"
-                                                                   :class="{ 'd-none': loading, 'hover-display': !loading }"
-                                                                   :prepend-icon="mdiDeleteOutline"
-                                                                   :loading="tagRemoving[element.id]"
-                                                                   :disabled="loading || updating"
-                                                                   v-if="editingTag.id !== element.id"
-                                                                   @click="remove(element)">
-                                                                <template #loader>
-                                                                    <v-progress-circular indeterminate size="20" width="2"/>
-                                                                </template>
-                                                                {{ tt('Delete') }}
-                                                            </v-btn>
-                                                            <v-btn class="px-2"
-                                                                   density="comfortable" variant="text"
-                                                                   :prepend-icon="mdiCheck"
-                                                                   :loading="tagUpdating[element.id]"
-                                                                   :disabled="loading || updating || !isTagModified(element)"
-                                                                   v-if="editingTag.id === element.id" @click="save(editingTag)">
-                                                                <template #loader>
-                                                                    <v-progress-circular indeterminate size="20" width="2"/>
-                                                                </template>
-                                                                {{ tt('Save') }}
-                                                            </v-btn>
-                                                            <v-btn class="px-2" color="default"
-                                                                   density="comfortable" variant="text"
-                                                                   :prepend-icon="mdiClose"
-                                                                   :disabled="loading || updating"
-                                                                   v-if="editingTag.id === element.id" @click="cancelSave(editingTag)">
-                                                                {{ tt('Cancel') }}
-                                                            </v-btn>
+                                                            <template v-if="hoveredTagId === element.id && !loading">
+                                                                <v-btn class="px-2 ms-2" color="default"
+                                                                       density="comfortable" variant="text"
+                                                                       :prepend-icon="element.hidden ? mdiEyeOutline : mdiEyeOffOutline"
+                                                                       :loading="tagHiding[element.id]"
+                                                                       :disabled="loading || updating"
+                                                                       v-if="editingTag.id !== element.id"
+                                                                       @click="hide(element, !element.hidden)">
+                                                                    <template #loader>
+                                                                        <v-progress-circular indeterminate size="20" width="2"/>
+                                                                    </template>
+                                                                    {{ element.hidden ? tt('Show') : tt('Hide') }}
+                                                                </v-btn>
+                                                                <v-btn class="px-2" color="default"
+                                                                       density="comfortable" variant="text"
+                                                                       :prepend-icon="mdiFolderMoveOutline"
+                                                                       :loading="tagMoving[element.id]"
+                                                                       :disabled="loading || updating || allTagGroupsWithDefault.length < 2"
+                                                                       v-if="editingTag.id !== element.id"
+                                                                       @click="showMoveTagDialog(element)">
+                                                                    <template #loader>
+                                                                        <v-progress-circular indeterminate size="20" width="2"/>
+                                                                    </template>
+                                                                    {{ tt('Move') }}
+                                                                </v-btn>
+                                                                <v-btn class="px-2" color="default"
+                                                                       density="comfortable" variant="text"
+                                                                       :prepend-icon="mdiPencilOutline"
+                                                                       :loading="tagUpdating[element.id]"
+                                                                       :disabled="loading || updating"
+                                                                       v-if="editingTag.id !== element.id"
+                                                                       @click="edit(element)">
+                                                                    <template #loader>
+                                                                        <v-progress-circular indeterminate size="20" width="2"/>
+                                                                    </template>
+                                                                    {{ tt('Edit') }}
+                                                                </v-btn>
+                                                                <v-btn class="px-2" color="default"
+                                                                       density="comfortable" variant="text"
+                                                                       :prepend-icon="mdiDeleteOutline"
+                                                                       :loading="tagRemoving[element.id]"
+                                                                       :disabled="loading || updating"
+                                                                       v-if="editingTag.id !== element.id"
+                                                                       @click="remove(element)">
+                                                                    <template #loader>
+                                                                        <v-progress-circular indeterminate size="20" width="2"/>
+                                                                    </template>
+                                                                    {{ tt('Delete') }}
+                                                                </v-btn>
+                                                            </template>
+
+                                                            <template v-if="editingTag.id === element.id">
+                                                                <v-btn class="px-2"
+                                                                       density="comfortable" variant="text"
+                                                                       :prepend-icon="mdiCheck"
+                                                                       :loading="tagUpdating[element.id]"
+                                                                       :disabled="loading || updating || !isTagModified(element)"
+                                                                       @click="save(editingTag)">
+                                                                    <template #loader>
+                                                                        <v-progress-circular indeterminate size="20" width="2"/>
+                                                                    </template>
+                                                                    {{ tt('Save') }}
+                                                                </v-btn>
+                                                                <v-btn class="px-2" color="default"
+                                                                       density="comfortable" variant="text"
+                                                                       :prepend-icon="mdiClose"
+                                                                       :disabled="loading || updating"
+                                                                       @click="cancelSave(editingTag)">
+                                                                    {{ tt('Cancel') }}
+                                                                </v-btn>
+                                                            </template>
+
                                                             <span class="ms-2">
                                                                 <v-icon :class="!loading && !updating && !hasEditingTag && availableTagCount > 1 ? 'drag-handle' : 'disabled'"
                                                                         :icon="mdiDrag"/>
-                                                                <v-tooltip activator="parent" v-if="!loading && !updating && !hasEditingTag && availableTagCount > 1">{{ tt('Drag to Reorder') }}</v-tooltip>
+                                                                <v-tooltip activator="parent" v-if="!loading && !updating && !hasEditingTag && availableTagCount > 1 && hoveredTagId === element.id">{{ tt('Drag to Reorder') }}</v-tooltip>
                                                             </span>
                                                         </div>
                                                     </td>
@@ -270,8 +258,8 @@
                                             </template>
                                         </draggable-list>
 
-                                        <tbody v-if="newTag">
-                                        <tr class="text-sm" :class="{ 'even-row': (availableTagCount & 1) === 1}">
+                                        <tbody ref="newTagRow" v-if="newTag">
+                                        <tr :class="{ 'even-row': (availableTagCount & 1) === 1}">
                                             <td>
                                                 <div class="d-flex align-center">
                                                     <v-text-field class="w-100 me-2" type="text" color="primary"
@@ -319,6 +307,32 @@
         </v-col>
     </v-row>
 
+    <v-dialog width="640" v-model="showTagMoveToDialog">
+        <v-card class="pa-sm-1 pa-md-2">
+            <template #title>
+                <div class="d-flex align-center">
+                    <h4 class="text-h4">{{ tt('Move to...') }}</h4>
+                </div>
+            </template>
+            <v-card-text class="d-flex flex-column flex-md-row flex-grow-1 overflow-y-auto">
+                <v-table hover density="comfortable" class="w-100 table-striped">
+                    <tbody>
+                    <tr class="cursor-pointer" :key="tagGroup.id" v-for="tagGroup in allTagGroupsWithDefault" v-show="activeTagGroupId !== tagGroup.id">
+                        <td @click="moveTagToGroup(currentMovingTag, tagGroup.id)">
+                            <span>{{ tagGroup.name }}</span>
+                        </td>
+                    </tr>
+                    </tbody>
+                </v-table>
+            </v-card-text>
+            <v-card-text class="overflow-y-visible">
+                <div class="w-100 d-flex justify-center flex-wrap mt-sm-1 mt-md-2 gap-4">
+                    <v-btn color="secondary" variant="tonal" :disabled="loading || updating" @click="showTagMoveToDialog = false">{{ tt('Close') }}</v-btn>
+                </div>
+            </v-card-text>
+        </v-card>
+    </v-dialog>
+
     <tag-group-change-display-order-dialog ref="tagGroupChangeDisplayOrderDialog" />
 
     <rename-dialog ref="renameDialog"
@@ -334,7 +348,7 @@ import RenameDialog from '@/components/desktop/RenameDialog.vue';
 import ConfirmDialog from '@/components/desktop/ConfirmDialog.vue';
 import SnackBar from '@/components/desktop/SnackBar.vue';
 
-import { ref, computed, useTemplateRef, watch } from 'vue';
+import { ref, computed, useTemplateRef, watch, nextTick } from 'vue';
 import { useDisplay } from 'vuetify';
 
 import { useI18n } from '@/locales/helpers.ts';
@@ -392,12 +406,13 @@ const {
     hasEditingTag,
     isTagModified,
     switchTagGroup,
-    add,
+    createNewTag,
     edit
 } = useTagListPageBase();
 
 const transactionTagsStore = useTransactionTagsStore();
 
+const newTagRow = useTemplateRef<HTMLElement>('newTagRow');
 const tagGroupChangeDisplayOrderDialog = useTemplateRef<TagGroupChangeDisplayOrderDialogType>('tagGroupChangeDisplayOrderDialog');
 const renameDialog = useTemplateRef<RenameDialogType>('renameDialog');
 const confirmDialog = useTemplateRef<ConfirmDialogType>('confirmDialog');
@@ -407,10 +422,14 @@ const updating = ref<boolean>(false);
 const activeTab = ref<string>('tagListPage');
 const alwaysShowNav = ref<boolean>(display.mdAndUp.value);
 const showNav = ref<boolean>(display.mdAndUp.value);
+const hoveredTagId = ref<string>('');
 const tagUpdating = ref<Record<string, boolean>>({});
 const tagHiding = ref<Record<string, boolean>>({});
 const tagMoving = ref<Record<string, boolean>>({});
 const tagRemoving = ref<Record<string, boolean>>({});
+const currentMovingTag = ref<TransactionTag | null>(null);
+const currentMoveTargetGroupId = ref<string>(DEFAULT_TAG_GROUP_ID);
+const showTagMoveToDialog = ref<boolean>(false);
 
 const totalAvailableTagsCount = computed<number>(() => transactionTagsStore.allAvailableTagsCount);
 const displayTotalAvailableTagsCount = computed<string>(() => formatNumberToLocalizedNumerals(transactionTagsStore.allAvailableTagsCount));
@@ -440,6 +459,14 @@ function reload(): void {
         if (!error.processed) {
             snackbar.value?.showError(error);
         }
+    });
+}
+
+function add(): void {
+    createNewTag();
+
+    nextTick(() => {
+        newTagRow.value?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     });
 }
 
@@ -543,7 +570,18 @@ function removeTagGroup(): void {
     });
 }
 
-function moveTagToGroup(tag: TransactionTag, targetTagGroupId: string): void {
+function showMoveTagDialog(tag: TransactionTag): void {
+    currentMovingTag.value = tag;
+    currentMoveTargetGroupId.value = tag.groupId || DEFAULT_TAG_GROUP_ID;
+    showTagMoveToDialog.value = true;
+}
+
+function moveTagToGroup(tag: TransactionTag | null, targetTagGroupId: string): void {
+    if (!tag) {
+        snackbar.value?.showMessage('Unable to move tag');
+        return;
+    }
+
     updating.value = true;
     tagMoving.value[tag.id] = true;
 
@@ -563,6 +601,8 @@ function moveTagToGroup(tag: TransactionTag, targetTagGroupId: string): void {
             snackbar.value?.showError(error);
         }
     });
+
+    showTagMoveToDialog.value = false;
 }
 
 function save(tag: TransactionTag): void {
@@ -717,14 +757,6 @@ watch(() => display.mdAndUp.value, (newValue) => {
     font-size: 1rem;
 }
 
-.transaction-tags-table tr.transaction-tags-table-row-tag .hover-display {
-    display: none;
-}
-
-.transaction-tags-table tr.transaction-tags-table-row-tag:hover .hover-display {
-    display: inline-grid;
-}
-
 .transaction-tags-table tr:not(:last-child) > td > div {
     padding-bottom: 1px;
 }
@@ -751,13 +783,8 @@ watch(() => display.mdAndUp.value, (newValue) => {
 }
 
 .transaction-tags-table .v-text-field .v-field__input {
-    font-size: 0.875rem;
     padding-top: 0;
     color: rgba(var(--v-theme-on-surface));
-}
-
-.transaction-tags-table .transaction-tag-name {
-    font-size: 0.875rem;
 }
 
 .transaction-tags-table tr .v-text-field .v-field__input {

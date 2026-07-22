@@ -106,35 +106,37 @@
                                         </tr>
 
                                         <tr class="exchange-rates-table-row-data" :key="exchangeRate.currencyCode"
-                                            v-for="exchangeRate in availableExchangeRates">
+                                            v-for="exchangeRate in availableExchangeRates"
+                                            @mouseenter="hoveredCurrency = exchangeRate.currencyCode" @mouseleave="hoveredCurrency = ''">
                                             <td>
                                                 <div class="d-flex align-center">
-                                                    <span class="text-sm">{{ exchangeRate.currencyDisplayName }}</span>
+                                                    <span>{{ exchangeRate.currencyDisplayName }}</span>
                                                     <span class="text-caption ms-1">{{ exchangeRate.currencyCode }}</span>
 
                                                     <v-spacer/>
 
-                                                    <v-btn class="px-2 ms-2" color="default"
-                                                           density="comfortable" variant="text"
-                                                           :class="{ 'd-none': loading, 'hover-display': !loading }"
-                                                           v-if="exchangeRate.currencyCode !== baseCurrency"
-                                                           @click="setAsBaseline(exchangeRate.currencyCode, getFinalConvertedAmount(exchangeRate, false))">
-                                                        {{ tt('Set as Base') }}
-                                                    </v-btn>
-                                                    <v-btn class="px-2" color="default"
-                                                           density="comfortable" variant="text"
-                                                           :class="{ 'd-none': loading, 'hover-display': !loading }"
-                                                           :prepend-icon="mdiDeleteOutline"
-                                                           :loading="customExchangeRateRemoving[exchangeRate.currencyCode]"
-                                                           :disabled="loading || updating"
-                                                           v-if="exchangeRate.currencyCode !== defaultCurrency && isUserCustomExchangeRates"
-                                                           @click="remove(exchangeRate.currencyCode)">
-                                                        <template #loader>
-                                                            <v-progress-circular indeterminate size="20" width="2"/>
-                                                        </template>
-                                                        {{ tt('Delete') }}
-                                                    </v-btn>
-                                                    <span class="ms-3">{{ getFinalConvertedAmount(exchangeRate, true) }}</span>
+                                                    <template v-if="hoveredCurrency === exchangeRate.currencyCode && !loading">
+                                                        <v-btn class="px-2 ms-2" color="default"
+                                                               density="comfortable" variant="text"
+                                                               v-if="exchangeRate.currencyCode !== baseCurrency"
+                                                               @click="setAsBaseline(exchangeRate.currencyCode, getFinalConvertedAmount(exchangeRate, false))">
+                                                            {{ tt('Set as Base') }}
+                                                        </v-btn>
+                                                        <v-btn class="px-2" color="default"
+                                                               density="comfortable" variant="text"
+                                                               :prepend-icon="mdiDeleteOutline"
+                                                               :loading="customExchangeRateRemoving[exchangeRate.currencyCode]"
+                                                               :disabled="loading || updating"
+                                                               v-if="exchangeRate.currencyCode !== defaultCurrency && isUserCustomExchangeRates"
+                                                               @click="remove(exchangeRate.currencyCode)">
+                                                            <template #loader>
+                                                                <v-progress-circular indeterminate size="20" width="2"/>
+                                                            </template>
+                                                            {{ tt('Delete') }}
+                                                        </v-btn>
+                                                    </template>
+
+                                                    <span class="text-subtitle-1 ms-3">{{ getFinalConvertedAmount(exchangeRate, true) }}</span>
                                                 </div>
                                             </td>
                                         </tr>
@@ -169,6 +171,7 @@ import { useExchangeRatesPageBase } from '@/views/base/ExchangeRatesPageBase.ts'
 import { useExchangeRatesStore } from '@/stores/exchangeRates.ts';
 
 import { NumeralSystem } from '@/core/numeral.ts';
+import { AMOUNT_FACTOR } from '@/consts/numeral.ts';
 
 import type { LocalizedLatestExchangeRate } from '@/models/exchange_rate.ts';
 
@@ -208,6 +211,7 @@ const updateDialog = useTemplateRef<UpdateDialogType>('updateDialog');
 const activeTab = ref<string>('exchangeRatesPage');
 const loading = ref<boolean>(true);
 const updating = ref<boolean>(false);
+const hoveredCurrency = ref<string>('');
 const customExchangeRateRemoving = ref<Record<string, boolean>>({});
 const alwaysShowNav = ref<boolean>(mdAndUp.value);
 const showNav = ref<boolean>(mdAndUp.value);
@@ -299,7 +303,7 @@ function getFinalConvertedAmount(toExchangeRate: LocalizedLatestExchangeRate, di
     let exchangeRateAmount: number | '' | null = 0;
 
     try {
-        exchangeRateAmount = getConvertedAmount(baseAmount.value / 100, fromExchangeRate, toExchangeRate);
+        exchangeRateAmount = getConvertedAmount(baseAmount.value / AMOUNT_FACTOR, fromExchangeRate, toExchangeRate);
     } catch (ex) {
         exchangeRateAmount = 0;
         logger.warn('failed to convert amount by exchange rates, original base amount is ' + baseAmount.value, ex)
@@ -332,14 +336,3 @@ watch(mdAndUp, (newValue) => {
 
 reload(false);
 </script>
-
-<style>
-.exchange-rates-table tr.exchange-rates-table-row-data .hover-display {
-    display: none;
-}
-
-.exchange-rates-table tr.exchange-rates-table-row-data:hover .hover-display {
-    display: grid;
-}
-
-</style>

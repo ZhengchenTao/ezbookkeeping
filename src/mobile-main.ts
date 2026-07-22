@@ -55,6 +55,7 @@ import MonthPicker from '@/components/common/MonthPicker.vue';
 import TransactionCalendar from '@/components/common/TransactionCalendar.vue';
 
 import ItemIcon from '@/components/mobile/ItemIcon.vue';
+import ImageBox from '@/components/mobile/ImageBox.vue';
 import LanguageSelectButton from '@/components/mobile/LanguageSelectButton.vue';
 import PieChart from '@/components/mobile/PieChart.vue';
 import TrendsBarChart from '@/components/mobile/TrendsBarChart.vue';
@@ -80,6 +81,7 @@ import MapSheet from '@/components/mobile/MapSheet.vue';
 import TransactionTagSelectionSheet from '@/components/mobile/TransactionTagSelectionSheet.vue';
 import ScheduleFrequencySheet from '@/components/mobile/ScheduleFrequencySheet.vue';
 import AccountBalanceTrendsBarChart from '@/components/mobile/AccountBalanceTrendsBarChart.vue';
+import AITextRecognitionSheet from '@/components/mobile/AITextRecognitionSheet.vue';
 import AIImageRecognitionSheet from '@/components/mobile/AIImageRecognitionSheet.vue';
 
 import TextareaAutoSize from '@/directives/mobile/textareaAutoSize.ts';
@@ -150,6 +152,7 @@ app.component('MonthPicker', MonthPicker);
 app.component('TransactionCalendar', TransactionCalendar);
 
 app.component('ItemIcon', ItemIcon);
+app.component('ImageBox', ImageBox);
 app.component('LanguageSelectButton', LanguageSelectButton);
 app.component('PieChart', PieChart);
 app.component('TrendsBarChart', TrendsBarChart);
@@ -175,6 +178,7 @@ app.component('MapSheet', MapSheet);
 app.component('TransactionTagSelectionSheet', TransactionTagSelectionSheet);
 app.component('ScheduleFrequencySheet', ScheduleFrequencySheet);
 app.component('AccountBalanceTrendsBarChart', AccountBalanceTrendsBarChart);
+app.component('AITextRecognitionSheet', AITextRecognitionSheet);
 app.component('AIImageRecognitionSheet', AIImageRecognitionSheet);
 
 app.directive('TextareaAutoSize', TextareaAutoSize);

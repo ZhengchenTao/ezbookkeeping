@@ -11,12 +11,12 @@ import type { CallbackDataParams } from 'echarts/types/dist/shared';
 
 import { useI18n } from '@/locales/helpers.ts';
 
+import { useSettingsStore } from '@/stores/setting.ts';
+
 import { itemAndIndex } from '@/core/base.ts';
 import { TextDirection } from '@/core/text.ts';
-import type { ColorStyleValue } from '@/core/color.ts';
+import type { ColorValue, ColorStyleValue } from '@/core/color.ts';
 import { ThemeType } from '@/core/theme.ts';
-
-import { DEFAULT_CHART_COLORS } from '@/consts/color.ts';
 
 import type { SortableTransactionStatisticDataItem } from '@/models/transaction.ts';
 
@@ -70,6 +70,7 @@ const props = defineProps<{
     displayOrdersField?: string;
     translateName?: boolean;
     amountValue?: boolean;
+    percentValue?: boolean;
     defaultCurrency?: string;
     enableClickItem?: boolean;
     tooltipExtraColumnNames?: string[];
@@ -89,14 +90,18 @@ const {
     formatAmountToWesternArabicNumeralsWithoutDigitGrouping,
     formatAmountToLocalizedNumeralsWithCurrency,
     formatNumberToLocalizedNumerals,
-    formatNumberToWesternArabicNumerals,
+    formatNumberToWesternArabicNumeralsWithoutDigitGrouping,
     formatPercentToLocalizedNumerals
 } = useI18n();
+
+const settingsStore = useSettingsStore();
 
 const selectedLegends = ref<Record<string, boolean>>({});
 
 const textDirection = computed<TextDirection>(() => getCurrentLanguageTextDirection());
 const isDarkMode = computed<boolean>(() => theme.global.name.value === ThemeType.Dark);
+const chartColors = computed<ColorValue[]>(() => settingsStore.chartColorList);
+
 const finalClass = computed<string>(() => {
     let finalClass = '';
 
@@ -196,7 +201,7 @@ const allSeries = computed<AxisChartDataItem[]>(() => {
             id: (props.idField && item[props.idField]) ? item[props.idField] as string : getItemName(item[props.nameField] as string),
             name: (props.idField && item[props.idField]) ? item[props.idField] as string : getItemName(item[props.nameField] as string),
             itemStyle: {
-                color: getDisplayColor(props.colorField && item[props.colorField] ? item[props.colorField] as string : DEFAULT_CHART_COLORS[allSeries.length % DEFAULT_CHART_COLORS.length]),
+                color: getDisplayColor(props.colorField && item[props.colorField] ? item[props.colorField] as string : chartColors.value[allSeries.length % chartColors.value.length]),
             },
             selected: true,
             type: 'line',
@@ -477,7 +482,7 @@ function getItemName(name: string): string {
 }
 
 function getDisplayValue(value: number): string {
-    if (props.oneHundredPercentStacked) {
+    if (props.oneHundredPercentStacked || props.percentValue) {
         return formatPercentToLocalizedNumerals(value, 2, '<0.01');
     }
 
@@ -485,7 +490,7 @@ function getDisplayValue(value: number): string {
         return formatAmountToLocalizedNumeralsWithCurrency(value, props.defaultCurrency);
     }
 
-    return formatNumberToLocalizedNumerals(value, 2);
+    return formatNumberToLocalizedNumerals(value, 4);
 }
 
 function clickItem(e: ECElementEvent): void {
@@ -522,9 +527,11 @@ function exportData(): { headers: string[], data: string[][] } {
         row.push(categoryName);
         row.push(...allSeries.value.map(item => {
             if (props.oneHundredPercentStacked) {
-                return formatNumberToWesternArabicNumerals(item.data[index] ?? 0);
+                return formatNumberToWesternArabicNumeralsWithoutDigitGrouping(item.data[index] ?? 0);
+            } else if (props.amountValue) {
+                return formatAmountToWesternArabicNumeralsWithoutDigitGrouping(item.data[index] ?? 0, props.defaultCurrency);
             } else {
-                return formatAmountToWesternArabicNumeralsWithoutDigitGrouping(item.data[index] ?? 0);
+                return formatNumberToWesternArabicNumeralsWithoutDigitGrouping(item.data[index] ?? 0);
             }
         }));
         data.push(row);

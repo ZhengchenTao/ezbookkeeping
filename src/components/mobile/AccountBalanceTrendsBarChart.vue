@@ -27,7 +27,7 @@
                           :key="item.index"
                           :style="`top: ${virtualDataItems.topPosition}px`"
                           :virtual-list-index="item.index"
-                          :title="item.displayDate"
+                          :title="item.alternativeDisplayDate || item.displayDate"
                           :after="formatAmountToLocalizedNumeralsWithCurrency(item.closingBalance, account.currency)"
                           v-for="item in virtualDataItems.items"
             >
@@ -56,9 +56,10 @@ import {
     useAccountBalanceTrendsChartBase
 } from '@/components/base/AccountBalanceTrendsChartBase.ts'
 
+import { useSettingsStore } from '@/stores/setting.ts';
+
 import { itemAndIndex } from '@/core/base.ts';
-import type { ColorStyleValue } from '@/core/color.ts';
-import { DEFAULT_CHART_COLORS } from '@/consts/color.ts';
+import type { ColorValue, ColorStyleValue } from '@/core/color.ts';
 
 interface MobileAccountBalanceTrendsChartItem extends AccountBalanceTrendsChartItem {
     index: number;
@@ -80,10 +81,14 @@ const props = defineProps<MobileAccountBalanceTrendsChartProps>();
 const { tt, formatAmountToLocalizedNumeralsWithCurrency } = useI18n();
 const { allDataItems } = useAccountBalanceTrendsChartBase(props);
 
+const settingsStore = useSettingsStore();
+
 const virtualDataItems = ref<MobileAccountBalanceTrendsChartVirtualListData>({
     items: [],
     topPosition: 0
 });
+
+const chartColors = computed<ColorValue[]>(() => settingsStore.chartColorList);
 
 const allVirtualListItems = computed<MobileAccountBalanceTrendsChartItem[]>(() => {
     const ret: MobileAccountBalanceTrendsChartItem[] = [];
@@ -96,7 +101,10 @@ const allVirtualListItems = computed<MobileAccountBalanceTrendsChartItem[]>(() =
 
         const finalDataItem: MobileAccountBalanceTrendsChartItem = {
             index: index,
+            dateRangeKey: dataItem.dateRangeKey,
+            lastYearDateRangeKey: dataItem.lastYearDateRangeKey,
             displayDate: dataItem.displayDate,
+            alternativeDisplayDate: dataItem.alternativeDisplayDate,
             openingBalance: dataItem.openingBalance,
             closingBalance: dataItem.closingBalance,
             medianBalance: dataItem.medianBalance,
@@ -105,7 +113,7 @@ const allVirtualListItems = computed<MobileAccountBalanceTrendsChartItem[]>(() =
             maximumBalance: dataItem.maximumBalance,
             q1Balance: dataItem.q1Balance,
             q3Balance: dataItem.q3Balance,
-            color: `#${DEFAULT_CHART_COLORS[0] as string}`,
+            color: `#${chartColors.value[0] as string}`,
             percent: 0.0
         };
 

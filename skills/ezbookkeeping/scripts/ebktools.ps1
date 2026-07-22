@@ -292,7 +292,7 @@ $API_CONFIGS = @(
         Path = "transactions/list.json"
         RequiresTimezone = $true
         RequiredParams = @("count")
-        OptionalParams = @("type", "category_ids", "account_ids", "tag_filter", "amount_filter", "keyword", "max_time", "min_time", "page", "with_count", "with_pictures", "trim_account", "trim_category", "trim_tag")
+        OptionalParams = @("type", "category_ids", "account_ids", "tag_filter", "amount_filter", "keyword", "must_have_pictures", "max_time", "min_time", "page", "with_count", "with_pictures", "trim_account", "trim_category", "trim_tag")
         ParamTypes = @{
             "count" = "integer"
             "type" = "integer"
@@ -301,6 +301,7 @@ $API_CONFIGS = @(
             "tag_filter" = "string"
             "amount_filter" = "string"
             "keyword" = "string"
+            "must_have_pictures" = "boolean"
             "max_time" = "integer"
             "min_time" = "integer"
             "page" = "integer"
@@ -318,6 +319,7 @@ $API_CONFIGS = @(
             "tag_filter" = "string (Filter by tags)"
             "amount_filter" = "string (Filter by amount)"
             "keyword" = "string (Filter by keyword)"
+            "must_have_pictures" = "boolean (Whether to only get transactions with pictures)"
             "max_time" = "integer (The maximum time sequence ID, Set to 0 for latest)"
             "min_time" = "integer (The minimum time sequence ID)"
             "page" = "integer (Specified page integer)"
@@ -374,7 +376,7 @@ $API_CONFIGS = @(
         Path = "transactions/list/all.json"
         RequiresTimezone = $true
         RequiredParams = @()
-        OptionalParams = @("type", "category_ids", "account_ids", "tag_filter", "amount_filter", "keyword", "start_time", "end_time", "with_pictures", "trim_account", "trim_category", "trim_tag")
+        OptionalParams = @("type", "category_ids", "account_ids", "tag_filter", "amount_filter", "keyword", "must_have_pictures", "start_time", "end_time", "with_pictures", "trim_account", "trim_category", "trim_tag")
         ParamTypes = @{
             "type" = "integer"
             "category_ids" = "string"
@@ -382,6 +384,7 @@ $API_CONFIGS = @(
             "tag_filter" = "string"
             "amount_filter" = "string"
             "keyword" = "string"
+            "must_have_pictures" = "boolean"
             "start_time" = "integer"
             "end_time" = "integer"
             "with_pictures" = "boolean"
@@ -396,6 +399,7 @@ $API_CONFIGS = @(
             "tag_filter" = "string (Filter by tags)"
             "amount_filter" = "string (Filter by amount)"
             "keyword" = "string (Filter by keyword)"
+            "must_have_pictures" = "boolean (Whether to only get transactions with pictures)"
             "start_time" = "integer (Transaction list start unix time)"
             "end_time" = "integer (Transaction list end unix time)"
             "with_pictures" = "boolean (Whether to get picture IDs)"
@@ -1305,7 +1309,7 @@ function Parse-CommandArgs {
                         }
                         "boolean" {
                             if ($paramValue -match "^(true|false|1|0)$") {
-                                $params[$paramName] = ($paramValue -eq "true" -or $paramValue -eq "1")
+                                $params[$paramName] = ($paramValue -eq "true" -or $paramValue -eq "1").ToString().ToLower()
                             } else {
                                 Write-Red "Error: Parameter '-$paramName' must be a boolean value (true/false or 1/0)"
                                 exit 1

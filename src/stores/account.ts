@@ -903,6 +903,42 @@ export const useAccountsStore = defineStore('accounts', () => {
         });
     }
 
+    function updateAccountLastReconciledTime(accountId: string, lastReconciledTime: number): Promise<boolean> {
+        return new Promise((resolve, reject) => {
+            const account = allAccountsMap.value[accountId];
+
+            services.updateAccountLastReconciledTime({
+                id: accountId,
+                lastReconciledTime: lastReconciledTime
+            }).then(response => {
+                const data = response.data;
+
+                if (!data || !data.success || !data.result) {
+                    reject({ message: 'Unable to last reconciled time' });
+                    return;
+                }
+
+                if (account) {
+                    account.lastReconciledTime = lastReconciledTime;
+                } else {
+                    updateAccountListInvalidState(true);
+                }
+
+                resolve(data.result);
+            }).catch(error => {
+                logger.error('failed to update last reconciled time', error);
+
+                if (error.response && error.response.data && error.response.data.errorMessage) {
+                    reject({ error: error.response.data });
+                } else if (!error.processed) {
+                    reject({ message: 'Unable to update last reconciled time' });
+                } else {
+                    reject(error);
+                }
+            });
+        });
+    }
+
     function changeAccountDisplayOrder({ accountId, from, to, updateListOrder, updateGlobalListOrder }: { accountId: string, from: number, to: number, updateListOrder: boolean, updateGlobalListOrder: boolean }): Promise<void> {
         const account = allAccountsMap.value[accountId];
 
@@ -1108,6 +1144,7 @@ export const useAccountsStore = defineStore('accounts', () => {
         loadAllAccounts,
         getAccount,
         saveAccount,
+        updateAccountLastReconciledTime,
         changeAccountDisplayOrder,
         updateAccountDisplayOrders,
         hideAccount,

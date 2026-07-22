@@ -15,6 +15,7 @@ export class Account implements AccountInfoResponse {
     public currency: string;
     public balance: number;
     public balanceTime?: number;
+    public lastReconciledTime?: number;
     public comment: string;
     public creditCardStatementDate?: number;
     public creditLimit?: number;
@@ -25,7 +26,7 @@ export class Account implements AccountInfoResponse {
     private readonly _isAsset?: boolean;
     private readonly _isLiability?: boolean;
 
-    protected constructor(id: string, name: string, parentId: string, category: number, type: number, icon: string, color: string, currency: string, balance: number, comment: string, displayOrder: number, visible: boolean, balanceTime?: number, creditCardStatementDate?: number, isAsset?: boolean, isLiability?: boolean, subAccounts?: Account[], creditLimit?: number) {
+    protected constructor(id: string, name: string, parentId: string, category: number, type: number, icon: string, color: string, currency: string, balance: number, comment: string, displayOrder: number, visible: boolean, balanceTime?: number, lastReconciledTime?: number, creditCardStatementDate?: number, isAsset?: boolean, isLiability?: boolean, subAccounts?: Account[], creditLimit?: number) {
         this.id = id;
         this.name = name;
         this.parentId = parentId;
@@ -36,6 +37,7 @@ export class Account implements AccountInfoResponse {
         this.currency = currency;
         this.balance = balance;
         this.balanceTime = balanceTime;
+        this.lastReconciledTime = lastReconciledTime;
         this.comment = comment;
         this.displayOrder = displayOrder;
         this.visible = visible;
@@ -94,6 +96,7 @@ export class Account implements AccountInfoResponse {
             this.currency === other.currency &&
             this.balance === other.balance &&
             this.balanceTime === other.balanceTime &&
+            this.lastReconciledTime === other.lastReconciledTime &&
             this.comment === other.comment &&
             this.displayOrder === other.displayOrder &&
             this.visible === other.visible &&
@@ -131,6 +134,7 @@ export class Account implements AccountInfoResponse {
         this.currency = other.currency;
         this.balance = other.balance;
         this.balanceTime = other.balanceTime;
+        this.lastReconciledTime = other.lastReconciledTime;
         this.comment = other.comment;
         this.creditCardStatementDate = other.creditCardStatementDate;
         this.creditLimit = other.creditLimit;
@@ -217,6 +221,7 @@ export class Account implements AccountInfoResponse {
             currency: parentAccount && (!this.id || this.id === '0') ? this.currency : undefined,
             balance: parentAccount && (!this.id || this.id === '0') ? this.balance : undefined,
             balanceTime: parentAccount && (!this.id || this.id === '0') ? this.balanceTime : undefined,
+            lastReconciledTime: this.lastReconciledTime,
             comment: this.comment,
             creditCardStatementDate: !parentAccount && this.category === AccountCategory.CreditCard.type ? this.creditCardStatementDate : undefined,
             creditLimit: !parentAccount && this.category === AccountCategory.CreditCard.type ? (this.creditLimit ?? 0) : undefined,
@@ -369,6 +374,7 @@ export class Account implements AccountInfoResponse {
             this.displayOrder,
             this.visible,
             this.balanceTime,
+            this.lastReconciledTime,
             this.creditCardStatementDate,
             this.isAsset,
             this.isLiability,
@@ -392,6 +398,7 @@ export class Account implements AccountInfoResponse {
             this.displayOrder,
             this.visible,
             this.balanceTime,
+            this.lastReconciledTime,
             this.creditCardStatementDate,
             this.isAsset,
             this.isLiability,
@@ -415,6 +422,7 @@ export class Account implements AccountInfoResponse {
             0, // displayOrder
             true, // visible
             balanceTime, // balanceTime
+            undefined, // lastReconciledTime
             0 // creditCardStatementDate
         );
     }
@@ -434,6 +442,7 @@ export class Account implements AccountInfoResponse {
             0, // displayOrder
             true, // visible
             balanceTime, // balanceTime
+            undefined, // lastReconciledTime
             0 // creditCardStatementDate
         );
     }
@@ -453,6 +462,7 @@ export class Account implements AccountInfoResponse {
             accountResponse.displayOrder,
             !accountResponse.hidden,
             undefined,
+            accountResponse.lastReconciledTime,
             accountResponse.creditCardStatementDate,
             accountResponse.isAsset,
             accountResponse.isLiability,
@@ -568,6 +578,7 @@ export class AccountWithDisplayBalance extends Account {
             account.displayOrder,
             account.visible,
             account.balanceTime,
+            account.lastReconciledTime,
             account.creditCardStatementDate,
             account.isAsset,
             account.isLiability,
@@ -608,12 +619,18 @@ export interface AccountModifyRequest {
     readonly currency?: string;
     readonly balance?: number;
     readonly balanceTime?: number;
+    readonly lastReconciledTime?: number;
     readonly comment: string;
     readonly creditCardStatementDate?: number;
     readonly creditLimit?: number;
     readonly hidden: boolean;
     readonly subAccounts?: AccountModifyRequest[];
     readonly clientSessionId?: string;
+}
+
+export interface AccountUpdateLastReconciledTimeRequest {
+    readonly id: string;
+    readonly lastReconciledTime: number;
 }
 
 export interface AccountInfoResponse {
@@ -626,6 +643,7 @@ export interface AccountInfoResponse {
     readonly color: string;
     readonly currency: string;
     readonly balance: number;
+    readonly lastReconciledTime?: number;
     readonly comment: string;
     readonly creditCardStatementDate?: number;
     readonly creditLimit?: number;

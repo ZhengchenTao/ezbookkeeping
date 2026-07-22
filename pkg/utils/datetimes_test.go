@@ -333,6 +333,32 @@ func TestIsUnixTimeEqualsYearAndMonth(t *testing.T) {
 	assert.Equal(t, false, actualValue)
 }
 
+func TestGetMaxDayOfMonth(t *testing.T) {
+	expectedValue := 31
+	actualValue := GetMaxDayOfMonth(2023, 1)
+	assert.Equal(t, expectedValue, actualValue)
+
+	expectedValue = 28
+	actualValue = GetMaxDayOfMonth(2023, 2)
+	assert.Equal(t, expectedValue, actualValue)
+
+	expectedValue = 29
+	actualValue = GetMaxDayOfMonth(2024, 2)
+	assert.Equal(t, expectedValue, actualValue)
+
+	expectedValue = 30
+	actualValue = GetMaxDayOfMonth(2023, 4)
+	assert.Equal(t, expectedValue, actualValue)
+
+	expectedValue = 31
+	actualValue = GetMaxDayOfMonth(2023, 12)
+	assert.Equal(t, expectedValue, actualValue)
+
+	expectedValue = 28
+	actualValue = GetMaxDayOfMonth(2100, 2)
+	assert.Equal(t, expectedValue, actualValue)
+}
+
 func TestGetTimezoneOffsetMinutes_FixedTimezone(t *testing.T) {
 	timezone := time.FixedZone("Test Timezone", 120*60)
 	expectedValue := int16(120)
@@ -395,6 +421,11 @@ func TestFormatTimezoneOffset_FixedTimezone(t *testing.T) {
 	expectedValue = "+00:00"
 	actualValue = FormatTimezoneOffset(time.Now().Unix(), timezone)
 	assert.Equal(t, expectedValue, actualValue)
+
+	timezone = time.FixedZone("Test Timezone", -30*60)
+	expectedValue = "-00:30"
+	actualValue = FormatTimezoneOffset(time.Now().Unix(), timezone)
+	assert.Equal(t, expectedValue, actualValue)
 }
 
 func TestFormatTimezoneOffset_TimezoneWithDST(t *testing.T) {
@@ -435,6 +466,11 @@ func TestFormatTimezoneOffsetFromHoursOffset(t *testing.T) {
 
 	expectedValue = "+00:00"
 	actualValue, err = FormatTimezoneOffsetFromHoursOffset("0")
+	assert.Nil(t, err)
+	assert.Equal(t, expectedValue, actualValue)
+
+	expectedValue = "-00:30"
+	actualValue, err = FormatTimezoneOffsetFromHoursOffset("-0.5")
 	assert.Nil(t, err)
 	assert.Equal(t, expectedValue, actualValue)
 }

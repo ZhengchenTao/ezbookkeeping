@@ -7,7 +7,7 @@
 API_CONFIGS='[
     {
     "Name": "tokens-list",
-        "Description": "Retrieve all sessions for the current user",
+    "Description": "Retrieve all sessions for the current user",
     "Method": "GET",
     "Path": "tokens/list.json",
     "RequiresTimezone": false,
@@ -272,7 +272,7 @@ API_CONFIGS='[
     "Path": "transactions/list.json",
     "RequiresTimezone": true,
     "RequiredParams": ["count"],
-    "OptionalParams": ["type", "category_ids", "account_ids", "tag_filter", "amount_filter", "keyword", "max_time", "min_time", "page", "with_count", "with_pictures", "trim_account", "trim_category", "trim_tag"],
+    "OptionalParams": ["type", "category_ids", "account_ids", "tag_filter", "amount_filter", "keyword", "must_have_pictures", "max_time", "min_time", "page", "with_count", "with_pictures", "trim_account", "trim_category", "trim_tag"],
     "ParamTypes": {
       "count": "integer",
       "type": "integer",
@@ -281,6 +281,7 @@ API_CONFIGS='[
       "tag_filter": "string",
       "amount_filter": "string",
       "keyword": "string",
+      "must_have_pictures": "boolean",
       "max_time": "integer",
       "min_time": "integer",
       "page": "integer",
@@ -298,6 +299,7 @@ API_CONFIGS='[
       "tag_filter": "string (Filter by tags)",
       "amount_filter": "string (Filter by amount)",
       "keyword": "string (Filter by keyword)",
+      "must_have_pictures": "boolean (Whether to only get transactions with pictures)",
       "max_time": "integer (The maximum time sequence ID, Set to 0 for latest)",
       "min_time": "integer (The minimum time sequence ID)",
       "page": "integer (Specified page integer)",
@@ -354,7 +356,7 @@ API_CONFIGS='[
     "Path": "transactions/list/all.json",
     "RequiresTimezone": true,
     "RequiredParams": [],
-    "OptionalParams": ["type", "category_ids", "account_ids", "tag_filter", "amount_filter", "keyword", "start_time", "end_time", "with_pictures", "trim_account", "trim_category", "trim_tag"],
+    "OptionalParams": ["type", "category_ids", "account_ids", "tag_filter", "amount_filter", "keyword", "must_have_pictures", "start_time", "end_time", "with_pictures", "trim_account", "trim_category", "trim_tag"],
     "ParamTypes": {
       "type": "integer",
       "category_ids": "string",
@@ -362,6 +364,7 @@ API_CONFIGS='[
       "tag_filter": "string",
       "amount_filter": "string",
       "keyword": "string",
+      "must_have_pictures": "boolean",
       "start_time": "integer",
       "end_time": "integer",
       "with_pictures": "boolean",
@@ -376,6 +379,7 @@ API_CONFIGS='[
       "tag_filter": "string (Filter by tags)",
       "amount_filter": "string (Filter by amount)",
       "keyword": "string (Filter by keyword)",
+      "must_have_pictures": "boolean (Whether to only get transactions with pictures)",
       "start_time": "integer (Transaction list start unix time)",
       "end_time": "integer (Transaction list end unix time)",
       "with_pictures": "boolean (Whether to get picture IDs)",
@@ -578,8 +582,11 @@ load_env_file() {
         value="$(echo "$value" | sed -e 's/^["'"'"']//' -e 's/["'"'"']$//')"
 
         case "$key" in
-            EBKTOOL_SERVER_BASEURL|EBKTOOL_TOKEN)
-                eval "$key=\"\$value\""
+            EBKTOOL_SERVER_BASEURL)
+                EBKTOOL_SERVER_BASEURL="$value"
+                ;;
+            EBKTOOL_TOKEN)
+                EBKTOOL_TOKEN="$value"
                 ;;
         esac
     done < "$env_file"
@@ -1124,7 +1131,7 @@ call_api() {
         if [ "$json_params" != "{}" ]; then
             if [ -n "$timezone_headers" ]; then
                 response="$(curl -s -X "POST" \
-                    -H "Authorization: Bearer $EBKTOOL_TOKEN" \
+                    -H "Authorization: Bearer $authToken" \
                     -H "Content-Type: application/json" \
                     -H "$timezone_headers" \
                     -d "$json_params" \
@@ -1132,7 +1139,7 @@ call_api() {
                 curl_exit_code=$?
             else
                 response="$(curl -s -X "POST" \
-                    -H "Authorization: Bearer $EBKTOOL_TOKEN" \
+                    -H "Authorization: Bearer $authToken" \
                     -H "Content-Type: application/json" \
                     -d "$json_params" \
                     "$url")"
@@ -1141,13 +1148,13 @@ call_api() {
         else
             if [ -n "$timezone_headers" ]; then
                 response="$(curl -s -X "POST" \
-                    -H "Authorization: Bearer $EBKTOOL_TOKEN" \
+                    -H "Authorization: Bearer $authToken" \
                     -H "$timezone_headers" \
                     "$url")"
                 curl_exit_code=$?
             else
                 response="$(curl -s -X "POST" \
-                    -H "Authorization: Bearer $EBKTOOL_TOKEN" \
+                    -H "Authorization: Bearer $authToken" \
                     "$url")"
                 curl_exit_code=$?
             fi
@@ -1162,12 +1169,12 @@ call_api() {
 
         if [ -n "$timezone_headers" ]; then
             response="$(curl -s -X "$method" \
-                -H "Authorization: Bearer $EBKTOOL_TOKEN" \
+                -H "Authorization: Bearer $authToken" \
                 -H "$timezone_headers" \
                 "$url")"
         else
             response="$(curl -s -X "$method" \
-                -H "Authorization: Bearer $EBKTOOL_TOKEN" \
+                -H "Authorization: Bearer $authToken" \
                 "$url")"
         fi
         curl_exit_code=$?

@@ -61,6 +61,28 @@
         </v-col>
 
         <v-col cols="12">
+            <v-card :title="tt('General Settings')">
+                <v-form>
+                    <v-card-text>
+                        <v-row>
+                            <v-col cols="12" md="6">
+                                <v-text-field
+                                    class="always-cursor-pointer"
+                                    persistent-placeholder
+                                    :readonly="true"
+                                    :label="tt('Chart Color Scheme')"
+                                    :placeholder="tt('Chart Color Scheme')"
+                                    :model-value="chartColorSchemeContent"
+                                    @click="chartColorSchemeDialog?.open().catch(()=>{})"
+                                />
+                            </v-col>
+                        </v-row>
+                    </v-card-text>
+                </v-form>
+            </v-card>
+        </v-col>
+
+        <v-col cols="12">
             <v-card :title="tt('Navigation Bar')">
                 <v-form>
                     <v-card-text>
@@ -184,6 +206,17 @@
                                     v-model="showTagInTransactionListPage"
                                 />
                             </v-col>
+                            <v-col cols="12" md="6">
+                                <v-select
+                                    item-title="displayName"
+                                    item-value="type"
+                                    persistent-placeholder
+                                    :label="tt('Default Keyword Search Matching Mode')"
+                                    :placeholder="tt('Default Keyword Search Matching Mode')"
+                                    :items="allKeywordMatchModes"
+                                    v-model="defaultKeywordMatchModeInTransactionListPage"
+                                />
+                            </v-col>
                         </v-row>
                     </v-card-text>
                 </v-form>
@@ -216,6 +249,62 @@
                                     :placeholder="tt('Automatically Add Geolocation')"
                                     :items="enableDisableOptions"
                                     v-model="isAutoGetCurrentGeoLocation"
+                                />
+                            </v-col>
+
+                            <v-col cols="12" md="6">
+                                <v-select
+                                    item-title="displayName"
+                                    item-value="type"
+                                    persistent-placeholder
+                                    :label="tt('Transaction Picture Upload Quality')"
+                                    :placeholder="tt('Transaction Picture Upload Quality')"
+                                    :items="allImageUploadQualityTypes"
+                                    v-model="transactionPictureQuality"
+                                />
+                            </v-col>
+                        </v-row>
+                    </v-card-text>
+                </v-form>
+            </v-card>
+        </v-col>
+
+        <v-col cols="12">
+            <v-card :title="tt('AI Clipboard Text Recognition')">
+                <v-form>
+                    <v-card-text>
+                        <v-row>
+                            <v-col cols="12" md="6">
+                                <v-select
+                                    item-title="displayName"
+                                    item-value="value"
+                                    persistent-placeholder
+                                    :label="tt('Always Require Confirmation of Clipboard Content Before Submission')"
+                                    :placeholder="tt('Always Require Confirmation of Clipboard Content Before Submission')"
+                                    :items="enableDisableOptions"
+                                    v-model="isAlwaysRequireConfirmationOfClipboardContentBeforeSubmission"
+                                />
+                            </v-col>
+                        </v-row>
+                    </v-card-text>
+                </v-form>
+            </v-card>
+        </v-col>
+
+        <v-col cols="12">
+            <v-card :title="tt('AI Image Recognition')">
+                <v-form>
+                    <v-card-text>
+                        <v-row>
+                            <v-col cols="12" md="6">
+                                <v-select
+                                    item-title="displayName"
+                                    item-value="value"
+                                    persistent-placeholder
+                                    :label="tt('Auto Upload AI Recognition Image as Transaction Picture')"
+                                    :placeholder="tt('Auto Upload AI Recognition Image as Transaction Picture')"
+                                    :items="enableDisableOptions"
+                                    v-model="isAutoUploadTransactionPictureForAIRecognition"
                                 />
                             </v-col>
                         </v-row>
@@ -309,7 +398,7 @@
                                     :label="tt('Account Category Order')"
                                     :placeholder="tt('Account Category Order')"
                                     :model-value="accountCategorysDisplayOrderContent"
-                                    @click="accountCategorysDisplayOrderDialog?.open()"
+                                    @click="accountCategorysDisplayOrderDialog?.open().catch(()=>{})"
                                 />
                             </v-col>
                             <v-col cols="12" md="6">
@@ -321,6 +410,17 @@
                                     :placeholder="tt('Hide Categories Without Accounts')"
                                     :items="enableDisableOptions"
                                     v-model="hideCategoriesWithoutAccounts"
+                                />
+                            </v-col>
+                            <v-col cols="12" md="6">
+                                <v-select
+                                    item-title="displayName"
+                                    item-value="type"
+                                    persistent-placeholder
+                                    :label="tt('Default Date Range for Reconciliation Statement Button')"
+                                    :placeholder="tt('Default Date Range for Reconciliation Statement Button')"
+                                    :items="allReconciliationStatementDateRanges"
+                                    v-model="reconciliationStatementButtonDefaultDateRangeTypeInDesktop"
                                 />
                             </v-col>
                         </v-row>
@@ -367,6 +467,7 @@
                                       @settings:change="showAccountsIncludedInTotalDialog = false" />
     </v-dialog>
 
+    <chart-color-scheme-dialog ref="chartColorSchemeDialog" />
     <account-category-display-order-dialog ref="accountCategorysDisplayOrderDialog" />
 
     <snack-bar ref="snackbar" />
@@ -376,6 +477,7 @@
 import SnackBar from '@/components/desktop/SnackBar.vue';
 import AccountFilterSettingsCard from '@/views/desktop/common/cards/AccountFilterSettingsCard.vue';
 import CategoryFilterSettingsCard from '@/views/desktop/common/cards/CategoryFilterSettingsCard.vue';
+import ChartColorSchemeDialog from '@/views/desktop/app/settings/dialogs/ChartColorSchemeDialog.vue';
 import AccountCategoryDisplayOrderDialog from '@/views/desktop/app/settings/dialogs/AccountCategoryDisplayOrderDialog.vue';
 
 import { ref, computed, useTemplateRef } from 'vue';
@@ -392,10 +494,12 @@ import type { LocalizedSwitchOption } from '@/core/base.ts';
 import { ThemeType } from '@/core/theme.ts';
 import { type LocalizedDateRange, DateRangeScene } from '@/core/datetime.ts';
 import { CategoryType } from '@/core/category.ts';
+import { DEFAULT_RECONCILIATION_STATEMENT_DATE_RANGE_IN_DESKTOP } from '@/core/statistics.ts';
 
 import { getSystemTheme } from '@/lib/ui/common.ts';
 
 type SnackBarType = InstanceType<typeof SnackBar>;
+type ChartColorSchemeDialogType = InstanceType<typeof ChartColorSchemeDialog>;
 type AccountCategoryDisplayOrderDialogType = InstanceType<typeof AccountCategoryDisplayOrderDialog>;
 
 const theme = useTheme();
@@ -408,7 +512,10 @@ const {
     allTimezones,
     allTimezoneTypesUsedForStatistics,
     allCurrencySortingTypes,
+    allKeywordMatchModes,
     allAutoSaveTransactionDraftTypes,
+    allImageUploadQualityTypes,
+    allReconciliationStatementDateRanges,
     hasAnyAccount,
     hasAnyVisibleAccount,
     hasAnyTransactionCategory,
@@ -420,13 +527,19 @@ const {
     timezoneUsedForStatisticsInHomePage,
     showTotalAmountInTransactionListPage,
     showTagInTransactionListPage,
+    defaultKeywordMatchModeInTransactionListPage,
     autoSaveTransactionDraft,
     isAutoGetCurrentGeoLocation,
+    transactionPictureQuality,
+    isAlwaysRequireConfirmationOfClipboardContentBeforeSubmission,
+    isAutoUploadTransactionPictureForAIRecognition,
     currencySortByInExchangeRatesPage,
+    chartColorSchemeContent,
     accountsIncludedInHomePageOverviewDisplayContent,
     accountsIncludedInTotalDisplayContent,
     accountCategorysDisplayOrderContent,
-    transactionCategoriesIncludedInHomePageOverviewDisplayContent
+    transactionCategoriesIncludedInHomePageOverviewDisplayContent,
+    getValidReconciliationStatementPageDefaultDateRangeType
 } = useAppSettingPageBase();
 
 const settingsStore = useSettingsStore();
@@ -434,6 +547,7 @@ const accountsStore = useAccountsStore();
 const transactionCategoriesStore = useTransactionCategoriesStore();
 
 const snackbar = useTemplateRef<SnackBarType>('snackbar');
+const chartColorSchemeDialog = useTemplateRef<ChartColorSchemeDialogType>('chartColorSchemeDialog');
 const accountCategorysDisplayOrderDialog = useTemplateRef<AccountCategoryDisplayOrderDialogType>('accountCategorysDisplayOrderDialog');
 
 const showAccountsIncludedInHomePageOverviewDialog = ref<boolean>(false);
@@ -441,7 +555,7 @@ const showTransactionCategoriesIncludedInHomePageOverviewDialog = ref<boolean>(f
 const showAccountsIncludedInTotalDialog = ref<boolean>(false);
 
 const enableDisableOptions = computed<LocalizedSwitchOption[]>(() => getAllEnableDisableOptions());
-const allInsightsExplorerDefaultDateRanges = computed<LocalizedDateRange[]>(() => getAllDateRanges(DateRangeScene.InsightsExplorer, false));
+const allInsightsExplorerDefaultDateRanges = computed<LocalizedDateRange[]>(() => getAllDateRanges(DateRangeScene.InsightsExplorer, {}));
 
 const currentTheme = computed<string>({
     get: () => settingsStore.appSettings.theme,
@@ -481,6 +595,11 @@ const showTagInInsightsExplorerPage = computed<boolean>({
 const hideCategoriesWithoutAccounts = computed<boolean>({
     get: () => settingsStore.appSettings.hideCategoriesWithoutAccounts,
     set: (value) => settingsStore.setHideCategoriesWithoutAccounts(value)
+});
+
+const reconciliationStatementButtonDefaultDateRangeTypeInDesktop = computed<number>({
+    get: () => getValidReconciliationStatementPageDefaultDateRangeType(settingsStore.appSettings.reconciliationStatementButtonDefaultDateRangeTypeInDesktop, DEFAULT_RECONCILIATION_STATEMENT_DATE_RANGE_IN_DESKTOP.type),
+    set: (value: number) => settingsStore.setReconciliationStatementButtonDefaultDateRangeTypeInDesktop(value)
 });
 
 function init(): void {

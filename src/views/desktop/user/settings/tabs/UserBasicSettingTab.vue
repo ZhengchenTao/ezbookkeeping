@@ -99,6 +99,27 @@
                             <v-col cols="12" md="6">
                                 <v-select
                                     item-title="displayName"
+                                    item-value="value"
+                                    persistent-placeholder
+                                    :disabled="loading || saving"
+                                    :label="tt('Use Last Reconciled Time')"
+                                    :placeholder="tt('Use Last Reconciled Time')"
+                                    :items="enableDisableOptions"
+                                    v-model="newProfile.useLastReconciledTime"
+                                >
+                                    <template #item="{ props, item }">
+                                        <v-list-item :disabled="!item.raw.value && (TransactionEditScopeType.valueOf(newProfile.transactionEditScope)?.needLastReconciledTime ?? false)" v-bind="props">
+                                            <template #title>
+                                                <div class="text-truncate">{{ item.raw.displayName }}</div>
+                                            </template>
+                                        </v-list-item>
+                                    </template>
+                                </v-select>
+                            </v-col>
+
+                            <v-col cols="12" md="6">
+                                <v-select
+                                    item-title="displayName"
                                     item-value="type"
                                     persistent-placeholder
                                     :disabled="loading || saving"
@@ -408,6 +429,7 @@ import { useRootStore } from '@/stores/index.ts';
 import { useUserStore } from '@/stores/user.ts';
 import { useAccountsStore } from '@/stores/account.ts';
 
+import { TransactionEditScopeType } from '@/core/transaction.ts';
 import { SUPPORTED_IMAGE_EXTENSIONS } from '@/consts/file.ts';
 import type { UserProfileResponse } from '@/models/user.ts';
 import { Account } from '@/models/account.ts';
@@ -452,6 +474,7 @@ const {
     allExpenseAmountColorTypes,
     allIncomeAmountColorTypes,
     allTransactionEditScopeTypes,
+    enableDisableOptions,
     languageTitle,
     supportDigitGroupingSymbol,
     inputIsNotChangedProblemMessage,

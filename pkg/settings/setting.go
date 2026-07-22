@@ -2,6 +2,7 @@ package settings
 
 import (
 	"fmt"
+	"net"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -79,6 +80,20 @@ const (
 	GoogleAILLMProvider            string = "google_ai"
 )
 
+// LLMThinkingLevel represents the thinking level of a large language model
+type LLMThinkingLevel string
+
+// LLM thinking levels
+const (
+	LLMThinkingDefault  LLMThinkingLevel = ""
+	LLMThinkingDisabled LLMThinkingLevel = "off"
+	LLMThinkingEnabled  LLMThinkingLevel = "on"
+	LLMThinkingLow      LLMThinkingLevel = "low"
+	LLMThinkingMedium   LLMThinkingLevel = "medium"
+	LLMThinkingHigh     LLMThinkingLevel = "high"
+	LLMThinkingXHigh    LLMThinkingLevel = "xhigh"
+)
+
 // Uuid generator types
 const (
 	InternalUuidGeneratorType string = "internal"
@@ -128,22 +143,24 @@ const (
 
 // Exchange rates data source types
 const (
-	BankOfCanadaDataSource            string = "bank_of_canada"
-	CzechNationalBankDataSource       string = "czech_national_bank"
-	DanmarksNationalbankDataSource    string = "danmarks_national_bank"
-	EuroCentralBankDataSource         string = "euro_central_bank"
-	NationalBankOfGeorgiaDataSource   string = "national_bank_of_georgia"
-	CentralBankOfHungaryDataSource    string = "central_bank_of_hungary"
-	BankOfIsraelDataSource            string = "bank_of_israel"
-	CentralBankOfMyanmarDataSource    string = "central_bank_of_myanmar"
-	NorgesBankDataSource              string = "norges_bank"
-	NationalBankOfPolandDataSource    string = "national_bank_of_poland"
-	NationalBankOfRomaniaDataSource   string = "national_bank_of_romania"
-	BankOfRussiaDataSource            string = "bank_of_russia"
-	SwissNationalBankDataSource       string = "swiss_national_bank"
-	NationalBankOfUkraineDataSource   string = "national_bank_of_ukraine"
-	CentralBankOfUzbekistanDataSource string = "central_bank_of_uzbekistan"
-	UserCustomExchangeRatesDataSource string = "user_custom"
+	CentralBankOfArgentinaDataSource   string = "central_bank_of_argentina"
+	BankOfCanadaDataSource             string = "bank_of_canada"
+	CzechNationalBankDataSource        string = "czech_national_bank"
+	DanmarksNationalbankDataSource     string = "danmarks_national_bank"
+	EuroCentralBankDataSource          string = "euro_central_bank"
+	NationalBankOfGeorgiaDataSource    string = "national_bank_of_georgia"
+	CentralBankOfHungaryDataSource     string = "central_bank_of_hungary"
+	BankOfIsraelDataSource             string = "bank_of_israel"
+	NationalBankOfKazakhstanDataSource string = "national_bank_of_kazakhstan"
+	CentralBankOfMyanmarDataSource     string = "central_bank_of_myanmar"
+	NorgesBankDataSource               string = "norges_bank"
+	NationalBankOfPolandDataSource     string = "national_bank_of_poland"
+	NationalBankOfRomaniaDataSource    string = "national_bank_of_romania"
+	BankOfRussiaDataSource             string = "bank_of_russia"
+	SwissNationalBankDataSource        string = "swiss_national_bank"
+	NationalBankOfUkraineDataSource    string = "national_bank_of_ukraine"
+	CentralBankOfUzbekistanDataSource  string = "central_bank_of_uzbekistan"
+	UserCustomExchangeRatesDataSource  string = "user_custom"
 )
 
 const (
@@ -165,12 +182,14 @@ const (
 
 	defaultAIRecognitionPictureMaxSize                 uint32 = 10485760 // 10MB
 	defaultAnthropicLargeLanguageModelAPIMaximumTokens uint32 = 1024
+	defaultAnthropicLargeLanguageModelThinkingBudget   uint32 = 1024
 	defaultLargeLanguageModelAPIRequestTimeout         uint32 = 60000 // 60 seconds
 
 	defaultInMemoryDuplicateCheckerCleanupInterval uint32 = 60  // 1 minutes
 	defaultDuplicateSubmissionsInterval            uint32 = 300 // 5 minutes
 
 	defaultSecretKey                     string = "ezbookkeeping"
+	defaultTrustedProxyIPs               string = "10.0.0.0/8,169.254.0.0/16,127.0.0.0/8,172.16.0.0/12,192.168.0.0/16"
 	defaultTokenExpiredTime              uint32 = 2592000 // 30 days
 	defaultTokenMinRefreshInterval       uint32 = 86400   // 1 day
 	defaultTemporaryTokenExpiredTime     uint32 = 300     // 5 minutes
@@ -241,32 +260,35 @@ type WebDAVConfig struct {
 
 // LLMConfig represents the Large Language Model setting config
 type LLMConfig struct {
-	LLMProvider                         string
-	OpenAIAPIKey                        string
-	OpenAIModelID                       string
-	OpenAICompatibleBaseURL             string
-	OpenAICompatibleAPIKey              string
-	OpenAICompatibleModelID             string
-	AnthropicAPIKey                     string
-	AnthropicModelID                    string
-	AnthropicMaxTokens                  uint32
-	AnthropicCompatibleBaseURL          string
-	AnthropicCompatibleAPIVersion       string
-	AnthropicCompatibleAPIKey           string
-	AnthropicCompatibleModelID          string
-	AnthropicCompatibleMaxTokens        uint32
-	OpenRouterAPIKey                    string
-	OpenRouterModelID                   string
-	OllamaServerURL                     string
-	OllamaModelID                       string
-	LMStudioServerURL                   string
-	LMStudioToken                       string
-	LMStudioModelID                     string
-	GoogleAIAPIKey                      string
-	GoogleAIModelID                     string
-	LargeLanguageModelAPIRequestTimeout uint32
-	LargeLanguageModelAPIProxy          string
-	LargeLanguageModelAPISkipTLSVerify  bool
+	LLMProvider                             string
+	EnableThinking                          LLMThinkingLevel
+	OpenAIAPIKey                            string
+	OpenAIModelID                           string
+	OpenAICompatibleBaseURL                 string
+	OpenAICompatibleAPIKey                  string
+	OpenAICompatibleModelID                 string
+	AnthropicAPIKey                         string
+	AnthropicModelID                        string
+	AnthropicMaxTokens                      uint32
+	AnthropicThinkingBudgetTokens           uint32
+	AnthropicCompatibleBaseURL              string
+	AnthropicCompatibleAPIVersion           string
+	AnthropicCompatibleAPIKey               string
+	AnthropicCompatibleModelID              string
+	AnthropicCompatibleMaxTokens            uint32
+	AnthropicCompatibleThinkingBudgetTokens uint32
+	OpenRouterAPIKey                        string
+	OpenRouterModelID                       string
+	OllamaServerURL                         string
+	OllamaModelID                           string
+	LMStudioServerURL                       string
+	LMStudioToken                           string
+	LMStudioModelID                         string
+	GoogleAIAPIKey                          string
+	GoogleAIModelID                         string
+	LargeLanguageModelAPIRequestTimeout     uint32
+	LargeLanguageModelAPIProxy              string
+	LargeLanguageModelAPISkipTLSVerify      bool
 }
 
 // MultiLanguageContentConfig represents a multi-language content setting config
@@ -335,8 +357,12 @@ type Config struct {
 	WebDAVConfig        *WebDAVConfig
 
 	// Large Language Model
+	TransactionFromAITextRecognition  bool
 	TransactionFromAIImageRecognition bool
 	MaxAIRecognitionPictureFileSize   uint32
+
+	// Large Language Model for Transaction Text Recognition
+	TextRecognitionLLMConfig *LLMConfig
 
 	// Large Language Model for Receipt Image Recognition
 	ReceiptImageRecognitionLLMConfig *LLMConfig
@@ -360,6 +386,8 @@ type Config struct {
 	// Secret
 	SecretKeyNoSet                        bool
 	SecretKey                             string
+	TrustedProxyIPs                       []*net.IPNet
+	TrustedProxyTextualIPs                []string
 	TokenExpiredTime                      uint32
 	TokenExpiredTimeDuration              time.Duration
 	TokenMinRefreshInterval               uint32
@@ -509,6 +537,12 @@ func LoadConfiguration(configFilePath string) (*Config, error) {
 	}
 
 	err = loadLLMGlobalConfiguration(config, cfgFile, "llm")
+
+	if err != nil {
+		return nil, err
+	}
+
+	config.TextRecognitionLLMConfig, err = loadLLMConfiguration(cfgFile, "llm_text_recognition")
 
 	if err != nil {
 		return nil, err
@@ -843,6 +877,7 @@ func loadStorageConfiguration(config *Config, configFile *ini.File, sectionName 
 }
 
 func loadLLMGlobalConfiguration(config *Config, configFile *ini.File, sectionName string) error {
+	config.TransactionFromAITextRecognition = getConfigItemBoolValue(configFile, sectionName, "transaction_from_ai_text_recognition", false)
 	config.TransactionFromAIImageRecognition = getConfigItemBoolValue(configFile, sectionName, "transaction_from_ai_image_recognition", false)
 	config.MaxAIRecognitionPictureFileSize = getConfigItemUint32Value(configFile, sectionName, "max_ai_recognition_picture_size", defaultAIRecognitionPictureMaxSize)
 
@@ -875,6 +910,26 @@ func loadLLMConfiguration(configFile *ini.File, sectionName string) (*LLMConfig,
 		return nil, errs.ErrInvalidLLMProvider
 	}
 
+	thinkingLevel := getConfigItemStringValue(configFile, sectionName, "enable_thinking")
+
+	if thinkingLevel == string(LLMThinkingDefault) {
+		llmConfig.EnableThinking = LLMThinkingDefault
+	} else if thinkingLevel == string(LLMThinkingDisabled) {
+		llmConfig.EnableThinking = LLMThinkingDisabled
+	} else if thinkingLevel == string(LLMThinkingEnabled) {
+		llmConfig.EnableThinking = LLMThinkingEnabled
+	} else if thinkingLevel == string(LLMThinkingLow) {
+		llmConfig.EnableThinking = LLMThinkingLow
+	} else if thinkingLevel == string(LLMThinkingMedium) {
+		llmConfig.EnableThinking = LLMThinkingMedium
+	} else if thinkingLevel == string(LLMThinkingHigh) {
+		llmConfig.EnableThinking = LLMThinkingHigh
+	} else if thinkingLevel == string(LLMThinkingXHigh) {
+		llmConfig.EnableThinking = LLMThinkingXHigh
+	} else {
+		return nil, errs.ErrInvalidLLMThinkingLevel
+	}
+
 	llmConfig.OpenAIAPIKey = getConfigItemStringValue(configFile, sectionName, "openai_api_key")
 	llmConfig.OpenAIModelID = getConfigItemStringValue(configFile, sectionName, "openai_model_id")
 
@@ -885,12 +940,14 @@ func loadLLMConfiguration(configFile *ini.File, sectionName string) (*LLMConfig,
 	llmConfig.AnthropicAPIKey = getConfigItemStringValue(configFile, sectionName, "anthropic_api_key")
 	llmConfig.AnthropicModelID = getConfigItemStringValue(configFile, sectionName, "anthropic_model_id")
 	llmConfig.AnthropicMaxTokens = getConfigItemUint32Value(configFile, sectionName, "anthropic_max_tokens", defaultAnthropicLargeLanguageModelAPIMaximumTokens)
+	llmConfig.AnthropicThinkingBudgetTokens = getConfigItemUint32Value(configFile, sectionName, "anthropic_thinking_budget_tokens", defaultAnthropicLargeLanguageModelThinkingBudget)
 
 	llmConfig.AnthropicCompatibleBaseURL = getConfigItemStringValue(configFile, sectionName, "anthropic_compatible_base_url")
 	llmConfig.AnthropicCompatibleAPIVersion = getConfigItemStringValue(configFile, sectionName, "anthropic_compatible_api_version")
 	llmConfig.AnthropicCompatibleAPIKey = getConfigItemStringValue(configFile, sectionName, "anthropic_compatible_api_key")
 	llmConfig.AnthropicCompatibleModelID = getConfigItemStringValue(configFile, sectionName, "anthropic_compatible_model_id")
 	llmConfig.AnthropicCompatibleMaxTokens = getConfigItemUint32Value(configFile, sectionName, "anthropic_compatible_max_tokens", defaultAnthropicLargeLanguageModelAPIMaximumTokens)
+	llmConfig.AnthropicCompatibleThinkingBudgetTokens = getConfigItemUint32Value(configFile, sectionName, "anthropic_compatible_thinking_budget_tokens", defaultAnthropicLargeLanguageModelThinkingBudget)
 
 	llmConfig.OpenRouterAPIKey = getConfigItemStringValue(configFile, sectionName, "openrouter_api_key")
 	llmConfig.OpenRouterModelID = getConfigItemStringValue(configFile, sectionName, "openrouter_model_id")
@@ -965,6 +1022,11 @@ func loadSecurityConfiguration(config *Config, configFile *ini.File, sectionName
 
 	config.SecretKeyNoSet = !getConfigItemIsSet(configFile, sectionName, "secret_key")
 	config.SecretKey = getConfigItemStringValue(configFile, sectionName, "secret_key", defaultSecretKey)
+	config.TrustedProxyIPs, config.TrustedProxyTextualIPs, err = getCIDRList(configFile, sectionName, "trusted_proxy_ips", defaultTrustedProxyIPs)
+
+	if err != nil {
+		return err
+	}
 
 	config.TokenExpiredTime = getConfigItemUint32Value(configFile, sectionName, "token_expired_time", defaultTokenExpiredTime)
 
@@ -1189,13 +1251,15 @@ func loadMapConfiguration(config *Config, configFile *ini.File, sectionName stri
 func loadExchangeRatesConfiguration(config *Config, configFile *ini.File, sectionName string) error {
 	dataSource := getConfigItemStringValue(configFile, sectionName, "data_source")
 
-	if dataSource == BankOfCanadaDataSource ||
+	if dataSource == CentralBankOfArgentinaDataSource ||
+		dataSource == BankOfCanadaDataSource ||
 		dataSource == CzechNationalBankDataSource ||
 		dataSource == DanmarksNationalbankDataSource ||
 		dataSource == EuroCentralBankDataSource ||
 		dataSource == NationalBankOfGeorgiaDataSource ||
 		dataSource == CentralBankOfHungaryDataSource ||
 		dataSource == BankOfIsraelDataSource ||
+		dataSource == NationalBankOfKazakhstanDataSource ||
 		dataSource == CentralBankOfMyanmarDataSource ||
 		dataSource == NorgesBankDataSource ||
 		dataSource == NationalBankOfPolandDataSource ||
@@ -1278,6 +1342,37 @@ func getIPPatterns(configFile *ini.File, sectionName string, itemName string, de
 	}
 
 	return ipPatterns, nil
+}
+
+func getCIDRList(configFile *ini.File, sectionName string, itemName string, defaultValue string) ([]*net.IPNet, []string, error) {
+	configValue := getConfigItemStringValue(configFile, sectionName, itemName, defaultValue)
+
+	if configValue == "" {
+		return nil, nil, nil
+	}
+
+	cidrs := strings.Split(configValue, ",")
+	parsedCIDRs := make([]*net.IPNet, 0, len(cidrs))
+	textualCIDRs := make([]string, 0, len(cidrs))
+
+	for i := 0; i < len(cidrs); i++ {
+		cidr := strings.TrimSpace(cidrs[i])
+
+		if cidr == "" {
+			continue
+		}
+
+		_, parsedCIDR, err := net.ParseCIDR(cidr)
+
+		if err != nil {
+			return nil, nil, err
+		}
+
+		parsedCIDRs = append(parsedCIDRs, parsedCIDR)
+		textualCIDRs = append(textualCIDRs, parsedCIDR.String())
+	}
+
+	return parsedCIDRs, textualCIDRs, nil
 }
 
 func getMultiLanguageContentConfig(configFile *ini.File, sectionName string, enableKey string, contentKey string) MultiLanguageContentConfig {

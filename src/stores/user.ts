@@ -22,6 +22,7 @@ import type {
 } from '@/models/data_management.ts';
 
 import {
+    isArray,
     isObject,
     isString,
     isNumber
@@ -63,6 +64,11 @@ export const useUserStore = defineStore('user', () => {
     const currentUserDefaultCurrency = computed<string>(() => {
         const userInfo = currentUserBasicInfo.value || EMPTY_USER_BASIC_INFO;
         return userInfo.defaultCurrency || settingsStore.localeDefaultSettings.currency;
+    });
+
+    const currentUserUseLastReconciledTime = computed<boolean>(() => {
+        const userInfo = currentUserBasicInfo.value || EMPTY_USER_BASIC_INFO;
+        return userInfo.useLastReconciledTime ?? false;
     });
 
     const currentUserFirstDayOfWeek = computed<WeekDayValue>(() => {
@@ -380,19 +386,28 @@ export const useUserStore = defineStore('user', () => {
     function getExportedUserData(fileType: string, req?: ExportTransactionDataRequest): Promise<Blob> {
         return new Promise((resolve, reject) => {
             services.getExportedUserData(fileType, req).then(response => {
-                if (response && response.headers) {
-                    const contentType = response.headers['content-type']?.toString() || '';
-
-                    if (fileType === 'csv' && !KnownFileType.CSV.isSameType(contentType)) {
-                        reject({ message: 'Unable to retrieve exported user data' });
-                        return;
-                    } else if (fileType === 'tsv' && !KnownFileType.TSV.isSameType(contentType)) {
-                        reject({ message: 'Unable to retrieve exported user data' });
-                        return;
-                    }
+                if (!response || !response.data) {
+                    reject({ message: 'Unable to retrieve exported user data' });
+                    return;
                 }
 
-                const blob = new Blob([response.data], { type: response.headers['content-type'] });
+                let contentType = response.headers['content-type'] ?? '';
+
+                if (isArray(contentType)) {
+                    contentType = contentType[0] ?? '';
+                }
+
+                contentType = contentType.toString();
+
+                if (fileType === 'csv' && !KnownFileType.CSV.isSameType(contentType)) {
+                    reject({ message: 'Unable to retrieve exported user data' });
+                    return;
+                } else if (fileType === 'tsv' && !KnownFileType.TSV.isSameType(contentType)) {
+                    reject({ message: 'Unable to retrieve exported user data' });
+                    return;
+                }
+
+                const blob = new Blob([response.data], { type: contentType });
                 resolve(blob);
             }).catch(error => {
                 logger.error('failed to retrieve user statistics data', error);
@@ -433,6 +448,7 @@ export const useUserStore = defineStore('user', () => {
         currentUserDefaultAccountId,
         currentUserLanguage,
         currentUserDefaultCurrency,
+        currentUserUseLastReconciledTime,
         currentUserFirstDayOfWeek,
         currentUserFiscalYearStart,
         currentUserCalendarDisplayType,

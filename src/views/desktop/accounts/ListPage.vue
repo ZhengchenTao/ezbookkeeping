@@ -214,7 +214,7 @@
                                                                     </v-btn>
                                                                     <v-btn class="px-2 ms-1" density="comfortable" color="default" variant="text"
                                                                            :disabled="loading" :prepend-icon="mdiInvoiceListOutline"
-                                                                           @click="showReconciliationStatementCustomDateRangeDialog(element.getAccountOrSubAccount(activeSubAccount[element.id]))"
+                                                                           @click="showReconciliationStatementDialog(element.getAccountOrSubAccount(activeSubAccount[element.id]))"
                                                                            v-if="element.type === AccountType.SingleAccount.type || element.getSubAccount(activeSubAccount[element.id])">
                                                                         {{ tt('Reconciliation Statement') }}
                                                                         <v-menu activator="parent" :open-on-hover="true">
@@ -224,7 +224,7 @@
                                                                                     <v-list-item class="text-sm" density="compact"
                                                                                                  :value="dateRange.type">
                                                                                         <v-list-item-title class="cursor-pointer"
-                                                                                                           @click="showReconciliationStatementCustomDateRangeDialog(element.getAccountOrSubAccount(activeSubAccount[element.id]), dateRange.type)">
+                                                                                                           @click="showReconciliationStatementDialog(element.getAccountOrSubAccount(activeSubAccount[element.id]), dateRange.type)">
                                                                                             <div class="d-flex align-center">
                                                                                                 <span class="text-sm ms-3">{{ dateRange.displayName }}</span>
                                                                                             </div>
@@ -256,6 +256,12 @@
                                                                         {{ tt('More') }}
                                                                         <v-menu activator="parent" :open-on-hover="true">
                                                                             <v-list>
+                                                                                <v-list-item class="text-sm" density="compact"
+                                                                                             :title="tt('Mark as Reconciled')"
+                                                                                             :prepend-icon="mdiReceiptTextCheckOutline"
+                                                                                             @click="updateLastReconciledTime(element.getAccountOrSubAccount(activeSubAccount[element.id]))"
+                                                                                             v-if="useLastReconciledTime"></v-list-item>
+                                                                                <v-divider class="my-2" v-if="useLastReconciledTime" />
                                                                                 <v-list-item class="text-sm" density="compact"
                                                                                              :title="tt('Move All Transactions')"
                                                                                              :prepend-icon="mdiSwapHorizontal"
@@ -333,14 +339,21 @@ import { useI18n } from '@/locales/helpers.ts';
 import { useAccountListPageBase } from '@/views/base/accounts/AccountListPageBase.ts';
 
 import { useSettingsStore } from '@/stores/setting.ts';
+import { useUserStore } from '@/stores/user.ts';
 import { useAccountsStore } from '@/stores/account.ts';
 
 import { DateRange, DateRangeScene, type LocalizedDateRange, type TimeRangeAndDateType } from '@/core/datetime.ts';
 import { AccountType, AccountCategory } from '@/core/account.ts';
+import { DEFAULT_RECONCILIATION_STATEMENT_DATE_RANGE_IN_DESKTOP } from '@/core/statistics.ts';
 import type { Account } from '@/models/account.ts';
 
 import { isNumber } from '@/lib/common.ts';
-import { getDateRangeByDateType, getDateRangeByBillingCycleDateType } from '@/lib/datetime.ts';
+import {
+    getCurrentUnixTime,
+    getDateRangeByDateType,
+    getDateRangeByBillingCycleDateType,
+    getDateRangeByLastReconciledTimeRangeDateType
+} from '@/lib/datetime.ts';
 
 import {
     mdiEyeOutline,
@@ -351,6 +364,7 @@ import {
     mdiMenu,
     mdiPencilOutline,
     mdiDotsHorizontalCircleOutline,
+    mdiReceiptTextCheckOutline,
     mdiSwapHorizontal,
     mdiEraser,
     mdiDeleteOutline,
@@ -380,6 +394,7 @@ const {
     defaultAccountCategory,
     firstDayOfWeek,
     fiscalYearStart,
+    useLastReconciledTime,
     allAccounts,
     allCategorizedAccountsMap,
     allAccountCount,
@@ -391,6 +406,7 @@ const {
 } = useAccountListPageBase();
 
 const settingsStore = useSettingsStore();
+const userStore = useUserStore();
 const accountsStore = useAccountsStore();
 
 const confirmDialog = useTemplateRef<ConfirmDialogType>('confirmDialog');
@@ -495,7 +511,11 @@ function accountCurrency(account: Account): string | null {
 }
 
 function accountReconciliationStatementDateRanges(account: Account): LocalizedDateRange[] {
-    return getAllDateRanges(DateRangeScene.Normal, true, !!accountsStore.getAccountStatementDate(account.id));
+    return getAllDateRanges(DateRangeScene.Normal, {
+        includeCustom: true,
+        includeBillingCycle: !!accountsStore.getAccountStatementDate(account.id),
+        includeLastReconciledTimeRange: userStore.currentUserUseLastReconciledTime && !!account.lastReconciledTime
+    });
 }
 
 function add(): void {
@@ -531,7 +551,21 @@ function edit(account: Account): void {
     });
 }
 
-function showReconciliationStatementCustomDateRangeDialog(account: Account, dateRangeType?: number): void {
+function showReconciliationStatementDialog(account: Account, dateRangeType?: number): void {
+    if (!isNumber(dateRangeType)) {
+        const defualtDateRange = DateRange.valueOf(settingsStore.appSettings.reconciliationStatementButtonDefaultDateRangeTypeInDesktop);
+
+        if (!defualtDateRange) {
+            dateRangeType = DEFAULT_RECONCILIATION_STATEMENT_DATE_RANGE_IN_DESKTOP.type;
+        } else if (defualtDateRange.isBillingCycle && !accountsStore.getAccountStatementDate(account.id)) {
+            dateRangeType = DEFAULT_RECONCILIATION_STATEMENT_DATE_RANGE_IN_DESKTOP.type;
+        } else if (defualtDateRange.isLastReconciledTimeRange && (!userStore.currentUserUseLastReconciledTime || !account.lastReconciledTime)) {
+            dateRangeType = DEFAULT_RECONCILIATION_STATEMENT_DATE_RANGE_IN_DESKTOP.type;
+        } else {
+            dateRangeType = defualtDateRange.type;
+        }
+    }
+
     if (!isNumber(dateRangeType) || dateRangeType === DateRange.Custom.type) {
         accountToShowReconciliationStatement.value = account;
         showCustomDateRangeDialog.value = true;
@@ -542,6 +576,8 @@ function showReconciliationStatementCustomDateRangeDialog(account: Account, date
 
     if (DateRange.isBillingCycle(dateRangeType)) {
         dateRange = getDateRangeByBillingCycleDateType(dateRangeType, firstDayOfWeek.value, fiscalYearStart.value, accountsStore.getAccountStatementDate(account.id));
+    } else if (DateRange.isLastReconciledTimeRange(dateRangeType)) {
+        dateRange = getDateRangeByLastReconciledTimeRangeDateType(dateRangeType, account.lastReconciledTime);
     } else {
         dateRange = getDateRangeByDateType(dateRangeType, firstDayOfWeek.value, fiscalYearStart.value);
     }
@@ -554,6 +590,28 @@ function showReconciliationStatementCustomDateRangeDialog(account: Account, date
         accountId: account.id,
         startTime: dateRange.minTime,
         endTime: dateRange.maxTime
+    });
+}
+
+function updateLastReconciledTime(account: Account): void {
+    confirmDialog.value?.open('Are you sure you want to update the last reconciled time of this account to the current time?').then(() => {
+        loading.value = true;
+
+        accountsStore.updateAccountLastReconciledTime(account.id, getCurrentUnixTime()).then(() => {
+            loading.value = false;
+            snackbar.value?.showMessage('Last reconciled time have been updated');
+
+            if (accountsStore.accountListStateInvalid && !loading.value) {
+                reload(false);
+            }
+
+        }).catch(error => {
+            loading.value = false;
+
+            if (error) {
+                snackbar.value?.showError(error);
+            }
+        });
     });
 }
 

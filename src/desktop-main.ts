@@ -52,11 +52,25 @@ import 'vuetify/styles';
 
 import * as echarts from 'echarts/core';
 import { CanvasRenderer } from 'echarts/renderers';
-import { LineChart, BarChart, PieChart, ScatterChart, BoxplotChart, CandlestickChart, RadarChart, SankeyChart } from 'echarts/charts';
+import {
+    LineChart,
+    BarChart,
+    PieChart,
+    ScatterChart,
+    BoxplotChart,
+    CandlestickChart,
+    RadarChart,
+    TreemapChart,
+    SunburstChart,
+    HeatmapChart,
+    SankeyChart
+} from 'echarts/charts';
 import {
     GridComponent,
+    CalendarComponent,
     TooltipComponent,
     LegendComponent,
+    VisualMapComponent
 } from 'echarts/components';
 import VChart from 'vue-echarts';
 
@@ -103,6 +117,9 @@ import PieChartComponent from '@/components/desktop/PieChart.vue';
 import RadarChartComponent from '@/components/desktop/RadarChart.vue';
 import AxisChart from '@/components/desktop/AxisChart.vue';
 import TrendsChart from '@/components/desktop/TrendsChart.vue';
+import HierarchyChart from '@/components/desktop/HierarchyChart.vue';
+import HeatMapChart from '@/components/desktop/HeatMapChart.vue';
+import CalendarHeatMapChart from '@/components/desktop/CalendarHeatMapChart.vue';
 import RenameDialog from '@/components/desktop/RenameDialog.vue';
 import DateRangeSelectionDialog from '@/components/desktop/DateRangeSelectionDialog.vue';
 import MonthSelectionDialog from '@/components/desktop/MonthSelectionDialog.vue';
@@ -506,10 +523,15 @@ echarts.use([
     BoxplotChart,
     CandlestickChart,
     RadarChart,
+    TreemapChart,
+    SunburstChart,
+    HeatmapChart,
     SankeyChart,
     GridComponent,
+    CalendarComponent,
     TooltipComponent,
-    LegendComponent
+    LegendComponent,
+    VisualMapComponent
 ]);
 
 app.use(pinia);
@@ -551,6 +573,9 @@ app.component('PieChart', PieChartComponent);
 app.component('RadarChart', RadarChartComponent);
 app.component('AxisChart', AxisChart);
 app.component('TrendsChart', TrendsChart);
+app.component('HierarchyChart', HierarchyChart);
+app.component('HeatMapChart', HeatMapChart);
+app.component('CalendarHeatMapChart', CalendarHeatMapChart);
 app.component('RenameDialog', RenameDialog);
 app.component('DateRangeSelectionDialog', DateRangeSelectionDialog);
 app.component('MonthSelectionDialog', MonthSelectionDialog);

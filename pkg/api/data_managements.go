@@ -103,10 +103,10 @@ func (a *DataManagementsApi) DataStatisticsHandler(c *core.WebContext) (any, *er
 		return nil, errs.ErrOperationFailed
 	}
 
-	totalInsightsExplorerCount, err := a.insightsExploreres.GetTotalInsightsExplorersCountByUid(c, uid)
+	totalExplorationCount, err := a.insightsExploreres.GetTotalExplorationsCountByUid(c, uid)
 
 	if err != nil {
-		log.Errorf(c, "[data_managements.DataStatisticsHandler] failed to get total insights explorer count for user \"uid:%d\", because %s", uid, err.Error())
+		log.Errorf(c, "[data_managements.DataStatisticsHandler] failed to get total exploration count for user \"uid:%d\", because %s", uid, err.Error())
 		return nil, errs.ErrOperationFailed
 	}
 
@@ -130,7 +130,7 @@ func (a *DataManagementsApi) DataStatisticsHandler(c *core.WebContext) (any, *er
 		TotalTransactionTagCount:       totalTransactionTagCount,
 		TotalTransactionCount:          totalTransactionCount,
 		TotalTransactionPictureCount:   totalTransactionPictureCount,
-		TotalInsightsExplorerCount:     totalInsightsExplorerCount,
+		TotalExplorationCount:          totalExplorationCount,
 		TotalTransactionTemplateCount:  totalTransactionTemplateCount,
 		TotalScheduledTransactionCount: totalScheduledTransactionCount,
 	}
@@ -209,10 +209,10 @@ func (a *DataManagementsApi) ClearAllDataHandler(c *core.WebContext) (any, *errs
 		return nil, errs.Or(err, errs.ErrOperationFailed)
 	}
 
-	err = a.insightsExploreres.DeleteAllInsightsExplorers(c, uid)
+	err = a.insightsExploreres.DeleteAllExplorations(c, uid)
 
 	if err != nil {
-		log.Errorf(c, "[data_managements.ClearAllDataHandler] failed to delete all insights explorers, because %s", err.Error())
+		log.Errorf(c, "[data_managements.ClearAllDataHandler] failed to delete all explorations, because %s", err.Error())
 		return nil, errs.Or(err, errs.ErrOperationFailed)
 	}
 
@@ -419,7 +419,7 @@ func (a *DataManagementsApi) getExportedFileContent(c *core.WebContext, fileType
 		minTransactionTime = utils.GetMinTransactionTimeFromUnixTime(exportTransactionDataReq.MinTime)
 	}
 
-	allTransactions, err := a.transactions.GetAllSpecifiedTransactions(c, uid, maxTransactionTime, minTransactionTime, exportTransactionDataReq.Type, allCategoryIds, allAccountIds, tagFilters, noTags, exportTransactionDataReq.AmountFilter, exportTransactionDataReq.Keyword, pageCountForDataExport, true)
+	allTransactions, err := a.transactions.GetAllSpecifiedTransactions(c, uid, maxTransactionTime, minTransactionTime, exportTransactionDataReq.Type, allCategoryIds, allAccountIds, tagFilters, noTags, exportTransactionDataReq.AmountFilter, exportTransactionDataReq.Keyword, exportTransactionDataReq.MatchMode, false, pageCountForDataExport, true)
 
 	if err != nil {
 		log.Errorf(c, "[data_managements.getExportedFileContent] failed to all transactions user \"uid:%d\", because %s", uid, err.Error())

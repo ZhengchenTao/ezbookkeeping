@@ -201,6 +201,21 @@ export const SUPPORTED_IMPORT_FILE_CATEGORY_AND_TYPES: ImportFileCategoryAndType
                     anchor: 'how-to-import-delimiter-separated-values-dsv-file-or-data'
                 }
             },
+            {
+                type: 'ai_txt',
+                name: 'AI Text Content Recognition',
+                extensions: '.txt',
+                dataFromTextbox: true,
+                needAITextRecognition: true,
+                supportedAIAdditionalPrompt: true
+            },
+            {
+                type: 'ai_image',
+                name: 'AI Batch Image Recognition',
+                extensions: '.jpg,.jpeg,.png,.gif,.webp',
+                needAIImageRecognition: true,
+                supportedAIAdditionalPrompt: true
+            },
         ]
     },
     {

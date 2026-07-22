@@ -16,6 +16,7 @@ import (
 const transactionTypeIncome = "income"
 const transactionTypeExpense = "expense"
 const transactionTypeTransfer = "transfer"
+const transactionTypeModifyBalance = "balance_modification"
 
 // MCPAddTransactionRequest represents all parameters of the add transaction request
 type MCPAddTransactionRequest struct {
@@ -73,6 +74,10 @@ func (h *mcpAddTransactionToolHandler) Handle(c *core.WebContext, callToolReq *M
 		}
 	} else {
 		return nil, nil, errs.ErrIncompleteOrIncorrectSubmission
+	}
+
+	if addTransactionRequest.Type != transactionTypeIncome && addTransactionRequest.Type != transactionTypeExpense && addTransactionRequest.Type != transactionTypeTransfer {
+		return nil, nil, errs.ErrTransactionTypeInvalid
 	}
 
 	if addTransactionRequest.Type == transactionTypeTransfer {
@@ -178,7 +183,7 @@ func (h *mcpAddTransactionToolHandler) Handle(c *core.WebContext, callToolReq *M
 		return nil, nil, err
 	}
 
-	transactionEditable := user.CanEditTransactionByTransactionTime(transaction.TransactionTime, time.FixedZone("Transaction Timezone", int(transaction.TimezoneUtcOffset)*60))
+	transactionEditable := user.CanEditTransactionByTransactionTime(transaction.TransactionTime, time.FixedZone("Transaction Timezone", int(transaction.TimezoneUtcOffset)*60), sourceAccount, destinationAccount)
 
 	if !transactionEditable {
 		return nil, nil, errs.ErrCannotCreateTransactionWithThisTransactionTime
@@ -247,6 +252,8 @@ func (h *mcpAddTransactionToolHandler) createNewTransactionModel(uid int64, addT
 		transactionDbType = models.TRANSACTION_DB_TYPE_INCOME
 	} else if addTransactionRequest.Type == transactionTypeTransfer {
 		transactionDbType = models.TRANSACTION_DB_TYPE_TRANSFER_OUT
+	} else {
+		return nil, errs.ErrTransactionTypeInvalid
 	}
 
 	transactionTime, err := utils.ParseFromLongDateTimeWithTimezoneRFC3339Format(addTransactionRequest.Time)

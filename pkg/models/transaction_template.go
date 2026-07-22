@@ -21,9 +21,12 @@ type TransactionScheduleFrequencyType byte
 
 // Transaction template schedule frequency types
 const (
-	TRANSACTION_SCHEDULE_FREQUENCY_TYPE_DISABLED TransactionScheduleFrequencyType = 0
-	TRANSACTION_SCHEDULE_FREQUENCY_TYPE_WEEKLY   TransactionScheduleFrequencyType = 1
-	TRANSACTION_SCHEDULE_FREQUENCY_TYPE_MONTHLY  TransactionScheduleFrequencyType = 2
+	TRANSACTION_SCHEDULE_FREQUENCY_TYPE_DISABLED     TransactionScheduleFrequencyType = 0
+	TRANSACTION_SCHEDULE_FREQUENCY_TYPE_WEEKLY       TransactionScheduleFrequencyType = 1
+	TRANSACTION_SCHEDULE_FREQUENCY_TYPE_MONTHLY      TransactionScheduleFrequencyType = 2
+	TRANSACTION_SCHEDULE_FREQUENCY_TYPE_DAILY        TransactionScheduleFrequencyType = 3
+	TRANSACTION_SCHEDULE_FREQUENCY_TYPE_YEARLY       TransactionScheduleFrequencyType = 4
+	TRANSACTION_SCHEDULE_FREQUENCY_TYPE_EVERY_N_DAYS TransactionScheduleFrequencyType = 5
 )
 
 // TransactionTemplate represents transaction template stored in database
@@ -73,8 +76,8 @@ type TransactionTemplateCreateRequest struct {
 	CategoryId                 int64                             `json:"categoryId,string" binding:"required,min=1"`
 	SourceAccountId            int64                             `json:"sourceAccountId,string" binding:"required,min=1"`
 	DestinationAccountId       int64                             `json:"destinationAccountId,string" binding:"min=0"`
-	SourceAmount               int64                             `json:"sourceAmount" binding:"min=-99999999999,max=99999999999"`
-	DestinationAmount          int64                             `json:"destinationAmount" binding:"min=-99999999999,max=99999999999"`
+	SourceAmount               int64                             `json:"sourceAmount" binding:"min=-9999999999999,max=9999999999999"`
+	DestinationAmount          int64                             `json:"destinationAmount" binding:"min=-9999999999999,max=9999999999999"`
 	HideAmount                 bool                              `json:"hideAmount"`
 	TagIds                     []string                          `json:"tagIds"`
 	Comment                    string                            `json:"comment" binding:"max=255"`
@@ -100,8 +103,8 @@ type TransactionTemplateModifyRequest struct {
 	CategoryId                 int64                             `json:"categoryId,string" binding:"required,min=1"`
 	SourceAccountId            int64                             `json:"sourceAccountId,string" binding:"required,min=1"`
 	DestinationAccountId       int64                             `json:"destinationAccountId,string" binding:"min=0"`
-	SourceAmount               int64                             `json:"sourceAmount" binding:"min=-99999999999,max=99999999999"`
-	DestinationAmount          int64                             `json:"destinationAmount" binding:"min=-99999999999,max=99999999999"`
+	SourceAmount               int64                             `json:"sourceAmount" binding:"min=-9999999999999,max=9999999999999"`
+	DestinationAmount          int64                             `json:"destinationAmount" binding:"min=-9999999999999,max=9999999999999"`
 	HideAmount                 bool                              `json:"hideAmount"`
 	TagIds                     []string                          `json:"tagIds"`
 	Comment                    string                            `json:"comment" binding:"max=255"`

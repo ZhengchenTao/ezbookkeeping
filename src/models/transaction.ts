@@ -254,6 +254,7 @@ export class Transaction implements TransactionInfoResponse {
 
         return {
             id: this.id,
+            type: this.type,
             categoryId: categoryId,
             time: this.time,
             utcOffset: this.utcOffset,
@@ -544,6 +545,7 @@ export interface TransactionCreateRequest {
 
 export interface TransactionModifyRequest {
     readonly id: string;
+    readonly type: number;
     readonly categoryId: string;
     readonly time: number;
     readonly utcOffset: number;
@@ -558,6 +560,31 @@ export interface TransactionModifyRequest {
     readonly geoLocation?: TransactionGeoLocationRequest;
 }
 
+export interface TransactionBatchUpdateCategoryRequest {
+    readonly transactionIds: string[];
+    readonly categoryId: string;
+}
+
+export interface TransactionBatchUpdateAccountRequest {
+    readonly transactionIds: string[];
+    readonly accountId: string;
+    readonly isDestinationAccount: boolean;
+}
+
+export interface TransactionBatchAddTagsRequest {
+    readonly transactionIds: string[];
+    readonly tagIds: string[];
+}
+
+export interface TransactionBatchRemoveTagsRequest {
+    readonly transactionIds: string[];
+    readonly tagIds: string[];
+}
+
+export interface TransactionBatchClearTagsRequest {
+    readonly transactionIds: string[];
+}
+
 export interface TransactionMoveBetweenAccountsRequest {
     readonly fromAccountId: string;
     readonly toAccountId: string;
@@ -565,6 +592,11 @@ export interface TransactionMoveBetweenAccountsRequest {
 
 export interface TransactionDeleteRequest {
     readonly id: string;
+}
+
+export interface TransactionBatchDeleteRequest {
+    readonly ids: string[];
+    readonly password: string;
 }
 
 export interface TransactionImportRequest {
@@ -584,6 +616,9 @@ export interface TransactionListByMaxTimeRequest {
     readonly tagFilter: string;
     readonly amountFilter: string;
     readonly keyword: string;
+    readonly matchMode: number;
+    readonly mustHavePictures?: boolean;
+    readonly withPictures?: boolean;
 }
 
 export interface TransactionListInMonthByPageRequest {
@@ -595,6 +630,9 @@ export interface TransactionListInMonthByPageRequest {
     readonly tagFilter: string;
     readonly amountFilter: string;
     readonly keyword: string;
+    readonly matchMode: number;
+    readonly mustHavePictures?: boolean;
+    readonly withPictures?: boolean;
 }
 
 export interface TransactionAllListRequest {
@@ -639,6 +677,7 @@ export interface TransactionStatisticRequest {
     readonly endTime: number;
     readonly tagFilter: string;
     readonly keyword: string;
+    readonly matchMode: number;
     readonly useTransactionTimezone: boolean;
 }
 
@@ -650,6 +689,7 @@ export interface YearMonthRangeRequest {
 export interface TransactionStatisticTrendsRequest extends YearMonthRangeRequest {
     readonly tagFilter: string;
     readonly keyword: string;
+    readonly matchMode: number;
     readonly useTransactionTimezone: boolean;
 }
 

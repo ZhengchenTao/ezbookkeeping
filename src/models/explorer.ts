@@ -1,4 +1,6 @@
 import { type PartialRecord, itemAndIndex, keysIfValueEquals } from '@/core/base.ts';
+import { NormalizedText } from '@/core/text.ts';
+import { type DateTime } from '@/core/datetime.ts';
 import { TimezoneTypeForStatistics } from '@/core/timezone.ts';
 import { AccountType } from '@/core/account.ts';
 import { TransactionType } from '@/core/transaction.ts';
@@ -71,6 +73,7 @@ export class InsightsExplorer implements InsightsExplorerInfoResponse {
     public chartType: TransactionExplorerChartTypeValue;
     public categoryDimension: TransactionExplorerDataDimensionType;
     public seriesDimension: TransactionExplorerDataDimensionType;
+    public amountRangeCount: number;
     public valueMetric: TransactionExplorerValueMetricType;
     public chartSortingType: number;
 
@@ -86,11 +89,12 @@ export class InsightsExplorer implements InsightsExplorerInfoResponse {
         TransactionExplorerChartType.Default.value,
         TransactionExplorerDataDimension.CategoryDimensionDefault.value,
         TransactionExplorerDataDimension.SeriesDimensionDefault.value,
+        5,
         TransactionExplorerValueMetric.Default.value,
         ChartSortingType.Default.type
     );
 
-    private constructor(id: string, name: string, displayOrder: number, hidden: boolean, queries: TransactionExplorerQuery[], timezoneUsedForDateRange: number, datatableQuerySource: string, countPerPage: number, chartType: TransactionExplorerChartTypeValue, categoryDimension: TransactionExplorerDataDimensionType, seriesDimension: TransactionExplorerDataDimensionType, valueMetric: TransactionExplorerValueMetricType, chartSortingType: number) {
+    private constructor(id: string, name: string, displayOrder: number, hidden: boolean, queries: TransactionExplorerQuery[], timezoneUsedForDateRange: number, datatableQuerySource: string, countPerPage: number, chartType: TransactionExplorerChartTypeValue, categoryDimension: TransactionExplorerDataDimensionType, seriesDimension: TransactionExplorerDataDimensionType, amountRangeCount: number, valueMetric: TransactionExplorerValueMetricType, chartSortingType: number) {
         this.id = id;
         this.name = name;
         this.displayOrder = displayOrder;
@@ -102,6 +106,7 @@ export class InsightsExplorer implements InsightsExplorerInfoResponse {
         this.chartType = chartType;
         this.categoryDimension = categoryDimension;
         this.seriesDimension = seriesDimension;
+        this.amountRangeCount = amountRangeCount;
         this.valueMetric = valueMetric;
         this.chartSortingType = chartSortingType;
     }
@@ -115,9 +120,14 @@ export class InsightsExplorer implements InsightsExplorerInfoResponse {
             chartType: this.chartType,
             categoryDimension: this.categoryDimension,
             seriesDimension: this.seriesDimension,
+            amountRangeCount: this.amountRangeCount,
             valueMetric: this.valueMetric,
             chartSortingType: this.chartSortingType
         };
+    }
+
+    public getQueryiesPrettyJson(): string {
+        return JSON.stringify(this.queries.map(q => q.toJsonObject()), null, 4);
     }
 
     public toCreateRequest(clientSessionId: string): InsightsExplorerCreateRequest {
@@ -146,6 +156,7 @@ export class InsightsExplorer implements InsightsExplorerInfoResponse {
         let chartType = InsightsExplorer.Default.chartType;
         let categoryDimension = InsightsExplorer.Default.categoryDimension;
         let seriesDimension = InsightsExplorer.Default.seriesDimension;
+        let amountRangeCount = InsightsExplorer.Default.amountRangeCount;
         let valueMetric = InsightsExplorer.Default.valueMetric;
         let chartSortingType = InsightsExplorer.Default.chartSortingType;
         let hasDatatableQuerySource = false;
@@ -173,6 +184,10 @@ export class InsightsExplorer implements InsightsExplorerInfoResponse {
 
             if (typeof data['seriesDimension'] === 'string') {
                 seriesDimension = data['seriesDimension'] as TransactionExplorerDataDimensionType;
+            }
+
+            if (typeof data['amountRangeCount'] === 'number') {
+                amountRangeCount = data['amountRangeCount'] as number;
             }
 
             if (typeof data['valueMetric'] === 'string') {
@@ -216,6 +231,7 @@ export class InsightsExplorer implements InsightsExplorerInfoResponse {
             chartType,
             categoryDimension,
             seriesDimension,
+            amountRangeCount,
             valueMetric,
             chartSortingType
         );
@@ -234,6 +250,7 @@ export class InsightsExplorer implements InsightsExplorerInfoResponse {
             InsightsExplorer.Default.chartType,
             InsightsExplorer.Default.categoryDimension,
             InsightsExplorer.Default.seriesDimension,
+            InsightsExplorer.Default.amountRangeCount,
             InsightsExplorer.Default.valueMetric,
             InsightsExplorer.Default.chartSortingType
         );
@@ -300,17 +317,32 @@ export class TransactionExplorerQuery {
         let condition: TransactionExplorerCondition;
 
         switch (field) {
+            case TransactionExplorerConditionField.TransactionTimeDayOfWeek:
+                condition = new TransactionExplorerTransactionTimeDayOfWeekCondition(TransactionExplorerConditionOperatorType.In, []);
+                break;
+            case TransactionExplorerConditionField.TransactionTimeDayOfMonth:
+                condition = new TransactionExplorerTransactionTimeDayOfMonthCondition(TransactionExplorerConditionOperatorType.In, []);
+                break;
+            case TransactionExplorerConditionField.TransactionTimeMonthOfYear:
+                condition = new TransactionExplorerTransactionTimeMonthOfYearCondition(TransactionExplorerConditionOperatorType.In, []);
+                break;
+            case TransactionExplorerConditionField.TransactionTimeHourOfDay:
+                condition = new TransactionExplorerTransactionTimeHourOfDayCondition(TransactionExplorerConditionOperatorType.In, []);
+                break;
+            case TransactionExplorerConditionField.TransactionTimezone:
+                condition = new TransactionExplorerTransactionTimezoneCondition(TransactionExplorerConditionOperatorType.MinuteOffsetBetween, [ 0, 0 ]);
+                break;
             case TransactionExplorerConditionField.TransactionType:
-                condition = new TransactionExplorerTransactionTypeCondition([ TransactionType.Expense, TransactionType.Income, TransactionType.Transfer ]);
+                condition = new TransactionExplorerTransactionTypeCondition(TransactionExplorerConditionOperatorType.In, [ TransactionType.Expense, TransactionType.Income, TransactionType.Transfer ]);
                 break;
             case TransactionExplorerConditionField.TransactionCategory:
-                condition = new TransactionExplorerTransactionCategoryCondition([]);
+                condition = new TransactionExplorerTransactionCategoryCondition(TransactionExplorerConditionOperatorType.In, []);
                 break;
             case TransactionExplorerConditionField.SourceAccount:
-                condition = new TransactionExplorerSourceAccountCondition([]);
+                condition = new TransactionExplorerSourceAccountCondition(TransactionExplorerConditionOperatorType.In, []);
                 break;
             case TransactionExplorerConditionField.DestinationAccount:
-                condition = new TransactionExplorerDestinationAccountCondition([]);
+                condition = new TransactionExplorerDestinationAccountCondition(TransactionExplorerConditionOperatorType.In, []);
                 break;
             case TransactionExplorerConditionField.SourceAmount:
                 condition = new TransactionExplorerSourceAmountCondition(TransactionExplorerConditionOperatorType.Between, [0, 0]);
@@ -330,8 +362,14 @@ export class TransactionExplorerQuery {
             case TransactionExplorerConditionField.Description:
                 condition = new TransactionExplorerDescriptionCondition(TransactionExplorerConditionOperatorType.Contains, '');
                 break;
+            case TransactionExplorerConditionField.DescriptionCaseInsensitive:
+                condition = new TransactionExplorerDescriptionCaseInsensitiveCondition(TransactionExplorerConditionOperatorType.Contains, '');
+                break;
+            case TransactionExplorerConditionField.DescriptionNormalized:
+                condition = new TransactionExplorerDescriptionNormalizedCondition(TransactionExplorerConditionOperatorType.Contains, '');
+                break;
             default:
-                condition = new TransactionExplorerTransactionTypeCondition([ TransactionType.Expense, TransactionType.Income, TransactionType.Transfer ]);
+                condition = new TransactionExplorerTransactionTypeCondition(TransactionExplorerConditionOperatorType.In, [ TransactionType.Expense, TransactionType.Income, TransactionType.Transfer ]);
                 break;
         }
 
@@ -345,7 +383,7 @@ export class TransactionExplorerQuery {
         return new TransactionExplorerConditionWithRelation(new TransactionExplorerUndefinedCondition(), TransactionExplorerConditionRelation.SubEnd);
     }
 
-    public match(transaction: TransactionInsightDataItem): boolean {
+    public match(transaction: TransactionInsightDataItem, context: InsightsExplorerMatchContext): boolean {
         if (!this.conditions || this.conditions.length < 1) {
             return true;
         }
@@ -370,7 +408,7 @@ export class TransactionExplorerQuery {
                     throw new Error('invalid postfix expression');
                 }
             } else {
-                stack.push(token.match(transaction));
+                stack.push(token.match(transaction, context));
             }
         }
 
@@ -646,6 +684,21 @@ export class TransactionExplorerConditionWithRelation {
         let operatorTypes: PartialRecord<TransactionExplorerConditionOperatorType, true> = {};
 
         switch (this.condition.field) {
+            case TransactionExplorerConditionField.TransactionTimeDayOfWeek.value:
+                operatorTypes = TransactionExplorerTransactionTimeDayOfWeekCondition.supportedOperators;
+                break;
+            case TransactionExplorerConditionField.TransactionTimeDayOfMonth.value:
+                operatorTypes = TransactionExplorerTransactionTimeDayOfMonthCondition.supportedOperators;
+                break;
+            case TransactionExplorerConditionField.TransactionTimeMonthOfYear.value:
+                operatorTypes = TransactionExplorerTransactionTimeMonthOfYearCondition.supportedOperators;
+                break;
+            case TransactionExplorerConditionField.TransactionTimeHourOfDay.value:
+                operatorTypes = TransactionExplorerTransactionTimeHourOfDayCondition.supportedOperators;
+                break;
+            case TransactionExplorerConditionField.TransactionTimezone.value:
+                operatorTypes = TransactionExplorerTransactionTimezoneCondition.supportedOperators;
+                break;
             case TransactionExplorerConditionField.TransactionType.value:
                 operatorTypes = TransactionExplorerTransactionTypeCondition.supportedOperators;
                 break;
@@ -675,6 +728,12 @@ export class TransactionExplorerConditionWithRelation {
                 break;
             case TransactionExplorerConditionField.Description.value:
                 operatorTypes = TransactionExplorerDescriptionCondition.supportedOperators;
+                break;
+            case TransactionExplorerConditionField.DescriptionCaseInsensitive.value:
+                operatorTypes = TransactionExplorerDescriptionCaseInsensitiveCondition.supportedOperators;
+                break;
+            case TransactionExplorerConditionField.DescriptionNormalized.value:
+                operatorTypes = TransactionExplorerDescriptionNormalizedCondition.supportedOperators;
                 break;
             default:
                 return [];
@@ -736,24 +795,49 @@ export class TransactionExplorerConditionWithRelation {
             const conditionValue = conditionObject['value'];
 
             switch (conditionField) {
+                case TransactionExplorerConditionField.TransactionTimeDayOfWeek.value:
+                    if (TransactionExplorerTransactionTimeDayOfWeekCondition.supportedOperators[conditionOperator] && Array.isArray(conditionValue)) {
+                        condition = new TransactionExplorerTransactionTimeDayOfWeekCondition(conditionOperator as TransactionTimeDayOfWeekConditionOperator, conditionValue as number[]);
+                    }
+                    break;
+                case TransactionExplorerConditionField.TransactionTimeDayOfMonth.value:
+                    if (TransactionExplorerTransactionTimeDayOfMonthCondition.supportedOperators[conditionOperator] && Array.isArray(conditionValue)) {
+                        condition = new TransactionExplorerTransactionTimeDayOfMonthCondition(conditionOperator as TransactionTimeDayOfMonthConditionOperator, conditionValue as number[]);
+                    }
+                    break;
+                case TransactionExplorerConditionField.TransactionTimeMonthOfYear.value:
+                    if (TransactionExplorerTransactionTimeMonthOfYearCondition.supportedOperators[conditionOperator] && Array.isArray(conditionValue)) {
+                        condition = new TransactionExplorerTransactionTimeMonthOfYearCondition(conditionOperator as TransactionTimeMonthOfYearConditionOperator, conditionValue as number[]);
+                    }
+                    break;
+                case TransactionExplorerConditionField.TransactionTimeHourOfDay.value:
+                    if (TransactionExplorerTransactionTimeHourOfDayCondition.supportedOperators[conditionOperator] && Array.isArray(conditionValue)) {
+                        condition = new TransactionExplorerTransactionTimeHourOfDayCondition(conditionOperator as TransactionTimeHourOfDayConditionOperator, conditionValue as number[]);
+                    }
+                    break;
+                case TransactionExplorerConditionField.TransactionTimezone.value:
+                    if (TransactionExplorerTransactionTimezoneCondition.supportedOperators[conditionOperator] && Array.isArray(conditionValue) && conditionValue.length === 2) {
+                        condition = new TransactionExplorerTransactionTimezoneCondition(conditionOperator as TransactionTimezoneConditionOperator, conditionValue as [number, number]);
+                    }
+                    break;
                 case TransactionExplorerConditionField.TransactionType.value:
-                    if (conditionOperator === TransactionExplorerConditionOperatorType.In && Array.isArray(conditionValue)) {
-                        condition = new TransactionExplorerTransactionTypeCondition(conditionValue as number[]);
+                    if (TransactionExplorerTransactionTypeCondition.supportedOperators[conditionOperator] && Array.isArray(conditionValue)) {
+                        condition = new TransactionExplorerTransactionTypeCondition(conditionOperator as TransactionTypeConditionOperator, conditionValue as number[]);
                     }
                     break;
                 case TransactionExplorerConditionField.TransactionCategory.value:
-                    if (conditionOperator === TransactionExplorerConditionOperatorType.In && Array.isArray(conditionValue)) {
-                        condition = new TransactionExplorerTransactionCategoryCondition(conditionValue as string[]);
+                    if (TransactionExplorerTransactionCategoryCondition.supportedOperators[conditionOperator] && Array.isArray(conditionValue)) {
+                        condition = new TransactionExplorerTransactionCategoryCondition(conditionOperator as TransactionCategoryConditionOperator, conditionValue as string[]);
                     }
                     break;
                 case TransactionExplorerConditionField.SourceAccount.value:
-                    if (conditionOperator === TransactionExplorerConditionOperatorType.In && Array.isArray(conditionValue)) {
-                        condition = new TransactionExplorerSourceAccountCondition(conditionValue as string[]);
+                    if (TransactionExplorerSourceAccountCondition.supportedOperators[conditionOperator] && Array.isArray(conditionValue)) {
+                        condition = new TransactionExplorerSourceAccountCondition(conditionOperator as AccountConditionOperator, conditionValue as string[]);
                     }
                     break;
                 case TransactionExplorerConditionField.DestinationAccount.value:
-                    if (conditionOperator === TransactionExplorerConditionOperatorType.In && Array.isArray(conditionValue)) {
-                        condition = new TransactionExplorerDestinationAccountCondition(conditionValue as string[]);
+                    if (TransactionExplorerDestinationAccountCondition.supportedOperators[conditionOperator] && Array.isArray(conditionValue)) {
+                        condition = new TransactionExplorerDestinationAccountCondition(conditionOperator as AccountConditionOperator, conditionValue as string[]);
                     }
                     break;
                 case TransactionExplorerConditionField.SourceAmount.value:
@@ -786,6 +870,16 @@ export class TransactionExplorerConditionWithRelation {
                         condition = new TransactionExplorerDescriptionCondition(conditionOperator as DescriptionConditionOperator, conditionValue);
                     }
                     break;
+                case TransactionExplorerConditionField.DescriptionCaseInsensitive.value:
+                    if (TransactionExplorerDescriptionCaseInsensitiveCondition.supportedOperators[conditionOperator] && typeof conditionValue === 'string') {
+                        condition = new TransactionExplorerDescriptionCaseInsensitiveCondition(conditionOperator as DescriptionConditionOperator, conditionValue);
+                    }
+                    break;
+                case TransactionExplorerConditionField.DescriptionNormalized.value:
+                    if (TransactionExplorerDescriptionNormalizedCondition.supportedOperators[conditionOperator] && typeof conditionValue === 'string') {
+                        condition = new TransactionExplorerDescriptionNormalizedCondition(conditionOperator as DescriptionConditionOperator, conditionValue);
+                    }
+                    break;
                 default:
                     break;
             }
@@ -803,13 +897,18 @@ export class TransactionExplorerConditionWithRelation {
     }
 }
 
+export interface InsightsExplorerMatchContext {
+    getTransactionDateTime(): DateTime;
+    getNormalizedDescription(): NormalizedText;
+}
+
 export interface TransactionExplorerCondition<T = TransactionExplorerConditionFieldType, V = string | string[] | number[]> {
     readonly field: T;
     readonly operator: TransactionExplorerConditionOperatorType;
     value: V;
 
     getValueForStore(): V;
-    match(transaction: TransactionInsightDataItem): boolean;
+    match(transaction: TransactionInsightDataItem, context: InsightsExplorerMatchContext): boolean;
     toExpression(allCategoriesMap: Record<string, TransactionCategory>, allAccountsMap: Record<string, Account>, allTagsMap: Record<string, TransactionTag>): string;
 }
 
@@ -831,15 +930,247 @@ export class TransactionExplorerUndefinedCondition implements TransactionExplore
     }
 }
 
-export class TransactionExplorerTransactionTypeCondition implements TransactionExplorerCondition<TransactionExplorerConditionFieldType.TransactionType, number[]> {
+type TransactionTimeDayOfWeekConditionOperator = TransactionExplorerConditionOperatorType.In |
+    TransactionExplorerConditionOperatorType.NotIn;
+
+export class TransactionExplorerTransactionTimeDayOfWeekCondition implements TransactionExplorerCondition<TransactionExplorerConditionFieldType.TransactionTimeDayOfWeek, number[]> {
     public static readonly supportedOperators: PartialRecord<TransactionExplorerConditionOperatorType, true> = {
-        [TransactionExplorerConditionOperatorType.In]: true
+        [TransactionExplorerConditionOperatorType.In]: true,
+        [TransactionExplorerConditionOperatorType.NotIn]: true
     };
-    public readonly field = TransactionExplorerConditionFieldType.TransactionType;
-    public readonly operator: TransactionExplorerConditionOperatorType.In = TransactionExplorerConditionOperatorType.In;
+    public readonly field = TransactionExplorerConditionFieldType.TransactionTimeDayOfWeek;
+    public readonly operator: TransactionTimeDayOfWeekConditionOperator = TransactionExplorerConditionOperatorType.In;
     public value: number[];
 
-    constructor(value: number[]) {
+    constructor(operator: TransactionTimeDayOfWeekConditionOperator, value: number[]) {
+        this.operator = operator;
+        this.value = value;
+    }
+
+    public getValueForStore(): number[] {
+        return this.value;
+    }
+
+    public match(transaction: TransactionInsightDataItem, context: InsightsExplorerMatchContext): boolean {
+        const transactionDateTime = context.getTransactionDateTime();
+
+        if (this.operator === TransactionExplorerConditionOperatorType.In) {
+            return this.value.includes(transactionDateTime.getWeekDay().type);
+        } else if (this.operator === TransactionExplorerConditionOperatorType.NotIn) {
+            return !this.value.includes(transactionDateTime.getWeekDay().type);
+        }
+
+        return false;
+    }
+
+    public toExpression(): string {
+        const textualDayOfWeeks = this.value.join(', ');
+
+        if (this.operator === TransactionExplorerConditionOperatorType.In) {
+            return `DAY_OF_WEEK(transaction_time) IN (${textualDayOfWeeks})`;
+        } else if (this.operator === TransactionExplorerConditionOperatorType.NotIn) {
+            return `DAY_OF_WEEK(transaction_time) NOT IN (${textualDayOfWeeks})`;
+        } else {
+            return '';
+        }
+    }
+}
+
+type TransactionTimeDayOfMonthConditionOperator = TransactionExplorerConditionOperatorType.In |
+    TransactionExplorerConditionOperatorType.NotIn;
+
+export class TransactionExplorerTransactionTimeDayOfMonthCondition implements TransactionExplorerCondition<TransactionExplorerConditionFieldType.TransactionTimeDayOfMonth, number[]> {
+    public static readonly supportedOperators: PartialRecord<TransactionExplorerConditionOperatorType, true> = {
+        [TransactionExplorerConditionOperatorType.In]: true,
+        [TransactionExplorerConditionOperatorType.NotIn]: true
+    };
+    public readonly field = TransactionExplorerConditionFieldType.TransactionTimeDayOfMonth;
+    public readonly operator: TransactionTimeDayOfMonthConditionOperator = TransactionExplorerConditionOperatorType.In;
+    public value: number[];
+
+    constructor(operator: TransactionTimeDayOfMonthConditionOperator, value: number[]) {
+        this.operator = operator;
+        this.value = value;
+    }
+
+    public getValueForStore(): number[] {
+        return this.value;
+    }
+
+    public match(transaction: TransactionInsightDataItem, context: InsightsExplorerMatchContext): boolean {
+        const transactionDateTime = context.getTransactionDateTime();
+        const normalizedValue: number[] = this.value.map(day => day >= 0 ? day : transactionDateTime.getMaxDayOfGregorianCalendarMonth() + day + 1);
+
+        if (this.operator === TransactionExplorerConditionOperatorType.In) {
+            return normalizedValue.includes(transactionDateTime.getGregorianCalendarDay());
+        } else if (this.operator === TransactionExplorerConditionOperatorType.NotIn) {
+            return !normalizedValue.includes(transactionDateTime.getGregorianCalendarDay());
+        }
+
+        return false;
+    }
+
+    public toExpression(): string {
+        const textualDayOfMonths = this.value.join(', ');
+
+        if (this.operator === TransactionExplorerConditionOperatorType.In) {
+            return `DAY(transaction_time) IN (${textualDayOfMonths})`;
+        } else if (this.operator === TransactionExplorerConditionOperatorType.NotIn) {
+            return `DAY(transaction_time) NOT IN (${textualDayOfMonths})`;
+        } else {
+            return '';
+        }
+    }
+}
+
+type TransactionTimeMonthOfYearConditionOperator = TransactionExplorerConditionOperatorType.In |
+    TransactionExplorerConditionOperatorType.NotIn;
+
+export class TransactionExplorerTransactionTimeMonthOfYearCondition implements TransactionExplorerCondition<TransactionExplorerConditionFieldType.TransactionTimeMonthOfYear, number[]> {
+    public static readonly supportedOperators: PartialRecord<TransactionExplorerConditionOperatorType, true> = {
+        [TransactionExplorerConditionOperatorType.In]: true,
+        [TransactionExplorerConditionOperatorType.NotIn]: true
+    };
+    public readonly field = TransactionExplorerConditionFieldType.TransactionTimeMonthOfYear;
+    public readonly operator: TransactionTimeMonthOfYearConditionOperator = TransactionExplorerConditionOperatorType.In;
+    public value: number[];
+
+    constructor(operator: TransactionTimeMonthOfYearConditionOperator, value: number[]) {
+        this.operator = operator;
+        this.value = value;
+    }
+
+    public getValueForStore(): number[] {
+        return this.value;
+    }
+
+    public match(transaction: TransactionInsightDataItem, context: InsightsExplorerMatchContext): boolean {
+        const transactionDateTime = context.getTransactionDateTime();
+
+        if (this.operator === TransactionExplorerConditionOperatorType.In) {
+            return this.value.includes(transactionDateTime.getGregorianCalendarMonth());
+        } else if (this.operator === TransactionExplorerConditionOperatorType.NotIn) {
+            return !this.value.includes(transactionDateTime.getGregorianCalendarMonth());
+        }
+
+        return false;
+    }
+
+    public toExpression(): string {
+        const textualMonthOfYears = this.value.join(', ');
+
+        if (this.operator === TransactionExplorerConditionOperatorType.In) {
+            return `MONTH(transaction_time) IN (${textualMonthOfYears})`;
+        } else if (this.operator === TransactionExplorerConditionOperatorType.NotIn) {
+            return `MONTH(transaction_time) NOT IN (${textualMonthOfYears})`;
+        } else {
+            return '';
+        }
+    }
+}
+
+type TransactionTimeHourOfDayConditionOperator = TransactionExplorerConditionOperatorType.In |
+    TransactionExplorerConditionOperatorType.NotIn;
+
+export class TransactionExplorerTransactionTimeHourOfDayCondition implements TransactionExplorerCondition<TransactionExplorerConditionFieldType.TransactionTimeHourOfDay, number[]> {
+    public static readonly supportedOperators: PartialRecord<TransactionExplorerConditionOperatorType, true> = {
+        [TransactionExplorerConditionOperatorType.In]: true,
+        [TransactionExplorerConditionOperatorType.NotIn]: true
+    };
+    public readonly field = TransactionExplorerConditionFieldType.TransactionTimeHourOfDay;
+    public readonly operator: TransactionTimeHourOfDayConditionOperator = TransactionExplorerConditionOperatorType.In;
+    public value: number[];
+
+    constructor(operator: TransactionTimeHourOfDayConditionOperator, value: number[]) {
+        this.operator = operator;
+        this.value = value;
+    }
+
+    public getValueForStore(): number[] {
+        return this.value;
+    }
+
+    public match(transaction: TransactionInsightDataItem, context: InsightsExplorerMatchContext): boolean {
+        const transactionDateTime = context.getTransactionDateTime();
+
+        if (this.operator === TransactionExplorerConditionOperatorType.In) {
+            return this.value.includes(transactionDateTime.getHour());
+        } else if (this.operator === TransactionExplorerConditionOperatorType.NotIn) {
+            return !this.value.includes(transactionDateTime.getHour());
+        }
+
+        return false;
+    }
+
+    public toExpression(): string {
+        const textualHourOfDays = this.value.join(', ');
+
+        if (this.operator === TransactionExplorerConditionOperatorType.In) {
+            return `HOUR(transaction_time) IN (${textualHourOfDays})`;
+        } else if (this.operator === TransactionExplorerConditionOperatorType.NotIn) {
+            return `HOUR(transaction_time) NOT IN (${textualHourOfDays})`;
+        } else {
+            return '';
+        }
+    }
+}
+
+type TransactionTimezoneConditionOperator = TransactionExplorerConditionOperatorType.MinuteOffsetBetween |
+    TransactionExplorerConditionOperatorType.MinuteOffsetNotBetween;
+
+export class TransactionExplorerTransactionTimezoneCondition implements TransactionExplorerCondition<TransactionExplorerConditionFieldType.TransactionTimezone, [number, number]> {
+    public static readonly supportedOperators: PartialRecord<TransactionExplorerConditionOperatorType, true> = {
+        [TransactionExplorerConditionOperatorType.MinuteOffsetBetween]: true,
+        [TransactionExplorerConditionOperatorType.MinuteOffsetNotBetween]: true
+    };
+    public readonly field = TransactionExplorerConditionFieldType.TransactionTimezone;
+    public readonly operator: TransactionTimezoneConditionOperator = TransactionExplorerConditionOperatorType.MinuteOffsetBetween;
+    public value: [number, number];
+
+    constructor(operator: TransactionTimezoneConditionOperator, value: [number, number]) {
+        this.operator = operator;
+        this.value = value;
+    }
+
+    public getValueForStore(): [number, number] {
+        return this.value;
+    }
+
+    public match(transaction: TransactionInsightDataItem): boolean {
+        if (this.operator === TransactionExplorerConditionOperatorType.MinuteOffsetBetween) {
+            return transaction.utcOffset >= this.value[0] && transaction.utcOffset <= this.value[1];
+        } else if (this.operator === TransactionExplorerConditionOperatorType.MinuteOffsetNotBetween) {
+            return transaction.utcOffset < this.value[0] || transaction.utcOffset > this.value[1];
+        }
+
+        return false;
+    }
+
+    public toExpression(): string {
+        if (this.operator === TransactionExplorerConditionOperatorType.MinuteOffsetBetween) {
+            return `(UTC_OFFSET(timezone) >= ${this.value[0]} AND UTC_OFFSET(timezone) <= ${this.value[1]})`;
+        } else if (this.operator === TransactionExplorerConditionOperatorType.MinuteOffsetNotBetween) {
+            return `(UTC_OFFSET(timezone) < ${this.value[0]} OR UTC_OFFSET(timezone) > ${this.value[1]})`;
+        }
+
+        return '';
+    }
+}
+
+type TransactionTypeConditionOperator = TransactionExplorerConditionOperatorType.In |
+    TransactionExplorerConditionOperatorType.NotIn;
+
+export class TransactionExplorerTransactionTypeCondition implements TransactionExplorerCondition<TransactionExplorerConditionFieldType.TransactionType, number[]> {
+    public static readonly supportedOperators: PartialRecord<TransactionExplorerConditionOperatorType, true> = {
+        [TransactionExplorerConditionOperatorType.In]: true,
+        [TransactionExplorerConditionOperatorType.NotIn]: true
+    };
+    public readonly field = TransactionExplorerConditionFieldType.TransactionType;
+    public readonly operator: TransactionTypeConditionOperator = TransactionExplorerConditionOperatorType.In;
+    public value: number[];
+
+    constructor(operator: TransactionTypeConditionOperator, value: number[]) {
+        this.operator = operator;
         this.value = value;
     }
 
@@ -848,7 +1179,13 @@ export class TransactionExplorerTransactionTypeCondition implements TransactionE
     }
 
     public match(transaction: TransactionInsightDataItem): boolean {
-        return this.value.includes(transaction.type);
+        if (this.operator === TransactionExplorerConditionOperatorType.In) {
+            return this.value.includes(transaction.type);
+        } else if (this.operator === TransactionExplorerConditionOperatorType.NotIn) {
+            return !this.value.includes(transaction.type);
+        }
+
+        return false;
     }
 
     public toExpression(): string {
@@ -863,19 +1200,31 @@ export class TransactionExplorerTransactionTypeCondition implements TransactionE
                 return type.toString();
             }
         }).join(', ');
-        return `type IN (${textualTypes})`;
+
+        if (this.operator === TransactionExplorerConditionOperatorType.In) {
+            return `type IN (${textualTypes})`;
+        } else if (this.operator === TransactionExplorerConditionOperatorType.NotIn) {
+            return `type NOT IN (${textualTypes})`;
+        } else {
+            return '';
+        }
     }
 }
 
+type TransactionCategoryConditionOperator = TransactionExplorerConditionOperatorType.In |
+    TransactionExplorerConditionOperatorType.NotIn;
+
 export class TransactionExplorerTransactionCategoryCondition implements TransactionExplorerCondition<TransactionExplorerConditionFieldType.TransactionCategory, string[]> {
     public static readonly supportedOperators: PartialRecord<TransactionExplorerConditionOperatorType, true> = {
-        [TransactionExplorerConditionOperatorType.In]: true
+        [TransactionExplorerConditionOperatorType.In]: true,
+        [TransactionExplorerConditionOperatorType.NotIn]: true
     };
     public readonly field = TransactionExplorerConditionFieldType.TransactionCategory;
-    public readonly operator: TransactionExplorerConditionOperatorType.In = TransactionExplorerConditionOperatorType.In;
+    public readonly operator: TransactionCategoryConditionOperator = TransactionExplorerConditionOperatorType.In;
     public value: string[];
 
-    constructor(value: string[]) {
+    constructor(operator: TransactionCategoryConditionOperator, value: string[]) {
+        this.operator = operator
         this.value = value;
     }
 
@@ -884,7 +1233,13 @@ export class TransactionExplorerTransactionCategoryCondition implements Transact
     }
 
     public match(transaction: TransactionInsightDataItem): boolean {
-        return this.value.includes(transaction.primaryCategory?.id ?? '') || this.value.includes(transaction.secondaryCategory?.id ?? transaction.categoryId);
+        if (this.operator === TransactionExplorerConditionOperatorType.In) {
+            return this.value.includes(transaction.primaryCategory?.id ?? '') || this.value.includes(transaction.secondaryCategory?.id ?? transaction.categoryId);
+        } else if (this.operator === TransactionExplorerConditionOperatorType.NotIn) {
+            return !this.value.includes(transaction.primaryCategory?.id ?? '') && !this.value.includes(transaction.secondaryCategory?.id ?? transaction.categoryId);
+        }
+
+        return false;
     }
 
     public toExpression(allCategoriesMap: Record<string, TransactionCategory>): string {
@@ -901,19 +1256,31 @@ export class TransactionExplorerTransactionCategoryCondition implements Transact
                 return `'${id}'`;
             }
         }).filter(item => !!item).join(', ');
-        return `category IN (${textualCategories})`;
+
+        if (this.operator === TransactionExplorerConditionOperatorType.In) {
+            return `category IN (${textualCategories})`;
+        } else if (this.operator === TransactionExplorerConditionOperatorType.NotIn) {
+            return `category NOT IN (${textualCategories})`;
+        } else {
+            return '';
+        }
     }
 }
 
+type AccountConditionOperator = TransactionExplorerConditionOperatorType.In |
+    TransactionExplorerConditionOperatorType.NotIn;
+
 export class TransactionExplorerSourceAccountCondition implements TransactionExplorerCondition<TransactionExplorerConditionFieldType.SourceAccount, string[]> {
     public static readonly supportedOperators: PartialRecord<TransactionExplorerConditionOperatorType, true> = {
-        [TransactionExplorerConditionOperatorType.In]: true
+        [TransactionExplorerConditionOperatorType.In]: true,
+        [TransactionExplorerConditionOperatorType.NotIn]: true
     };
     public readonly field = TransactionExplorerConditionFieldType.SourceAccount;
-    public readonly operator: TransactionExplorerConditionOperatorType.In = TransactionExplorerConditionOperatorType.In;
+    public readonly operator: AccountConditionOperator = TransactionExplorerConditionOperatorType.In;
     public value: string[];
 
-    constructor(value: string[]) {
+    constructor(operator: AccountConditionOperator, value: string[]) {
+        this.operator = operator;
         this.value = value;
     }
 
@@ -922,7 +1289,13 @@ export class TransactionExplorerSourceAccountCondition implements TransactionExp
     }
 
     public match(transaction: TransactionInsightDataItem): boolean {
-        return this.value.includes(transaction.sourceAccountId);
+        if (this.operator === TransactionExplorerConditionOperatorType.In) {
+            return this.value.includes(transaction.sourceAccountId);
+        } else if (this.operator === TransactionExplorerConditionOperatorType.NotIn) {
+            return !this.value.includes(transaction.sourceAccountId);
+        }
+
+        return false;
     }
 
     public toExpression(allCategoriesMap: Record<string, TransactionCategory>, allAccountsMap: Record<string, Account>): string {
@@ -939,19 +1312,28 @@ export class TransactionExplorerSourceAccountCondition implements TransactionExp
                 return `'${id}'`;
             }
         }).filter(item => !!item).join(', ');
-        return `source_account IN (${textualAccounts})`;
+
+        if (this.operator === TransactionExplorerConditionOperatorType.In) {
+            return `source_account IN (${textualAccounts})`;
+        } else if (this.operator === TransactionExplorerConditionOperatorType.NotIn) {
+            return `source_account NOT IN (${textualAccounts})`;
+        } else {
+            return '';
+        }
     }
 }
 
 export class TransactionExplorerDestinationAccountCondition implements TransactionExplorerCondition<TransactionExplorerConditionFieldType.DestinationAccount, string[]> {
     public static readonly supportedOperators: PartialRecord<TransactionExplorerConditionOperatorType, true> = {
-        [TransactionExplorerConditionOperatorType.In]: true
+        [TransactionExplorerConditionOperatorType.In]: true,
+        [TransactionExplorerConditionOperatorType.NotIn]: true
     };
     public readonly field = TransactionExplorerConditionFieldType.DestinationAccount;
-    public readonly operator: TransactionExplorerConditionOperatorType.In = TransactionExplorerConditionOperatorType.In;
+    public readonly operator: AccountConditionOperator = TransactionExplorerConditionOperatorType.In;
     public value: string[];
 
-    constructor(value: string[]) {
+    constructor(operator: AccountConditionOperator, value: string[]) {
+        this.operator = operator;
         this.value = value;
     }
 
@@ -960,7 +1342,13 @@ export class TransactionExplorerDestinationAccountCondition implements Transacti
     }
 
     public match(transaction: TransactionInsightDataItem): boolean {
-        return this.value.includes(transaction.destinationAccountId);
+        if (this.operator === TransactionExplorerConditionOperatorType.In) {
+            return this.value.includes(transaction.destinationAccountId);
+        } else if (this.operator === TransactionExplorerConditionOperatorType.NotIn) {
+            return !this.value.includes(transaction.destinationAccountId);
+        }
+
+        return false;
     }
 
     public toExpression(allCategoriesMap: Record<string, TransactionCategory>, allAccountsMap: Record<string, Account>): string {
@@ -977,7 +1365,14 @@ export class TransactionExplorerDestinationAccountCondition implements Transacti
                 return `'${id}'`;
             }
         }).filter(item => !!item).join(', ');
-        return `destination_account IN (${textualAccounts})`;
+
+        if (this.operator === TransactionExplorerConditionOperatorType.In) {
+            return `destination_account IN (${textualAccounts})`;
+        } else if (this.operator === TransactionExplorerConditionOperatorType.NotIn) {
+            return `destination_account NOT IN (${textualAccounts})`;
+        } else {
+            return '';
+        }
     }
 }
 
@@ -1421,6 +1816,7 @@ export class TransactionExplorerPicturesCondition implements TransactionExplorer
     }
 }
 
+type DescriptionConditionField = TransactionExplorerConditionFieldType.Description | TransactionExplorerConditionFieldType.DescriptionCaseInsensitive | TransactionExplorerConditionFieldType.DescriptionNormalized;
 type DescriptionConditionOperator = TransactionExplorerConditionOperatorType.IsEmpty |
     TransactionExplorerConditionOperatorType.IsNotEmpty |
     TransactionExplorerConditionOperatorType.Equals |
@@ -1430,9 +1826,17 @@ type DescriptionConditionOperator = TransactionExplorerConditionOperatorType.IsE
     TransactionExplorerConditionOperatorType.StartsWith |
     TransactionExplorerConditionOperatorType.NotStartsWith |
     TransactionExplorerConditionOperatorType.EndsWith |
-    TransactionExplorerConditionOperatorType.NotEndsWith;
+    TransactionExplorerConditionOperatorType.NotEndsWith |
+    TransactionExplorerConditionOperatorType.RegexMatch |
+    TransactionExplorerConditionOperatorType.NotRegexMatch;
 
-export class TransactionExplorerDescriptionCondition implements TransactionExplorerCondition<TransactionExplorerConditionFieldType.Description, string> {
+enum DescriptionMatchMode {
+    Exact,
+    CaseInsensitive,
+    Normalized
+}
+
+export abstract class AbstractTransactionExplorerDescriptionCondition<T = DescriptionConditionField> implements TransactionExplorerCondition<T, string> {
     public static readonly supportedOperators: PartialRecord<TransactionExplorerConditionOperatorType, true> = {
         [TransactionExplorerConditionOperatorType.IsEmpty]: true,
         [TransactionExplorerConditionOperatorType.IsNotEmpty]: true,
@@ -1443,11 +1847,17 @@ export class TransactionExplorerDescriptionCondition implements TransactionExplo
         [TransactionExplorerConditionOperatorType.StartsWith]: true,
         [TransactionExplorerConditionOperatorType.NotStartsWith]: true,
         [TransactionExplorerConditionOperatorType.EndsWith]: true,
-        [TransactionExplorerConditionOperatorType.NotEndsWith]: true
+        [TransactionExplorerConditionOperatorType.NotEndsWith]: true,
+        [TransactionExplorerConditionOperatorType.RegexMatch]: true,
+        [TransactionExplorerConditionOperatorType.NotRegexMatch]: true
     };
-    public readonly field = TransactionExplorerConditionFieldType.Description;
+
+    public abstract readonly field: T;
     public readonly operator: DescriptionConditionOperator = TransactionExplorerConditionOperatorType.Contains;
     public value: string;
+    protected abstract readonly matchMode: DescriptionMatchMode;
+    private cachedNormalizedValue: NormalizedText | undefined = undefined;
+    private cachedRegex: RegExp | undefined = undefined;
 
     constructor(operator: DescriptionConditionOperator, value: string) {
         this.operator = operator;
@@ -1462,57 +1872,158 @@ export class TransactionExplorerDescriptionCondition implements TransactionExplo
         return this.value;
     }
 
-    public match(transaction: TransactionInsightDataItem): boolean {
-        const description = transaction.comment || '';
+    public match(transaction: TransactionInsightDataItem, context: InsightsExplorerMatchContext): boolean {
+        let description: string;
+
+        if (!transaction.comment) {
+            description = '';
+        } else if (this.matchMode === DescriptionMatchMode.Normalized) {
+            description = context.getNormalizedDescription().normalizedText;
+        } else if (this.matchMode === DescriptionMatchMode.CaseInsensitive) {
+            description = context.getNormalizedDescription().lowerCaseText;
+        } else {
+            description = transaction.comment;
+        }
 
         if (this.operator === TransactionExplorerConditionOperatorType.IsEmpty) {
             return description.length === 0;
         } else if (this.operator === TransactionExplorerConditionOperatorType.IsNotEmpty) {
             return description.length > 0;
         } else if (this.operator === TransactionExplorerConditionOperatorType.Equals) {
-            return description === this.value;
+            return description === this.getCachedNormalizedValue();
         } else if (this.operator === TransactionExplorerConditionOperatorType.NotEquals) {
-            return description !== this.value;
+            return description !== this.getCachedNormalizedValue();
         } else if (this.operator === TransactionExplorerConditionOperatorType.Contains) {
-            return description.includes(this.value);
+            return description.includes(this.getCachedNormalizedValue());
         } else if (this.operator === TransactionExplorerConditionOperatorType.NotContains) {
-            return !description.includes(this.value);
+            return !description.includes(this.getCachedNormalizedValue());
         } else if (this.operator === TransactionExplorerConditionOperatorType.StartsWith) {
-            return description.startsWith(this.value);
+            return description.startsWith(this.getCachedNormalizedValue());
         } else if (this.operator === TransactionExplorerConditionOperatorType.NotStartsWith) {
-            return !description.startsWith(this.value);
+            return !description.startsWith(this.getCachedNormalizedValue());
         } else if (this.operator === TransactionExplorerConditionOperatorType.EndsWith) {
-            return description.endsWith(this.value);
+            return description.endsWith(this.getCachedNormalizedValue());
         } else if (this.operator === TransactionExplorerConditionOperatorType.NotEndsWith) {
-            return !description.endsWith(this.value);
+            return !description.endsWith(this.getCachedNormalizedValue());
+        } else if (this.operator === TransactionExplorerConditionOperatorType.RegexMatch) {
+            return this.getCachedRegex()?.test(description) ?? false;
+        } else if (this.operator === TransactionExplorerConditionOperatorType.NotRegexMatch) {
+            return !(this.getCachedRegex()?.test(description) ?? false);
         }
 
         return false;
     }
 
     public toExpression(): string {
+        const expression: string = this.getExpression();
+
+        if (expression && this.matchMode === DescriptionMatchMode.Normalized) {
+            return `${expression} NORMALIZED`;
+        } else if (expression && this.matchMode === DescriptionMatchMode.CaseInsensitive) {
+            return `${expression} CASE INSENSITIVE`;
+        } else {
+            return expression;
+        }
+    }
+
+    private getExpression(): string {
+        const escapedValue = this.value.replace(/'/g, "''");
+
         if (this.operator === TransactionExplorerConditionOperatorType.IsEmpty) {
             return `description IS EMPTY`;
         } else if (this.operator === TransactionExplorerConditionOperatorType.IsNotEmpty) {
             return `description IS NOT EMPTY`;
         } else if (this.operator === TransactionExplorerConditionOperatorType.Equals) {
-            return `description = '${this.value.replace(/'/g, "''")}'`;
+            return `description = '${escapedValue}'`;
         } else if (this.operator === TransactionExplorerConditionOperatorType.NotEquals) {
-            return `description <> '${this.value.replace(/'/g, "''")}'`;
+            return `description <> '${escapedValue}'`;
         } else if (this.operator === TransactionExplorerConditionOperatorType.Contains) {
-            return `description CONTAINS '${this.value.replace(/'/g, "''")}'`;
+            return `description CONTAINS '${escapedValue}'`;
         } else if (this.operator === TransactionExplorerConditionOperatorType.NotContains) {
-            return `description NOT CONTAINS '${this.value.replace(/'/g, "''")}'`;
+            return `description NOT CONTAINS '${escapedValue}'`;
         } else if (this.operator === TransactionExplorerConditionOperatorType.StartsWith) {
-            return `description STARTS WITH '${this.value.replace(/'/g, "''")}'`;
+            return `description STARTS WITH '${escapedValue}'`;
         } else if (this.operator === TransactionExplorerConditionOperatorType.NotStartsWith) {
-            return `description NOT STARTS WITH '${this.value.replace(/'/g, "''")}'`;
+            return `description NOT STARTS WITH '${escapedValue}'`;
         } else if (this.operator === TransactionExplorerConditionOperatorType.EndsWith) {
-            return `description ENDS WITH '${this.value.replace(/'/g, "''")}'`;
+            return `description ENDS WITH '${escapedValue}'`;
         } else if (this.operator === TransactionExplorerConditionOperatorType.NotEndsWith) {
-            return `description NOT ENDS WITH '${this.value.replace(/'/g, "''")}'`;
+            return `description NOT ENDS WITH '${escapedValue}'`;
+        } else if (this.operator === TransactionExplorerConditionOperatorType.RegexMatch) {
+            return `description REGEXP LIKE '${escapedValue}'`;
+        } else if (this.operator === TransactionExplorerConditionOperatorType.NotRegexMatch) {
+            return `description NOT REGEXP LIKE '${escapedValue}'`;
         }
 
         return '';
+    }
+
+    private getCachedNormalizedValue(): string {
+        let normalizedValue = this.cachedNormalizedValue;
+
+        if (!normalizedValue || normalizedValue.originalText !== this.value) {
+            normalizedValue = NormalizedText.of(this.value);
+            this.cachedNormalizedValue = normalizedValue;
+            this.cachedRegex = undefined;
+        }
+
+        if (this.matchMode === DescriptionMatchMode.Normalized) {
+            return normalizedValue.normalizedText;
+        } else if (this.matchMode === DescriptionMatchMode.CaseInsensitive) {
+            return normalizedValue.lowerCaseText;
+        } else {
+            return normalizedValue.originalText;
+        }
+    }
+
+    private getCachedRegex(): RegExp | undefined {
+        if (this.operator !== TransactionExplorerConditionOperatorType.RegexMatch && this.operator !== TransactionExplorerConditionOperatorType.NotRegexMatch) {
+            return undefined;
+        }
+
+        if (!this.cachedNormalizedValue || this.cachedNormalizedValue.originalText !== this.value || !this.cachedRegex) {
+            try {
+                let regex: RegExp;
+
+                if (this.matchMode === DescriptionMatchMode.CaseInsensitive || this.matchMode === DescriptionMatchMode.Normalized) {
+                    regex = new RegExp(this.getCachedNormalizedValue(), 'i');
+                } else {
+                    regex = new RegExp(this.getCachedNormalizedValue());
+                }
+
+                this.cachedRegex = regex;
+            } catch {
+                this.cachedRegex = undefined;
+            }
+        }
+
+        return this.cachedRegex;
+    }
+}
+
+export class TransactionExplorerDescriptionCondition extends AbstractTransactionExplorerDescriptionCondition<TransactionExplorerConditionFieldType.Description> {
+    public readonly field = TransactionExplorerConditionFieldType.Description;
+    protected readonly matchMode = DescriptionMatchMode.Exact;
+
+    constructor(operator: DescriptionConditionOperator, value: string) {
+        super(operator, value);
+    }
+}
+
+export class TransactionExplorerDescriptionCaseInsensitiveCondition extends AbstractTransactionExplorerDescriptionCondition<TransactionExplorerConditionFieldType.DescriptionCaseInsensitive> {
+    public readonly field = TransactionExplorerConditionFieldType.DescriptionCaseInsensitive;
+    protected readonly matchMode = DescriptionMatchMode.CaseInsensitive;
+
+    constructor(operator: DescriptionConditionOperator, value: string) {
+        super(operator, value);
+    }
+}
+
+export class TransactionExplorerDescriptionNormalizedCondition extends AbstractTransactionExplorerDescriptionCondition<TransactionExplorerConditionFieldType.DescriptionNormalized> {
+    public readonly field = TransactionExplorerConditionFieldType.DescriptionNormalized;
+    protected readonly matchMode = DescriptionMatchMode.Normalized;
+
+    constructor(operator: DescriptionConditionOperator, value: string) {
+        super(operator, value);
     }
 }

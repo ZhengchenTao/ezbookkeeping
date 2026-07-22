@@ -3,6 +3,10 @@ function getServerSetting(key: string): string | number | boolean | Record<strin
     return settings[key];
 }
 
+export function getStringifiedServerSetting(): string {
+    return JSON.stringify(window.EZBOOKKEEPING_SERVER_SETTINGS, null, 2);
+}
+
 export function isInternalAuthEnabled(): boolean {
     return getServerSetting('a') !== 0;
 }
@@ -55,8 +59,12 @@ export function isMCPServerEnabled(): boolean {
     return getServerSetting('mcp') === 1;
 }
 
+export function isTransactionFromAITextRecognitionEnabled(): boolean {
+    return getServerSetting('llmtr') === 1;
+}
+
 export function isTransactionFromAIImageRecognitionEnabled(): boolean {
-    return getServerSetting('llmt') === 1;
+    return getServerSetting('llmir') === 1;
 }
 
 export function getLoginPageTips(): Record<string, string>{

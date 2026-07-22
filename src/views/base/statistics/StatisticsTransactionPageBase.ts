@@ -63,18 +63,18 @@ export function useStatisticsTransactionPageBase() {
 
     const allDateRanges = computed<LocalizedDateRange[]>(() => {
         if (analysisType.value === StatisticsAnalysisType.CategoricalAnalysis) {
-            return getAllDateRanges(DateRangeScene.Normal, true);
+            return getAllDateRanges(DateRangeScene.Normal, { includeCustom: true });
         } else if (analysisType.value === StatisticsAnalysisType.TrendAnalysis) {
-            return getAllDateRanges(DateRangeScene.TrendAnalysis, true);
+            return getAllDateRanges(DateRangeScene.TrendAnalysis, { includeCustom: true });
         } else if (analysisType.value === StatisticsAnalysisType.AssetTrends) {
-            return getAllDateRanges(DateRangeScene.AssetTrends, true);
+            return getAllDateRanges(DateRangeScene.AssetTrends, { includeCustom: true });
         } else {
             return [];
         }
     });
     const allSortingTypes = computed<TypeAndDisplayName[]>(() => getAllStatisticsSortingTypes());
-    const allTrendAnalysisDateAggregationTypes = computed<TypeAndDisplayName[]>(() => getAllStatisticsDateAggregationTypes(StatisticsAnalysisType.TrendAnalysis));
-    const allAssetTrendsDateAggregationTypes = computed<TypeAndDisplayName[]>(() => getAllStatisticsDateAggregationTypes(StatisticsAnalysisType.AssetTrends));
+    const allTrendAnalysisDateAggregationTypes = computed<TypeAndDisplayName[]>(() => getAllStatisticsDateAggregationTypes(StatisticsAnalysisType.TrendAnalysis, false));
+    const allAssetTrendsDateAggregationTypes = computed<TypeAndDisplayName[]>(() => getAllStatisticsDateAggregationTypes(StatisticsAnalysisType.AssetTrends, false));
 
     const query = computed<TransactionStatisticsFilter>(() => statisticsStore.transactionStatisticsFilter);
     const queryChartDataCategory = computed<string>(() => statisticsStore.categoricalAnalysisChartDataCategory);

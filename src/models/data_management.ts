@@ -7,6 +7,7 @@ export interface ExportTransactionDataRequest {
     readonly tagFilter: string;
     readonly amountFilter: string;
     readonly keyword: string;
+    readonly matchMode: number;
 }
 
 export interface ClearDataRequest {
@@ -24,7 +25,7 @@ export interface DataStatisticsResponse {
     readonly totalTransactionTagCount: string;
     readonly totalTransactionCount: string;
     readonly totalTransactionPictureCount: string;
-    readonly totalInsightsExplorerCount: string;
+    readonly totalExplorationCount: string;
     readonly totalTransactionTemplateCount: string;
     readonly totalScheduledTransactionCount: string;
 }
@@ -35,7 +36,7 @@ export interface DisplayDataStatistics {
     readonly totalTransactionTagCount: string;
     readonly totalTransactionCount: string;
     readonly totalTransactionPictureCount: string;
-    readonly totalInsightsExplorerCount: string;
+    readonly totalExplorationCount: string;
     readonly totalTransactionTemplateCount: string;
     readonly totalScheduledTransactionCount: string;
 }

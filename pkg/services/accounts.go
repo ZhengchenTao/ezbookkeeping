@@ -592,6 +592,27 @@ func (s *AccountService) ModifyAccounts(c core.Context, mainAccount *models.Acco
 	})
 }
 
+// UpdateAccountExtend updates extend field of given account
+func (s *AccountService) UpdateAccountExtend(c core.Context, uid int64, account *models.Account) error {
+	if uid <= 0 {
+		return errs.ErrUserIdInvalid
+	}
+
+	account.UpdatedUnixTime = time.Now().Unix()
+
+	return s.UserDataDB(uid).DoTransaction(c, func(sess *xorm.Session) error {
+		updatedRows, err := sess.ID(account.AccountId).Cols("extend", "updated_unix_time").Where("uid=? AND deleted=?", uid, false).Update(account)
+
+		if err != nil {
+			return err
+		} else if updatedRows < 1 {
+			return errs.ErrAccountNotFound
+		}
+
+		return nil
+	})
+}
+
 // HideAccount updates hidden field of given accounts
 func (s *AccountService) HideAccount(c core.Context, uid int64, ids []int64, hidden bool) error {
 	if uid <= 0 {

@@ -19,6 +19,7 @@ type AccountsApi struct {
 	ApiUsingConfig
 	ApiUsingDuplicateChecker
 	accounts *services.AccountService
+	users    *services.UserService
 }
 
 // Initialize an account api singleton instance
@@ -34,6 +35,7 @@ var (
 			container: duplicatechecker.Container,
 		},
 		accounts: services.Accounts,
+		users:    services.Users,
 	}
 )
 
@@ -333,6 +335,16 @@ func (a *AccountsApi) AccountModifyHandler(c *core.WebContext) (any, *errs.Error
 	}
 
 	uid := c.GetCurrentUid()
+	user, err := a.users.GetUserById(c, uid)
+
+	if err != nil {
+		if !errs.IsCustomError(err) {
+			log.Errorf(c, "[accounts.AccountModifyHandler] failed to get user, because %s", err.Error())
+		}
+
+		return nil, errs.ErrUserNotFound
+	}
+
 	accountAndSubAccounts, err := a.accounts.GetAccountAndSubAccountsByAccountId(c, uid, accountModifyReq.Id)
 
 	if err != nil {
@@ -434,7 +446,11 @@ func (a *AccountsApi) AccountModifyHandler(c *core.WebContext) (any, *errs.Error
 	var toAddAccountBalanceTimes []int64
 	var toDeleteAccountIds []int64
 
-	toUpdateAccount := a.getToUpdateAccount(uid, &accountModifyReq, mainAccount, false)
+	toUpdateAccount, err := a.getToUpdateAccount(user, &accountModifyReq, mainAccount, false)
+
+	if err != nil {
+		return nil, errs.Or(err, errs.ErrOperationFailed)
+	}
 
 	if toUpdateAccount != nil {
 		if toUpdateAccount.Category != mainAccount.Category {
@@ -483,7 +499,11 @@ func (a *AccountsApi) AccountModifyHandler(c *core.WebContext) (any, *errs.Error
 				toAddAccountBalanceTimes = append(toAddAccountBalanceTimes, 0)
 			}
 		} else {
-			toUpdateSubAccount := a.getToUpdateAccount(uid, subAccountReq, accountMap[subAccountReq.Id], true)
+			toUpdateSubAccount, err := a.getToUpdateAccount(user, subAccountReq, accountMap[subAccountReq.Id], true)
+
+			if err != nil {
+				return nil, errs.Or(err, errs.ErrOperationFailed)
+			}
 
 			if toUpdateSubAccount != nil {
 				anythingUpdate = true
@@ -605,6 +625,69 @@ func (a *AccountsApi) AccountModifyHandler(c *core.WebContext) (any, *errs.Error
 	sort.Sort(accountResp.SubAccounts)
 
 	return accountResp, nil
+}
+
+// AccountUpdateLastReconciledTimeHandler updates last reconciled time of an existed account by request parameters for current user
+func (a *AccountsApi) AccountUpdateLastReconciledTimeHandler(c *core.WebContext) (any, *errs.Error) {
+	var accountUpdateReq models.AccountUpdateLastReconciledTimeRequest
+	err := c.ShouldBindJSON(&accountUpdateReq)
+
+	if err != nil {
+		log.Warnf(c, "[accounts.AccountUpdateLastReconciledTimeHandler] parse request failed, because %s", err.Error())
+		return nil, errs.NewIncompleteOrIncorrectSubmissionError(err)
+	}
+
+	if accountUpdateReq.Id <= 0 {
+		return nil, errs.ErrAccountIdInvalid
+	}
+
+	uid := c.GetCurrentUid()
+	user, err := a.users.GetUserById(c, uid)
+
+	if err != nil {
+		if !errs.IsCustomError(err) {
+			log.Errorf(c, "[accounts.AccountUpdateLastReconciledTimeHandler] failed to get user, because %s", err.Error())
+		}
+
+		return nil, errs.ErrUserNotFound
+	}
+
+	if !user.UseLastReconciledTime {
+		return nil, errs.ErrLastReconciledTimeIsNotEnabled
+	}
+
+	account, err := a.accounts.GetAccountByAccountId(c, uid, accountUpdateReq.Id)
+
+	if err != nil {
+		log.Errorf(c, "[accounts.AccountUpdateLastReconciledTimeHandler] failed to get account \"id:%d\" for user \"uid:%d\", because %s", accountUpdateReq.Id, uid, err.Error())
+		return nil, errs.Or(err, errs.ErrOperationFailed)
+	}
+
+	if account.Type == models.ACCOUNT_TYPE_MULTI_SUB_ACCOUNTS {
+		return nil, errs.ErrParentAccountCannotSetLastReconciledTime
+	}
+
+	if account.Extend == nil {
+		account.Extend = &models.AccountExtend{}
+	}
+
+	if account.Extend.LastReconciledTime != nil && accountUpdateReq.LastReconciledTime < *account.Extend.LastReconciledTime {
+		return nil, errs.ErrCannotSetLastReconciledTimeBeforeCurrent
+	} else if account.Extend.LastReconciledTime != nil && accountUpdateReq.LastReconciledTime == *account.Extend.LastReconciledTime {
+		return nil, errs.ErrNothingWillBeUpdated
+	}
+
+	account.Extend.LastReconciledTime = &accountUpdateReq.LastReconciledTime
+
+	err = a.accounts.UpdateAccountExtend(c, uid, account)
+
+	if err != nil {
+		log.Errorf(c, "[accounts.AccountUpdateLastReconciledTimeHandler] failed to update last reconciled time for account \"id:%d\" of user \"uid:%d\", because %s", account.AccountId, uid, err.Error())
+		return nil, errs.Or(err, errs.ErrOperationFailed)
+	}
+
+	log.Infof(c, "[accounts.AccountUpdateLastReconciledTimeHandler] user \"uid:%d\" has updated last reconciled time \"%d\" for account \"id:%d\"", uid, account.Extend.LastReconciledTime, account.AccountId)
+	return true, nil
 }
 
 // AccountHideHandler hides an existed account by request parameters for current user
@@ -767,8 +850,9 @@ func (a *AccountsApi) createSubAccountModels(uid int64, accountCreateReq *models
 	return childrenAccounts, childrenAccountBalanceTimes
 }
 
-func (a *AccountsApi) getToUpdateAccount(uid int64, accountModifyReq *models.AccountModifyRequest, oldAccount *models.Account, isSubAccount bool) *models.Account {
+func (a *AccountsApi) getToUpdateAccount(user *models.User, accountModifyReq *models.AccountModifyRequest, oldAccount *models.Account, isSubAccount bool) (*models.Account, error) {
 	newAccountExtend := &models.AccountExtend{}
+	newAccountExtend.LastReconciledTime = accountModifyReq.LastReconciledTime
 
 	if !isSubAccount && accountModifyReq.Category == models.ACCOUNT_CATEGORY_CREDIT_CARD {
 		newAccountExtend.CreditCardStatementDate = &accountModifyReq.CreditCardStatementDate
@@ -779,7 +863,7 @@ func (a *AccountsApi) getToUpdateAccount(uid int64, accountModifyReq *models.Acc
 
 	newAccount := &models.Account{
 		AccountId:    oldAccount.AccountId,
-		Uid:          uid,
+		Uid:          user.Uid,
 		Name:         accountModifyReq.Name,
 		DisplayOrder: oldAccount.DisplayOrder,
 		Category:     accountModifyReq.Category,
@@ -796,27 +880,34 @@ func (a *AccountsApi) getToUpdateAccount(uid int64, accountModifyReq *models.Acc
 		newAccount.Color != oldAccount.Color ||
 		newAccount.Comment != oldAccount.Comment ||
 		newAccount.Hidden != oldAccount.Hidden {
-		return newAccount
-	}
-
-	if (newAccount.Extend != nil && oldAccount.Extend == nil) ||
-		(newAccount.Extend == nil && oldAccount.Extend != nil) {
-		return newAccount
+		return newAccount, nil
 	}
 
 	oldAccountExtend := oldAccount.Extend
 
-	if newAccountExtend.CreditCardStatementDate != oldAccountExtend.CreditCardStatementDate {
-		return newAccount
-	}
-
-	if newAccountExtend.CreditLimit != oldAccountExtend.CreditLimit {
-		if newAccountExtend.CreditLimit == nil || oldAccountExtend.CreditLimit == nil || *newAccountExtend.CreditLimit != *oldAccountExtend.CreditLimit {
-			return newAccount
+	if (newAccountExtend.LastReconciledTime != nil && (oldAccountExtend == nil || oldAccountExtend.LastReconciledTime == nil)) ||
+		(newAccountExtend.LastReconciledTime == nil && oldAccountExtend != nil && oldAccountExtend.LastReconciledTime != nil) ||
+		(newAccountExtend.LastReconciledTime != nil && oldAccountExtend != nil && oldAccountExtend.LastReconciledTime != nil && *newAccountExtend.LastReconciledTime != *oldAccountExtend.LastReconciledTime) {
+		if !user.UseLastReconciledTime {
+			return nil, errs.ErrLastReconciledTimeIsNotEnabled
 		}
+
+		return newAccount, nil
 	}
 
-	return nil
+	if (newAccountExtend.CreditCardStatementDate != nil && (oldAccountExtend == nil || oldAccountExtend.CreditCardStatementDate == nil)) ||
+		(newAccountExtend.CreditCardStatementDate == nil && oldAccountExtend != nil && oldAccountExtend.CreditCardStatementDate != nil) ||
+		(newAccountExtend.CreditCardStatementDate != nil && oldAccountExtend != nil && oldAccountExtend.CreditCardStatementDate != nil && *newAccountExtend.CreditCardStatementDate != *oldAccountExtend.CreditCardStatementDate) {
+		return newAccount, nil
+	}
+
+	if (newAccountExtend.CreditLimit != nil && (oldAccountExtend == nil || oldAccountExtend.CreditLimit == nil)) ||
+		(newAccountExtend.CreditLimit == nil && oldAccountExtend != nil && oldAccountExtend.CreditLimit != nil) ||
+		(newAccountExtend.CreditLimit != nil && oldAccountExtend != nil && oldAccountExtend.CreditLimit != nil && *newAccountExtend.CreditLimit != *oldAccountExtend.CreditLimit) {
+		return newAccount, nil
+	}
+
+	return nil, nil
 }
 
 func (a *AccountsApi) getToDeleteSubAccountIds(accountModifyReq *models.AccountModifyRequest, mainAccount *models.Account, accountAndSubAccounts []*models.Account) []int64 {

@@ -34,6 +34,22 @@
                             <f7-list-item :title="tt('None')"></f7-list-item>
                         </f7-list>
                         <f7-list dividers class="schedule-frequency-value-list no-margin-vertical"
+                                 v-if="currentFrequencyType === ScheduledTemplateFrequencyType.Daily.type">
+                            <f7-list-item :title="tt('Daily')"></f7-list-item>
+                        </f7-list>
+                        <f7-list dividers class="schedule-frequency-value-list no-margin-vertical"
+                                 v-if="currentFrequencyType === ScheduledTemplateFrequencyType.EveryNDays.type">
+                            <f7-list-item checkbox
+                                          :class="isChecked(n.type) ? 'list-item-selected' : ''"
+                                          :key="n.type"
+                                          :value="n.type"
+                                          :checked="isChecked(n.type)"
+                                          :title="n.displayName"
+                                          v-for="n in allAvailableNDays"
+                                          @change="setFrequencyValue">
+                            </f7-list-item>
+                        </f7-list>
+                        <f7-list dividers class="schedule-frequency-value-list no-margin-vertical"
                                  v-if="currentFrequencyType === ScheduledTemplateFrequencyType.Weekly.type">
                             <f7-list-item checkbox
                                           :class="isChecked(weekDay.type) ? 'list-item-selected' : ''"
@@ -48,12 +64,24 @@
                         <f7-list dividers class="schedule-frequency-value-list no-margin-vertical"
                                  v-if="currentFrequencyType === ScheduledTemplateFrequencyType.Monthly.type">
                             <f7-list-item checkbox
-                                          :class="isChecked(monthDay.day) ? 'list-item-selected' : ''"
-                                          :key="monthDay.day"
-                                          :value="monthDay.day"
-                                          :checked="isChecked(monthDay.day)"
+                                          :class="isChecked(monthDay.type) ? 'list-item-selected' : ''"
+                                          :key="monthDay.type"
+                                          :value="monthDay.type"
+                                          :checked="isChecked(monthDay.type)"
                                           :title="monthDay.displayName"
                                           v-for="monthDay in allAvailableMonthDays"
+                                          @change="changeFrequencyValue">
+                            </f7-list-item>
+                        </f7-list>
+                        <f7-list dividers class="schedule-frequency-value-list no-margin-vertical"
+                                 v-if="currentFrequencyType === ScheduledTemplateFrequencyType.Yearly.type">
+                            <f7-list-item checkbox
+                                          :class="isChecked(monthAndDay.type) ? 'list-item-selected' : ''"
+                                          :key="monthAndDay.type"
+                                          :value="monthAndDay.type"
+                                          :checked="isChecked(monthAndDay.type)"
+                                          :title="monthAndDay.displayName"
+                                          v-for="monthAndDay in allAvailableMonthAndDays"
                                           @change="changeFrequencyValue">
                             </f7-list-item>
                         </f7-list>
@@ -91,7 +119,14 @@ const emit = defineEmits<{
 }>();
 
 const { tt } = useI18n();
-const { allTransactionScheduledFrequencyTypes, allWeekDays, allAvailableMonthDays, getFrequencyValues } = useScheduleFrequencySelectionBase();
+const {
+    allTransactionScheduledFrequencyTypes,
+    allWeekDays,
+    allAvailableMonthDays,
+    allAvailableMonthAndDays,
+    allAvailableNDays,
+    getFrequencyValues
+} = useScheduleFrequencySelectionBase();
 
 const userStore = useUserStore();
 
@@ -108,13 +143,29 @@ function changeFrequencyType(value: number): void {
     if (currentFrequencyType.value !== value) {
         currentFrequencyType.value = value;
 
-        if (value === ScheduledTemplateFrequencyType.Weekly.type) {
+        if (value === ScheduledTemplateFrequencyType.Daily.type) {
+            currentFrequencyValue.value = [0];
+        } else if (value === ScheduledTemplateFrequencyType.EveryNDays.type) {
+            currentFrequencyValue.value = [1];
+        } else if (value === ScheduledTemplateFrequencyType.Weekly.type) {
             currentFrequencyValue.value = [firstDayOfWeek.value];
         } else if (value === ScheduledTemplateFrequencyType.Monthly.type) {
             currentFrequencyValue.value = [1];
+        } else if (value === ScheduledTemplateFrequencyType.Yearly.type) {
+            currentFrequencyValue.value = [101];
         } else {
             currentFrequencyValue.value = [];
         }
+    }
+}
+
+function setFrequencyValue(e: Event): void {
+    const currentValue = parseInt((e.target as HTMLInputElement).value);
+
+    if ((e.target as HTMLInputElement).checked) {
+        currentFrequencyValue.value.splice(0, currentFrequencyValue.value.length, currentValue);
+    } else {
+        currentFrequencyValue.value.splice(0, currentFrequencyValue.value.length);
     }
 }
 

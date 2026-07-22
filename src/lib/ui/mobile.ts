@@ -260,16 +260,16 @@ export function useI18nUIComponents() {
             f7.dialog.create({
                 title: tt('global.app.title'),
                 text: tt(message),
-                content: `<div class="dialog-input-field input"><input type="text" class="dialog-input" value="${currentValue || ''}"></div>`,
+                content: `<div class="dialog-input-field input"><input type="text" class="dialog-input" value="${currentValue || ''}" placeholder="${tt(message)}"></div>`,
                 animate: isEnableAnimate(),
                 buttons: textDirection == TextDirection.RTL ? [confirmButton, cancelButton] : [cancelButton, confirmButton]
             }).open();
         });
     }
 
-    function showCancelableLoading(title: string, message: string, cancelButtonText: string, cancelCallback?: (dialog: Dialog.Dialog, e: Event) => void): void {
+    function showCancelableLoading(title: string, message: string, cancelButtonText?: string, cancelCallback?: (dialog: Dialog.Dialog, e: Event) => void): void {
         const cancelButton: Dialog.DialogButton = {
-            text: tt(cancelButtonText),
+            text: cancelButtonText ? tt(cancelButtonText) : '',
             onClick: (dialog, event) => {
                 if (cancelCallback) {
                     cancelCallback(dialog, event);
@@ -283,7 +283,7 @@ export function useI18nUIComponents() {
                 content: `<div class="preloader"><span class="preloader-inner">${[0, 1, 2, 3, 4, 5, 6, 7].map(() => '<span class="preloader-inner-line"></span>').join('')}</span></div>` + (message ? `<br/><div class="margin-top">${tt(message)}</div>` : ''),
                 cssClass: 'dialog-preloader',
                 animate: isEnableAnimate(),
-                buttons: [cancelButton]
+                buttons: cancelButtonText ? [cancelButton] : []
             }).open();
         });
     }

@@ -12,6 +12,7 @@ import { useExchangeRatesStore } from './exchangeRates.ts';
 
 import { type BeforeResolveFunction, itemAndIndex, entries, keys } from '@/core/base.ts';
 import { type TextualYearMonth, DateRange } from '@/core/datetime.ts';
+import { KeywordMatchMode } from '@/core/text.ts';
 import { CategoryType } from '@/core/category.ts';
 import type { ImportFileTypeSupportedAdditionalOptions } from '@/core/file.ts';
 import { TransactionType, TransactionTagFilterType } from '@/core/transaction.ts';
@@ -37,7 +38,7 @@ import {
     type ExportTransactionDataRequest
 } from '@/models/data_management.ts';
 import type {
-    RecognizedReceiptImageResponse
+    RecognizedTransactionResponse
 } from '@/models/large_language_model.ts';
 
 import {
@@ -72,6 +73,7 @@ export interface TransactionListPartialFilter {
     tagFilter?: string;
     amountFilter?: string;
     keyword?: string;
+    matchMode?: number;
 }
 
 export interface TransactionListFilter extends TransactionListPartialFilter {
@@ -84,6 +86,7 @@ export interface TransactionListFilter extends TransactionListPartialFilter {
     tagFilter: string;
     amountFilter: string;
     keyword: string;
+    matchMode: number;
 }
 
 export interface TransactionTotalAmount {
@@ -124,7 +127,8 @@ export const useTransactionsStore = defineStore('transactions', () => {
         accountIds: '',
         tagFilter: '',
         amountFilter: '',
-        keyword: ''
+        keyword: '',
+        matchMode: KeywordMatchMode.Default.type
     });
 
     const transactions = ref<TransactionMonthList[]>([]);
@@ -611,6 +615,32 @@ export const useTransactionsStore = defineStore('transactions', () => {
         transactionReconciliationStatementStateInvalid.value = invalidState;
     }
 
+    function updateStoreInvalidState(options: { transactionList?: boolean, reconciliationStatement?: boolean, accountList?: boolean, overview?: boolean, statistics?: boolean, explorer?: boolean }): void {
+        if (options.transactionList && !transactionListStateInvalid.value) {
+            updateTransactionListInvalidState(true);
+        }
+
+        if (options.reconciliationStatement && !transactionReconciliationStatementStateInvalid.value) {
+            updateTransactionReconciliationStatementInvalidState(true);
+        }
+
+        if (options.accountList && !accountsStore.accountListStateInvalid) {
+            accountsStore.updateAccountListInvalidState(true);
+        }
+
+        if (options.overview && !overviewStore.transactionOverviewStateInvalid) {
+            overviewStore.updateTransactionOverviewInvalidState(true);
+        }
+
+        if (options.statistics && !statisticsStore.transactionStatisticsStateInvalid) {
+            statisticsStore.updateTransactionStatisticsInvalidState(true);
+        }
+
+        if (options.explorer && !explorersStore.transactionExplorerStateInvalid) {
+            explorersStore.updateTransactionExplorerInvalidState(true);
+        }
+    }
+
     function resetTransactions(): void {
         transactionsFilter.value.dateType = DateRange.All.type;
         transactionsFilter.value.maxTime = 0;
@@ -621,6 +651,7 @@ export const useTransactionsStore = defineStore('transactions', () => {
         transactionsFilter.value.tagFilter = '';
         transactionsFilter.value.amountFilter = '';
         transactionsFilter.value.keyword = '';
+        transactionsFilter.value.matchMode = KeywordMatchMode.Default.type;
         transactions.value = [];
         transactionsNextTimeId.value = 0;
         transactionListStateInvalid.value = true;
@@ -687,6 +718,12 @@ export const useTransactionsStore = defineStore('transactions', () => {
         } else {
             transactionsFilter.value.keyword = '';
         }
+
+        if (filter && isNumber(filter.matchMode)) {
+            transactionsFilter.value.matchMode = filter.matchMode;
+        } else {
+            transactionsFilter.value.matchMode = settingsStore.appSettings.defaultKeywordMatchModeInTransactionListPage;
+        }
     }
 
     function updateTransactionListFilter(filter: TransactionListPartialFilter): boolean {
@@ -721,6 +758,9 @@ export const useTransactionsStore = defineStore('transactions', () => {
             if (DateRange.isBillingCycle(transactionsFilter.value.dateType) &&
                 (!accountsStore.getAccountStatementDate(filter.accountIds) || accountsStore.getAccountStatementDate(filter.accountIds) !== accountsStore.getAccountStatementDate(transactionsFilter.value.accountIds))) {
                 transactionsFilter.value.dateType = DateRange.Custom.type;
+            } else if (DateRange.isLastReconciledTimeRange(transactionsFilter.value.dateType) &&
+                (!accountsStore.allAccountsMap[filter.accountIds] || accountsStore.allAccountsMap[filter.accountIds]?.lastReconciledTime !== accountsStore.allAccountsMap[transactionsFilter.value.accountIds]?.lastReconciledTime)) {
+                transactionsFilter.value.dateType = DateRange.Custom.type;
             }
 
             transactionsFilter.value.accountIds = filter.accountIds;
@@ -739,6 +779,11 @@ export const useTransactionsStore = defineStore('transactions', () => {
 
         if (filter && isString(filter.keyword) && transactionsFilter.value.keyword !== filter.keyword) {
             transactionsFilter.value.keyword = filter.keyword;
+            changed = true;
+        }
+
+        if (filter && isNumber(filter.matchMode) && transactionsFilter.value.matchMode !== filter.matchMode) {
+            transactionsFilter.value.matchMode = filter.matchMode;
             changed = true;
         }
 
@@ -768,7 +813,9 @@ export const useTransactionsStore = defineStore('transactions', () => {
 
         querys.push('dateType=' + transactionsFilter.value.dateType);
 
-        if (DateRange.isBillingCycle(transactionsFilter.value.dateType) || transactionsFilter.value.dateType === DateRange.Custom.type) {
+        if (DateRange.isBillingCycle(transactionsFilter.value.dateType)
+            || DateRange.isLastReconciledTimeRange(transactionsFilter.value.dateType)
+            || transactionsFilter.value.dateType === DateRange.Custom.type) {
             querys.push('maxTime=' + transactionsFilter.value.maxTime);
             querys.push('minTime=' + transactionsFilter.value.minTime);
         }
@@ -779,6 +826,7 @@ export const useTransactionsStore = defineStore('transactions', () => {
 
         if (transactionsFilter.value.keyword) {
             querys.push('keyword=' + encodeURIComponent(transactionsFilter.value.keyword));
+            querys.push('matchMode=' + transactionsFilter.value.matchMode);
         }
 
         return querys.join('&');
@@ -793,11 +841,12 @@ export const useTransactionsStore = defineStore('transactions', () => {
             accountIds: transactionsFilter.value.accountIds,
             tagFilter: transactionsFilter.value.tagFilter,
             amountFilter: transactionsFilter.value.amountFilter,
-            keyword: transactionsFilter.value.keyword
+            keyword: transactionsFilter.value.keyword,
+            matchMode: transactionsFilter.value.matchMode
         };
     }
 
-    function loadTransactions({ reload, count, page, withCount, autoExpand, defaultCurrency }: { reload?: boolean, count?: number, page?: number, withCount?: boolean, autoExpand: boolean, defaultCurrency: string }): Promise<TransactionPageWrapper> {
+    function loadTransactions({ reload, count, page, mustHavePictures, withCount, withPictures, autoExpand, defaultCurrency }: { reload?: boolean, count?: number, page?: number, mustHavePictures?: boolean, withCount?: boolean, withPictures?: boolean, autoExpand: boolean, defaultCurrency: string }): Promise<TransactionPageWrapper> {
         let actualMaxTime = transactionsNextTimeId.value;
 
         if (reload && transactionsFilter.value.maxTime > 0) {
@@ -813,12 +862,15 @@ export const useTransactionsStore = defineStore('transactions', () => {
                 count: count || 50,
                 page: page || 1,
                 withCount: !!withCount,
+                withPictures: !!withPictures,
+                mustHavePictures: !!mustHavePictures,
                 type: transactionsFilter.value.type,
                 categoryIds: transactionsFilter.value.categoryIds,
                 accountIds: transactionsFilter.value.accountIds,
                 tagFilter: transactionsFilter.value.tagFilter,
                 amountFilter: transactionsFilter.value.amountFilter,
-                keyword: transactionsFilter.value.keyword
+                keyword: transactionsFilter.value.keyword,
+                matchMode: transactionsFilter.value.matchMode
             }).then(response => {
                 const data = response.data;
 
@@ -887,7 +939,7 @@ export const useTransactionsStore = defineStore('transactions', () => {
         });
     }
 
-    function loadMonthlyAllTransactions({ year, month, autoExpand, defaultCurrency }: { year: number, month: number, autoExpand: boolean, defaultCurrency: string }): Promise<TransactionPageWrapper> {
+    function loadMonthlyAllTransactions({ year, month, mustHavePictures, withPictures, autoExpand, defaultCurrency }: { year: number, month: number, mustHavePictures?: boolean, withPictures?: boolean, autoExpand: boolean, defaultCurrency: string }): Promise<TransactionPageWrapper> {
         return new Promise((resolve, reject) => {
             services.getAllTransactionsByMonth({
                 year: year,
@@ -897,7 +949,10 @@ export const useTransactionsStore = defineStore('transactions', () => {
                 accountIds: transactionsFilter.value.accountIds,
                 tagFilter: transactionsFilter.value.tagFilter,
                 amountFilter: transactionsFilter.value.amountFilter,
-                keyword: transactionsFilter.value.keyword
+                keyword: transactionsFilter.value.keyword,
+                matchMode: transactionsFilter.value.matchMode,
+                mustHavePictures: !!mustHavePictures,
+                withPictures: !!withPictures
             }).then(response => {
                 const data = response.data;
 
@@ -1079,25 +1134,13 @@ export const useTransactionsStore = defineStore('transactions', () => {
                     });
                 }
 
-                if (!transactionReconciliationStatementStateInvalid.value) {
-                    updateTransactionReconciliationStatementInvalidState(true);
-                }
-
-                if (!accountsStore.accountListStateInvalid) {
-                    accountsStore.updateAccountListInvalidState(true);
-                }
-
-                if (!overviewStore.transactionOverviewStateInvalid) {
-                    overviewStore.updateTransactionOverviewInvalidState(true);
-                }
-
-                if (!statisticsStore.transactionStatisticsStateInvalid) {
-                    statisticsStore.updateTransactionStatisticsInvalidState(true);
-                }
-
-                if (!explorersStore.transactionExplorerStateInvalid) {
-                    explorersStore.updateTransactionExplorerInvalidState(true);
-                }
+                updateStoreInvalidState({
+                    reconciliationStatement: true,
+                    accountList: true,
+                    overview: true,
+                    statistics: true,
+                    explorer: true
+                });
 
                 resolve(transaction);
             }).catch(error => {
@@ -1118,6 +1161,166 @@ export const useTransactionsStore = defineStore('transactions', () => {
         });
     }
 
+    function batchUpdateTransactionCategories({ transactionIds, categoryId }: { transactionIds: string[], categoryId: string }): Promise<boolean> {
+        return new Promise((resolve, reject) => {
+            services.batchUpdateTransactionCategories({ transactionIds, categoryId }).then(response => {
+                const data = response.data;
+
+                if (!data || !data.success || !data.result) {
+                    reject({ message: 'Unable to update categories for transactions' });
+                    return;
+                }
+
+                updateStoreInvalidState({
+                    transactionList: true,
+                    reconciliationStatement: true,
+                    overview: true,
+                    statistics: true,
+                    explorer: true
+                });
+
+                resolve(data.result);
+            }).catch(error => {
+                logger.error('failed to update categories for transactions', error);
+
+                if (error.response && error.response.data && error.response.data.errorMessage) {
+                    reject({ error: error.response.data });
+                } else if (!error.processed) {
+                    reject({ message: 'Unable to update categories for transactions' });
+                } else {
+                    reject(error);
+                }
+            });
+        });
+    }
+
+    function batchUpdateTransactionAccounts({ transactionIds, accountId, isDestinationAccount }: { transactionIds: string[], accountId: string, isDestinationAccount: boolean }): Promise<boolean> {
+        return new Promise((resolve, reject) => {
+            services.batchUpdateTransactionAccounts({ transactionIds, accountId, isDestinationAccount }).then(response => {
+                const data = response.data;
+
+                if (!data || !data.success || !data.result) {
+                    reject({ message: 'Unable to update accounts for transactions' });
+                    return;
+                }
+
+                updateStoreInvalidState({
+                    transactionList: true,
+                    reconciliationStatement: true,
+                    accountList: true,
+                    overview: true,
+                    statistics: true,
+                    explorer: true
+                });
+
+                resolve(data.result);
+            }).catch(error => {
+                logger.error('failed to update accounts for transactions', error);
+
+                if (error.response && error.response.data && error.response.data.errorMessage) {
+                    reject({ error: error.response.data });
+                } else if (!error.processed) {
+                    reject({ message: 'Unable to update accounts for transactions' });
+                } else {
+                    reject(error);
+                }
+            });
+        });
+    }
+
+    function batchAddTagsToTransaction({ transactionIds, tagIds }: { transactionIds: string[], tagIds: string[] }): Promise<boolean> {
+        return new Promise((resolve, reject) => {
+            services.batchAddTagsToTransaction({ transactionIds, tagIds }).then(response => {
+                const data = response.data;
+
+                if (!data || !data.success || !data.result) {
+                    reject({ message: 'Unable to update tags for transactions' });
+                    return;
+                }
+
+                updateStoreInvalidState({
+                    transactionList: true,
+                    reconciliationStatement: true,
+                    explorer: true
+                });
+
+                resolve(data.result);
+            }).catch(error => {
+                logger.error('failed to update tags for transactions', error);
+
+                if (error.response && error.response.data && error.response.data.errorMessage) {
+                    reject({ error: error.response.data });
+                } else if (!error.processed) {
+                    reject({ message: 'Unable to update tags for transactions' });
+                } else {
+                    reject(error);
+                }
+            });
+        });
+    }
+
+    function batchRemoveTagsFromTransaction({ transactionIds, tagIds }: { transactionIds: string[], tagIds: string[] }): Promise<boolean> {
+        return new Promise((resolve, reject) => {
+            services.batchRemoveTagsFromTransaction({ transactionIds, tagIds }).then(response => {
+                const data = response.data;
+
+                if (!data || !data.success || !data.result) {
+                    reject({ message: 'Unable to update tags for transactions' });
+                    return;
+                }
+
+                updateStoreInvalidState({
+                    transactionList: true,
+                    reconciliationStatement: true,
+                    explorer: true
+                });
+
+                resolve(data.result);
+            }).catch(error => {
+                logger.error('failed to update tags for transactions', error);
+
+                if (error.response && error.response.data && error.response.data.errorMessage) {
+                    reject({ error: error.response.data });
+                } else if (!error.processed) {
+                    reject({ message: 'Unable to update tags for transactions' });
+                } else {
+                    reject(error);
+                }
+            });
+        });
+    }
+
+    function batchClearAllTagsFromTransaction({ transactionIds }: { transactionIds: string[] }): Promise<boolean> {
+        return new Promise((resolve, reject) => {
+            services.batchClearAllTagsFromTransaction({ transactionIds }).then(response => {
+                const data = response.data;
+
+                if (!data || !data.success || !data.result) {
+                    reject({ message: 'Unable to update tags for transactions' });
+                    return;
+                }
+
+                updateStoreInvalidState({
+                    transactionList: true,
+                    reconciliationStatement: true,
+                    explorer: true
+                });
+
+                resolve(data.result);
+            }).catch(error => {
+                logger.error('failed to update tags for transactions', error);
+
+                if (error.response && error.response.data && error.response.data.errorMessage) {
+                    reject({ error: error.response.data });
+                } else if (!error.processed) {
+                    reject({ message: 'Unable to update tags for transactions' });
+                } else {
+                    reject(error);
+                }
+            });
+        });
+    }
+
     function moveAllTransactionsBetweenAccounts({ fromAccountId, toAccountId }: { fromAccountId: string, toAccountId: string }): Promise<boolean> {
         return new Promise((resolve, reject) => {
             services.moveAllTransactionsBetweenAccounts({ fromAccountId, toAccountId }).then(response => {
@@ -1128,29 +1331,14 @@ export const useTransactionsStore = defineStore('transactions', () => {
                     return;
                 }
 
-                if (!transactionListStateInvalid.value) {
-                    updateTransactionListInvalidState(true);
-                }
-
-                if (!transactionReconciliationStatementStateInvalid.value) {
-                    updateTransactionReconciliationStatementInvalidState(true);
-                }
-
-                if (!accountsStore.accountListStateInvalid) {
-                    accountsStore.updateAccountListInvalidState(true);
-                }
-
-                if (!overviewStore.transactionOverviewStateInvalid) {
-                    overviewStore.updateTransactionOverviewInvalidState(true);
-                }
-
-                if (!statisticsStore.transactionStatisticsStateInvalid) {
-                    statisticsStore.updateTransactionStatisticsInvalidState(true);
-                }
-
-                if (!explorersStore.transactionExplorerStateInvalid) {
-                    explorersStore.updateTransactionExplorerInvalidState(true);
-                }
+                updateStoreInvalidState({
+                    transactionList: true,
+                    reconciliationStatement: true,
+                    accountList: true,
+                    overview: true,
+                    statistics: true,
+                    explorer: true
+                });
 
                 resolve(data.result);
             }).catch(error => {
@@ -1246,25 +1434,13 @@ export const useTransactionsStore = defineStore('transactions', () => {
                     });
                 }
 
-                if (!transactionReconciliationStatementStateInvalid.value) {
-                    updateTransactionReconciliationStatementInvalidState(true);
-                }
-
-                if (!accountsStore.accountListStateInvalid) {
-                    accountsStore.updateAccountListInvalidState(true);
-                }
-
-                if (!overviewStore.transactionOverviewStateInvalid) {
-                    overviewStore.updateTransactionOverviewInvalidState(true);
-                }
-
-                if (!statisticsStore.transactionStatisticsStateInvalid) {
-                    statisticsStore.updateTransactionStatisticsInvalidState(true);
-                }
-
-                if (!explorersStore.transactionExplorerStateInvalid) {
-                    explorersStore.updateTransactionExplorerInvalidState(true);
-                }
+                updateStoreInvalidState({
+                    reconciliationStatement: true,
+                    accountList: true,
+                    overview: true,
+                    statistics: true,
+                    explorer: true
+                });
 
                 resolve(data.result);
             }).catch(error => {
@@ -1281,7 +1457,78 @@ export const useTransactionsStore = defineStore('transactions', () => {
         });
     }
 
-    function recognizeReceiptImage({ imageFile, cancelableUuid }: { imageFile: File, cancelableUuid?: string }): Promise<RecognizedReceiptImageResponse> {
+    function batchDeleteTransactions({ transactionIds, password }: { transactionIds: string[], password: string }): Promise<boolean> {
+        return new Promise((resolve, reject) => {
+            services.batchDeleteTransaction({
+                ids: transactionIds,
+                password: password
+            }).then(response => {
+                const data = response.data;
+
+                if (!data || !data.success || !data.result) {
+                    reject({ message: 'Unable to delete these transactions' });
+                    return;
+                }
+
+                updateStoreInvalidState({
+                    transactionList: true,
+                    reconciliationStatement: true,
+                    accountList: true,
+                    overview: true,
+                    statistics: true,
+                    explorer: true
+                });
+
+                resolve(data.result);
+            }).catch(error => {
+                logger.error('failed to delete transactions', error);
+
+                updateStoreInvalidState({
+                    transactionList: true,
+                    reconciliationStatement: true,
+                    accountList: true,
+                    overview: true,
+                    statistics: true,
+                    explorer: true
+                });
+
+                if (error.response && error.response.data && error.response.data.errorMessage) {
+                    reject({ error: error.response.data });
+                } else if (!error.processed) {
+                    reject({ message: 'Unable to delete these transactions' });
+                } else {
+                    reject(error);
+                }
+            });
+        });
+    }
+
+    function recognizeTransactionText({ text }: { text: string }): Promise<RecognizedTransactionResponse> {
+        return new Promise((resolve, reject) => {
+            services.recognizeTransactionText({ text }).then(response => {
+                const data = response.data;
+
+                if (!data || !data.success || !data.result) {
+                    reject({ message: 'Unable to recognize text' });
+                    return;
+                }
+
+                resolve(data.result);
+            }).catch(error => {
+                logger.error('failed to recognize text', error);
+
+                if (error.response && error.response.data && error.response.data.errorMessage) {
+                    reject({ error: error.response.data });
+                } else if (!error.processed) {
+                    reject({ message: 'Unable to recognize text' });
+                } else {
+                    reject(error);
+                }
+            });
+        });
+    }
+
+    function recognizeReceiptImage({ imageFile, cancelableUuid }: { imageFile: File, cancelableUuid?: string }): Promise<RecognizedTransactionResponse> {
         return new Promise((resolve, reject) => {
             services.recognizeReceiptImage({ imageFile, cancelableUuid }).then(response => {
                 const data = response.data;
@@ -1339,9 +1586,9 @@ export const useTransactionsStore = defineStore('transactions', () => {
         });
     }
 
-    function parseImportTransaction({ fileType, additionalOptions, fileEncoding, importFile, columnMapping, transactionTypeMapping, hasHeaderLine, timeFormat, timezoneFormat, amountDecimalSeparator, amountDigitGroupingSymbol, geoSeparator, geoOrder, tagSeparator }: { fileType: string, additionalOptions?: ImportFileTypeSupportedAdditionalOptions, fileEncoding?: string, importFile: File, columnMapping?: Record<number, number>, transactionTypeMapping?: Record<string, TransactionType>, hasHeaderLine?: boolean, timeFormat?: string, timezoneFormat?: string, amountDecimalSeparator?: string, amountDigitGroupingSymbol?: string, geoSeparator?: string, geoOrder?: string, tagSeparator?: string }): Promise<ImportTransactionResponsePageWrapper> {
+    function parseImportTransaction({ fileType, additionalOptions, aiAdditionalPrompt, fileEncoding, importFile, columnMapping, transactionTypeMapping, hasHeaderLine, timeFormat, timezoneFormat, amountDecimalSeparator, amountDigitGroupingSymbol, geoSeparator, geoOrder, tagSeparator, cancelableUuid }: { fileType: string, additionalOptions?: ImportFileTypeSupportedAdditionalOptions, aiAdditionalPrompt?: string, fileEncoding?: string, importFile: File, columnMapping?: Record<number, number>, transactionTypeMapping?: Record<string, TransactionType>, hasHeaderLine?: boolean, timeFormat?: string, timezoneFormat?: string, amountDecimalSeparator?: string, amountDigitGroupingSymbol?: string, geoSeparator?: string, geoOrder?: string, tagSeparator?: string, cancelableUuid?: string }): Promise<ImportTransactionResponsePageWrapper> {
         return new Promise((resolve, reject) => {
-            services.parseImportTransaction({ fileType, additionalOptions, fileEncoding, importFile, columnMapping, transactionTypeMapping, hasHeaderLine, timeFormat, timezoneFormat, amountDecimalSeparator, amountDigitGroupingSymbol, geoSeparator, geoOrder, tagSeparator }).then(response => {
+            services.parseImportTransaction({ fileType, additionalOptions, aiAdditionalPrompt, fileEncoding, importFile, columnMapping, transactionTypeMapping, hasHeaderLine, timeFormat, timezoneFormat, amountDecimalSeparator, amountDigitGroupingSymbol, geoSeparator, geoOrder, tagSeparator, cancelableUuid }).then(response => {
                 const data = response.data;
 
                 if (!data || !data.success || !data.result) {
@@ -1527,8 +1774,15 @@ export const useTransactionsStore = defineStore('transactions', () => {
         getTransaction,
         saveTransaction,
         adjustAccountBalance,
+        batchUpdateTransactionCategories,
+        batchUpdateTransactionAccounts,
+        batchAddTagsToTransaction,
+        batchRemoveTagsFromTransaction,
+        batchClearAllTagsFromTransaction,
         moveAllTransactionsBetweenAccounts,
         deleteTransaction,
+        batchDeleteTransactions,
+        recognizeTransactionText,
         recognizeReceiptImage,
         cancelRecognizeReceiptImage,
         parseImportCustomFile,

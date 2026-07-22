@@ -17,10 +17,11 @@
                 </f7-button>
             </div>
 
-            <f7-popover class="numpad-paste-popover" target-el="#numpad-value"
+            <f7-popover class="paste-context-menu-popover" target-el="#numpad-value"
                         v-model:opened="showPastePopover">
-                <f7-list class="numpad-paste-popover-context-menu-list">
-                    <f7-list-item link="#" no-chevron :title="tt('Paste')" @click="paste"></f7-list-item>
+                <f7-list class="paste-context-menu">
+                    <f7-list-item link="#" no-chevron popover-close
+                                  :title="tt('Paste')" @click="paste"></f7-list-item>
                 </f7-list>
             </f7-popover>
 
@@ -88,6 +89,7 @@ import { useI18n } from '@/locales/helpers.ts';
 import { useI18nUIComponents, isiOS } from '@/lib/ui/mobile.ts';
 
 import { NumeralSystem } from '@/core/numeral.ts';
+import { AMOUNT_FACTOR } from '@/consts/numeral.ts';
 import { ALL_CURRENCIES } from '@/consts/currency.ts';
 import { isNumber } from '@/lib/common.ts';
 import logger from '@/lib/logger.ts';
@@ -164,7 +166,9 @@ const currentDisplay = computed<string>(() => {
 });
 
 const currentDisplayNumClass = computed<string>(() => {
-    if (currentDisplay.value && currentDisplay.value.length >= 24) {
+    if (currentDisplay.value && currentDisplay.value.length >= 28) {
+        return 'numpad-value-extra-small';
+    } else if (currentDisplay.value && currentDisplay.value.length >= 22) {
         return 'numpad-value-small';
     } else if (currentDisplay.value && currentDisplay.value.length >= 16) {
         return 'numpad-value-normal';
@@ -356,8 +360,6 @@ function onBackspacePointerEnd(): void {
 }
 
 function paste(): void {
-    showPastePopover.value = false;
-
     if (pastingAmount.value) {
         pastingAmount.value = false;
         return;
@@ -415,7 +417,7 @@ function confirm(): boolean {
                 finalValue = previous - current;
                 break;
             case '×':
-                finalValue = Math.trunc(previous * current / 100);
+                finalValue = Math.trunc(previous * current / AMOUNT_FACTOR);
                 break;
             default:
                 finalValue = previous;
@@ -515,6 +517,10 @@ watch(() => props.flipNegative, (newValue) => {
     user-select: none;
 }
 
+.numpad-value-extra-small {
+    font-size: var(--ebk-numpad-value-extra-small-font-size);
+}
+
 .numpad-backspace-button {
     display: flex;
     align-items: center;
@@ -561,14 +567,18 @@ watch(() => props.flipNegative, (newValue) => {
     align-items: center;
     box-sizing: border-box;
     user-select: none;
-    /* 上游设的 touch-action: none 在 F7 tap 处理下让 click 慢一拍（小键盘卡顿
-       的实际根因，不是网络/渲染）。改 manipulation：禁双击缩放 + 消除 300ms
-       老延迟，但保留 click 正常合成。详见 FORK.md #11 */
+    /* 上游 1.6 已自行从 touch-action: none 改为 manipulation（fork #11 的诉求已被上游吸收） */
     touch-action: manipulation;
+    transition: transform 0.01s ease;
 }
 
 .numpad-button-num {
     width: calc(80% / 3);
+}
+
+.numpad-button-num:active,
+.numpad-button-function:active {
+    background-color: var(--f7-button-pressed-bg-color, rgba(var(--f7-theme-color-rgb), 0.15));
 }
 
 .numpad-button-function, .numpad-button-confirm {
@@ -596,33 +606,5 @@ watch(() => props.flipNegative, (newValue) => {
 
 .numpad-button-text-confirm {
     font-size: var(--ebk-numpad-confirm-button-font-size);
-}
-
-.numpad-paste-popover.popover {
-    width: auto;
-
-    .numpad-paste-popover-context-menu-list.list {
-        :first-child li:first-child a {
-            &.active-state {
-                border-radius: unset;
-            }
-
-            > .item-content {
-                min-height: var(--ebk-popover-context-menu-min-height);
-
-                > .item-inner {
-                    min-height: var(--ebk-popover-context-menu-min-height);
-                    padding-top: var(--ebk-popover-context-menu-vertical-padding);
-                    padding-bottom: var(--ebk-popover-context-menu-vertical-padding);
-                    padding-left: var(--ebk-popover-context-menu-left-padding);
-                    padding-right: var(--ebk-popover-context-menu-right-padding);
-
-                    > .item-title {
-                        font-size: var(--ebk-popover-context-menu-button-font-size);
-                    }
-                }
-            }
-        }
-    }
 }
 </style>

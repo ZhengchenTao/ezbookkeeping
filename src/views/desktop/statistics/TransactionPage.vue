@@ -584,6 +584,7 @@ interface TransactionStatisticsProps {
     initFilterCategoryIds?: string,
     initTagFilter?: string,
     initKeyword?: string;
+    initMatchMode?: string;
     initSortingType?: string,
     initTrendDateAggregationType?: string
     initAssetTrendsDateAggregationType?: string
@@ -764,6 +765,7 @@ function init(initProps: TransactionStatisticsProps): void {
         filterCategoryIds: initProps.initFilterCategoryIds ? arrayItemToObjectField(initProps.initFilterCategoryIds.split(','), true) : {},
         tagFilter: initProps.initTagFilter,
         keyword: initProps.initKeyword,
+        matchMode: initProps.initMatchMode ? parseInt(initProps.initMatchMode) : undefined,
         sortingType: initProps.initSortingType ? parseInt(initProps.initSortingType) : undefined
     };
 
@@ -1265,7 +1267,7 @@ function exportResults(): void {
                 .filter(item => !item.hidden)
                 .map(item => [
                     item.name,
-                    formatAmountToWesternArabicNumeralsWithoutDigitGrouping(item.totalAmount),
+                    formatAmountToWesternArabicNumeralsWithoutDigitGrouping(item.totalAmount, defaultCurrency.value),
                     item.percent.toFixed(4)
                 ]),
             supportedMermaidCharts: supportedMermaidCharts
@@ -1345,6 +1347,7 @@ onBeforeRouteUpdate((to) => {
             initFilterCategoryIds: (to.query['filterCategoryIds'] as string | null) || undefined,
             initTagFilter: (to.query['tagFilter'] as string | null) || undefined,
             initKeyword: (to.query['keyword'] as string | null) || undefined,
+            initMatchMode: (to.query['matchMode'] as string | null) || undefined,
             initSortingType: (to.query['sortingType'] as string | null) || undefined,
             initTrendDateAggregationType: (to.query['trendDateAggregationType'] as string | null) || undefined,
             initAssetTrendsDateAggregationType: (to.query['assetTrendsDateAggregationType'] as string | null) || undefined

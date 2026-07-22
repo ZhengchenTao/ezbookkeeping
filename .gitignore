@@ -148,18 +148,23 @@ dist/
 # Roo Code
 .roo/
 
+# Codex
+.codex
+.planning
+
 # Binary and build files
 ezbookkeeping
 !**/ezbookkeeping/
-package/
+/package/
 
 # Environment variable files
 .env
 **/.env
 
 # Other directories
-data/
-storage/
-log/
+/data/
+/storage/
+/log/
 
+# Claude Code
 .claude/

@@ -3,6 +3,7 @@ import { ref, computed } from 'vue';
 import { useI18n } from '@/locales/helpers.ts';
 
 import { useSettingsStore } from '@/stores/setting.ts';
+import { useUserStore } from '@/stores/user.ts';
 import { useAccountsStore } from '@/stores/account.ts';
 import { useTransactionsStore } from '@/stores/transaction.ts';
 import { useTransactionCategoriesStore } from '@/stores/transactionCategory.ts';
@@ -10,6 +11,7 @@ import { useOverviewStore } from '@/stores/overview.ts';
 import { useStatisticsStore } from '@/stores/statistics.ts';
 
 import { type NameValue, type TypeAndDisplayName, keysIfValueEquals, values } from '@/core/base.ts';
+import { DateRangeScene, DateRange } from '@/core/datetime.ts';
 import type { LocalizedTimezoneInfo } from '@/core/timezone.ts';
 import { CategoryType } from '@/core/category.ts';
 import type { Account } from '@/models/account.ts';
@@ -18,9 +20,19 @@ import { isObjectEmpty } from '@/lib/common.ts';
 import { getCurrentUnixTime } from '@/lib/datetime.ts';
 
 export function useAppSettingPageBase() {
-    const { tt, getAllTimezones, getAllTimezoneTypesUsedForStatistics, getAllCurrencySortingTypes, setTimeZone } = useI18n();
+    const {
+        tt,
+        getAllDateRanges,
+        getAllTimezones,
+        getAllTimezoneTypesUsedForStatistics,
+        getAllCurrencySortingTypes,
+        getAllKeywordMatchModes,
+        getAllImageUploadQualityTypes,
+        setTimeZone
+    } = useI18n();
 
     const settingsStore = useSettingsStore();
+    const userStore = useUserStore();
     const accountsStore = useAccountsStore();
     const transactionsStore = useTransactionsStore();
     const transactionCategoriesStore = useTransactionCategoriesStore();
@@ -41,6 +53,7 @@ export function useAppSettingPageBase() {
     const allTimezones = computed<LocalizedTimezoneInfo[]>(() => getAllTimezones(getCurrentUnixTime(), true));
     const allTimezoneTypesUsedForStatistics = computed<TypeAndDisplayName[]>(() => getAllTimezoneTypesUsedForStatistics());
     const allCurrencySortingTypes = computed<TypeAndDisplayName[]>(() => getAllCurrencySortingTypes());
+    const allKeywordMatchModes = computed<TypeAndDisplayName[]>(() => getAllKeywordMatchModes());
 
     const allAutoSaveTransactionDraftTypes = computed<NameValue[]>(() => {
         return [
@@ -49,6 +62,14 @@ export function useAppSettingPageBase() {
             { name: tt('Always Show Confirmation'), value: 'confirmation' }
         ];
     });
+
+    const allImageUploadQualityTypes = computed<TypeAndDisplayName[]>(() => getAllImageUploadQualityTypes());
+
+    const allReconciliationStatementDateRanges = computed(() => getAllDateRanges(DateRangeScene.Normal, {
+        includeCustom: true,
+        includeBillingCycle: true,
+        includeLastReconciledTimeRange: userStore.currentUserUseLastReconciledTime
+    }));
 
     const hasAnyAccount = computed<boolean>(() => accountsStore.allPlainAccounts.length > 0);
     const hasAnyVisibleAccount = computed<boolean>(() => accountsStore.allVisibleAccountsCount > 0);
@@ -98,6 +119,11 @@ export function useAppSettingPageBase() {
         set: (value) => settingsStore.setShowTagInTransactionListPage(value)
     });
 
+    const defaultKeywordMatchModeInTransactionListPage = computed<number>({
+        get: () => settingsStore.appSettings.defaultKeywordMatchModeInTransactionListPage,
+        set: (value: number) => settingsStore.setDefaultKeywordMatchModeInTransactionListPage(value)
+    });
+
     const itemsCountInTransactionListPage = computed<number>({
         get: () => settingsStore.appSettings.itemsCountInTransactionListPage,
         set: (value) => settingsStore.setItemsCountInTransactionListPage(value)
@@ -119,9 +145,32 @@ export function useAppSettingPageBase() {
         set: (value) => settingsStore.setAutoGetCurrentGeoLocation(value)
     });
 
+    const transactionPictureQuality = computed<number>({
+        get: () => settingsStore.appSettings.transactionPictureQuality,
+        set: (value: number) => settingsStore.setTransactionPictureQuality(value)
+    });
+
+    const isAlwaysRequireConfirmationOfClipboardContentBeforeSubmission = computed<boolean>({
+        get: () => settingsStore.appSettings.alwaysRequireConfirmationOfClipboardContentBeforeSubmission,
+        set: (value: boolean) => settingsStore.setAlwaysRequireConfirmationOfClipboardContentBeforeSubmission(value)
+    });
+
+    const isAutoUploadTransactionPictureForAIRecognition = computed<boolean>({
+        get: () => settingsStore.appSettings.autoUploadTransactionPictureForAIRecognition,
+        set: (value: boolean) => settingsStore.setAutoUploadTransactionPictureForAIRecognition(value)
+    });
+
     const currencySortByInExchangeRatesPage = computed<number>({
         get: () => settingsStore.appSettings.currencySortByInExchangeRatesPage,
         set: (value: number) => settingsStore.setCurrencySortByInExchangeRatesPage(value)
+    });
+
+    const chartColorSchemeContent = computed<string>(() => {
+        if (!settingsStore.appSettings.chartColors) {
+            return tt('Default');
+        }
+
+        return tt('Custom');
     });
 
     const accountsIncludedInHomePageOverviewDisplayContent = computed<string>(() => {
@@ -219,6 +268,14 @@ export function useAppSettingPageBase() {
         return tt('Partial');
     }
 
+    function getValidReconciliationStatementPageDefaultDateRangeType(value: number, defaultValue: number): number {
+        if (DateRange.isLastReconciledTimeRange(value) && !userStore.currentUserUseLastReconciledTime) {
+            return defaultValue;
+        }
+
+        return value;
+    }
+
     return {
         // states
         loadingAccounts,
@@ -228,24 +285,33 @@ export function useAppSettingPageBase() {
         allTimezones,
         allTimezoneTypesUsedForStatistics,
         allCurrencySortingTypes,
+        allKeywordMatchModes,
         allAutoSaveTransactionDraftTypes,
+        allImageUploadQualityTypes,
+        allReconciliationStatementDateRanges,
         timeZone,
         hasAnyAccount,
         hasAnyVisibleAccount,
         hasAnyTransactionCategory,
         isAutoUpdateExchangeRatesData,
+        transactionPictureQuality,
+        isAlwaysRequireConfirmationOfClipboardContentBeforeSubmission,
+        isAutoUploadTransactionPictureForAIRecognition,
         showAccountBalance,
         showAmountInHomePage,
         itemsCountInTransactionListPage,
         timezoneUsedForStatisticsInHomePage,
         showTotalAmountInTransactionListPage,
         showTagInTransactionListPage,
+        defaultKeywordMatchModeInTransactionListPage,
         autoSaveTransactionDraft,
         isAutoGetCurrentGeoLocation,
         currencySortByInExchangeRatesPage,
+        chartColorSchemeContent,
         accountsIncludedInHomePageOverviewDisplayContent,
         accountsIncludedInTotalDisplayContent,
         accountCategorysDisplayOrderContent,
-        transactionCategoriesIncludedInHomePageOverviewDisplayContent
+        transactionCategoriesIncludedInHomePageOverviewDisplayContent,
+        getValidReconciliationStatementPageDefaultDateRangeType
     };
 }

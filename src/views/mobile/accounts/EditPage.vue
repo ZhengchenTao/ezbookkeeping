@@ -9,12 +9,12 @@
             </f7-nav-right>
         </f7-navbar>
 
-        <f7-list strong inset dividers class="margin-vertical skeleton-text" v-if="loading">
+        <f7-list strong inset dividers class="margin-vertical-half skeleton-text" v-if="loading">
             <f7-list-item class="list-item-with-header-and-title" header="Account Category" title="Category"></f7-list-item>
             <f7-list-item class="list-item-with-header-and-title" header="Account Type" title="Account Type"></f7-list-item>
         </f7-list>
 
-        <f7-list form strong inset dividers class="margin-vertical" v-else-if="!loading">
+        <f7-list form strong inset dividers class="margin-vertical-half" v-else-if="!loading">
             <f7-list-item
                 link="#" no-chevron
                 class="list-item-with-header-and-title"
@@ -189,7 +189,7 @@
                 @click="accountContext.showCreditCardStatementDatePopup = true"
             >
                 <list-item-selection-popup value-type="item"
-                                           key-field="day" value-field="day"
+                                           key-field="type" value-field="type"
                                            title-field="displayName"
                                            :title="tt('Statement Date')"
                                            :enable-filter="true"
@@ -236,29 +236,57 @@
             </f7-list-item>
 
             <f7-list-item
-                class="account-edit-balancetime list-item-with-header-and-title"
+                class="account-edit-datetime list-item-with-header-and-title"
                 link="#" no-chevron
                 v-show="account.balance"
                 v-if="!editAccountId"
             >
                 <template #header>
-                    <div class="account-edit-balancetime-header" @click="showDateTimeDialog(accountContext, 'time')">{{ tt('Balance Time') }}</div>
+                    <div class="account-edit-datetime-header" @click="showBalanceDateTimeDialog(accountContext, 'time')">{{ tt('Balance Time') }}</div>
                 </template>
                 <template #title>
-                    <div class="account-edit-balancetime-title">
-                        <div @click="showDateTimeDialog(accountContext, 'date')">{{ formatAccountBalanceDate(account) }}</div>&nbsp;<div class="account-edit-balancetime-time" @click="showDateTimeDialog(accountContext, 'time')">{{ formatAccountBalanceTime(account) }}</div>
+                    <div class="account-edit-datetime-title">
+                        <div @click="showBalanceDateTimeDialog(accountContext, 'date')">{{ formatDate(account.balanceTime) }}</div>&nbsp;<div class="account-edit-datetime-time" @click="showBalanceDateTimeDialog(accountContext, 'time')">{{ formatTime(account.balanceTime) }}</div>
                     </div>
                 </template>
                 <date-time-selection-sheet :init-mode="accountContext.balanceDateTimeSheetMode"
-                                           :timezone-utc-offset="getDefaultTimezoneOffsetMinutes(account)"
+                                           :timezone-utc-offset="getDefaultTimezoneOffsetMinutes(account.balanceTime)"
                                            :model-value="account.balanceTime"
                                            v-model:show="accountContext.showBalanceDateTimeSheet"
                                            @update:model-value="updateAccountBalanceTime(account, $event)">
                 </date-time-selection-sheet>
             </f7-list-item>
 
+            <f7-list-item
+                class="account-edit-datetime list-item-with-header-and-title"
+                link="#" no-chevron
+                v-if="editAccountId && useLastReconciledTime"
+            >
+                <template #header>
+                    <div class="account-edit-datetime-header" @click="showLastReconciledDateTimeDialog(accountContext, 'time')">{{ tt('Last Reconciled Time') }}</div>
+                </template>
+                <template #title>
+                    <div class="account-edit-datetime-title" v-if="account.lastReconciledTime">
+                        <div @click="showLastReconciledDateTimeDialog(accountContext, 'date')">{{ formatDate(account.lastReconciledTime) }}</div>&nbsp;<div class="account-edit-datetime-time" @click="showLastReconciledDateTimeDialog(accountContext, 'time')">{{ formatTime(account.lastReconciledTime) }}</div>
+                    </div>
+                    <div class="account-edit-datetime-title" v-else>
+                        <div class="account-edit-datetime-time" @click="showLastReconciledDateTimeDialog(accountContext, 'date')">{{ tt('None') }}</div>
+                    </div>
+                </template>
+                <date-time-selection-sheet :init-mode="accountContext.lastReconciledDateTimeSheetMode"
+                                           :clearable="true"
+                                           :timezone-utc-offset="getDefaultTimezoneOffsetMinutes(account.lastReconciledTime)"
+                                           :model-value="account.lastReconciledTime ?? getCurrentUnixTime()"
+                                           v-model:show="accountContext.showLastReconciledTimeSheet"
+                                           @update:model-value="updateAccountLastReconciledTime(account, $event)"
+                                           @clear:model-value="account.lastReconciledTime = undefined">
+                </date-time-selection-sheet>
+            </f7-list-item>
+
             <f7-list-item :title="tt('Visible')" v-if="editAccountId">
-                <f7-toggle :checked="account.visible" @toggle:change="account.visible = $event"></f7-toggle>
+                <template #after>
+                    <f7-toggle :checked="account.visible" @toggle:change="account.visible = $event"></f7-toggle>
+                </template>
             </f7-list-item>
 
             <f7-list-input
@@ -339,7 +367,7 @@
                 @click="accountContext.showCreditCardStatementDatePopup = true"
             >
                 <list-item-selection-popup value-type="item"
-                                           key-field="day" value-field="day"
+                                           key-field="type" value-field="type"
                                            title-field="displayName"
                                            :title="tt('Statement Date')"
                                            :enable-filter="true"
@@ -370,7 +398,9 @@
             </f7-list-item>
 
             <f7-list-item :title="tt('Visible')" v-if="editAccountId">
-                <f7-toggle :checked="account.visible" @toggle:change="account.visible = $event"></f7-toggle>
+                <template #after>
+                    <f7-toggle :checked="account.visible" @toggle:change="account.visible = $event"></f7-toggle>
+                </template>
             </f7-list-item>
 
             <f7-list-input
@@ -497,29 +527,57 @@
                 </f7-list-item>
 
                 <f7-list-item
-                    class="account-edit-balancetime list-item-with-header-and-title"
+                    class="account-edit-datetime list-item-with-header-and-title"
                     link="#" no-chevron
                     v-show="subAccount.balance"
                     v-if="!editAccountId || isNewAccount(subAccount)"
                 >
                     <template #header>
-                        <div class="account-edit-balancetime-header" @click="showDateTimeDialog(subAccountContexts[idx] as AccountContext, 'time')">{{ tt('Sub-account Balance Time') }}</div>
+                        <div class="account-edit-datetime-header" @click="showBalanceDateTimeDialog(subAccountContexts[idx] as AccountContext, 'time')">{{ tt('Sub-account Balance Time') }}</div>
                     </template>
                     <template #title>
-                        <div class="account-edit-balancetime-title">
-                            <div @click="showDateTimeDialog(subAccountContexts[idx] as AccountContext, 'date')">{{ formatAccountBalanceDate(subAccount) }}</div>&nbsp;<div class="account-edit-balancetime-time" @click="showDateTimeDialog(subAccountContexts[idx] as AccountContext, 'time')">{{ formatAccountBalanceTime(subAccount) }}</div>
+                        <div class="account-edit-datetime-title">
+                            <div @click="showBalanceDateTimeDialog(subAccountContexts[idx] as AccountContext, 'date')">{{ formatDate(subAccount.balanceTime) }}</div>&nbsp;<div class="account-edit-datetime-time" @click="showBalanceDateTimeDialog(subAccountContexts[idx] as AccountContext, 'time')">{{ formatTime(subAccount.balanceTime) }}</div>
                         </div>
                     </template>
                     <date-time-selection-sheet :init-mode="subAccountContexts[idx]!.balanceDateTimeSheetMode"
-                                               :timezone-utc-offset="getDefaultTimezoneOffsetMinutes(subAccount)"
+                                               :timezone-utc-offset="getDefaultTimezoneOffsetMinutes(subAccount.balanceTime)"
                                                :model-value="subAccount.balanceTime"
                                                v-model:show="subAccountContexts[idx]!.showBalanceDateTimeSheet"
                                                @update:model-value="updateAccountBalanceTime(subAccount, $event)">
                     </date-time-selection-sheet>
                 </f7-list-item>
 
+                <f7-list-item
+                    class="account-edit-datetime list-item-with-header-and-title"
+                    link="#" no-chevron
+                    v-if="editAccountId && !isNewAccount(subAccount) && useLastReconciledTime"
+                >
+                    <template #header>
+                        <div class="account-edit-datetime-header" @click="showLastReconciledDateTimeDialog(subAccountContexts[idx] as AccountContext, 'time')">{{ tt('Sub-account Last Reconciled Time') }}</div>
+                    </template>
+                    <template #title>
+                        <div class="account-edit-datetime-title" v-if="subAccount.lastReconciledTime">
+                            <div @click="showLastReconciledDateTimeDialog(subAccountContexts[idx] as AccountContext, 'date')">{{ formatDate(subAccount.lastReconciledTime) }}</div>&nbsp;<div class="account-edit-datetime-time" @click="showLastReconciledDateTimeDialog(subAccountContexts[idx] as AccountContext, 'time')">{{ formatTime(subAccount.lastReconciledTime) }}</div>
+                        </div>
+                        <div class="account-edit-datetime-title" v-else>
+                            <div class="account-edit-datetime-time" @click="showLastReconciledDateTimeDialog(subAccountContexts[idx] as AccountContext, 'date')">{{ tt('None') }}</div>
+                        </div>
+                    </template>
+                    <date-time-selection-sheet :init-mode="subAccountContexts[idx]!.lastReconciledDateTimeSheetMode"
+                                               :clearable="true"
+                                               :timezone-utc-offset="getDefaultTimezoneOffsetMinutes(subAccount.lastReconciledTime)"
+                                               :model-value="subAccount.lastReconciledTime ?? getCurrentUnixTime()"
+                                               v-model:show="subAccountContexts[idx]!.showLastReconciledTimeSheet"
+                                               @update:model-value="updateAccountLastReconciledTime(subAccount, $event)"
+                                               @clear:model-value="subAccount.lastReconciledTime = undefined">
+                    </date-time-selection-sheet>
+                </f7-list-item>
+
                 <f7-list-item :title="tt('Visible')" v-if="editAccountId && !isNewAccount(subAccount)">
-                    <f7-toggle :checked="subAccount.visible" @toggle:change="subAccount.visible = $event"></f7-toggle>
+                    <template #after>
+                        <f7-toggle :checked="subAccount.visible" @toggle:change="subAccount.visible = $event"></f7-toggle>
+                    </template>
                 </f7-list-item>
 
                 <f7-list-input
@@ -578,6 +636,7 @@ import { isDefined, findDisplayNameByType } from '@/lib/common.ts';
 import { generateRandomUUID } from '@/lib/misc.ts';
 import {
     getTimezoneOffsetMinutes,
+    getCurrentUnixTime,
     parseDateTimeFromUnixTimeWithTimezoneOffset
 } from '@/lib/datetime.ts';
 
@@ -589,7 +648,9 @@ interface AccountContext {
     showCreditLimitSheet: boolean;
     showBalanceSheet: boolean;
     showBalanceDateTimeSheet: boolean;
+    showLastReconciledTimeSheet: boolean;
     balanceDateTimeSheetMode: string;
+    lastReconciledDateTimeSheetMode: string;
 }
 
 const props = defineProps<{
@@ -615,6 +676,7 @@ const {
     submitting,
     account,
     subAccounts,
+    useLastReconciledTime,
     title,
     inputEmptyProblemMessage,
     inputIsEmpty,
@@ -625,6 +687,7 @@ const {
     getDefaultTimezoneOffsetMinutes,
     getAccountCreditCardStatementDate,
     updateAccountBalanceTime,
+    updateAccountLastReconciledTime,
     isNewAccount,
     addSubAccount,
     setAccount
@@ -641,7 +704,9 @@ const DEFAULT_ACCOUNT_CONTEXT: AccountContext = {
     showCreditLimitSheet: false,
     showBalanceSheet: false,
     showBalanceDateTimeSheet: false,
-    balanceDateTimeSheetMode: 'time'
+    showLastReconciledTimeSheet: false,
+    balanceDateTimeSheetMode: 'time',
+    lastReconciledDateTimeSheetMode: 'time'
 };
 
 const originalBalances = ref<Map<string, number>>(new Map());
@@ -669,21 +734,21 @@ function formatCreditLimitDisplay(selectedAccount: Account): string {
     return formatAmountToLocalizedNumeralsWithCurrency(selectedAccount.creditLimit, selectedAccount.currency);
 }
 
-function formatAccountBalanceDate(account: Account): string {
-    if (!isDefined(account.balanceTime)) {
+function formatDate(unixTime?: number): string {
+    if (!isDefined(unixTime)) {
         return '';
     }
 
-    const dateTime = parseDateTimeFromUnixTimeWithTimezoneOffset(account.balanceTime, getTimezoneOffsetMinutes(account.balanceTime));
+    const dateTime = parseDateTimeFromUnixTimeWithTimezoneOffset(unixTime, getTimezoneOffsetMinutes(unixTime));
     return formatDateTimeToLongDate(dateTime);
 }
 
-function formatAccountBalanceTime(account: Account): string {
-    if (!isDefined(account.balanceTime)) {
+function formatTime(unixTime?: number): string {
+    if (!isDefined(unixTime)) {
         return '';
     }
 
-    const dateTime = parseDateTimeFromUnixTimeWithTimezoneOffset(account.balanceTime, getTimezoneOffsetMinutes(account.balanceTime));
+    const dateTime = parseDateTimeFromUnixTimeWithTimezoneOffset(unixTime, getTimezoneOffsetMinutes(unixTime));
     return formatDateTimeToLongTime(dateTime);
 }
 
@@ -832,9 +897,14 @@ function removeSubAccount(currentSubAccount: Account | null, confirm: boolean): 
     }
 }
 
-function showDateTimeDialog(accountContext: AccountContext, sheetMode: string): void {
+function showBalanceDateTimeDialog(accountContext: AccountContext, sheetMode: string): void {
     accountContext.balanceDateTimeSheetMode = sheetMode;
     accountContext.showBalanceDateTimeSheet = true;
+}
+
+function showLastReconciledDateTimeDialog(accountContext: AccountContext, sheetMode: string): void {
+    accountContext.lastReconciledDateTimeSheetMode = sheetMode;
+    accountContext.showLastReconciledTimeSheet = true;
 }
 
 function onPageAfterIn(): void {
@@ -851,22 +921,21 @@ init();
 </script>
 
 <style>
-
-.account-edit-balancetime .item-title {
+.account-edit-datetime .item-title {
     width: 100%;
 }
 
-.account-edit-balancetime .item-title > .item-header > .account-edit-balancetime-header {
+.account-edit-datetime .item-title > .item-header > .account-edit-datetime-header {
     display: block;
     width: 100%;
 }
 
-.account-edit-balancetime .item-title > .account-edit-balancetime-title {
+.account-edit-datetime .item-title > .account-edit-datetime-title {
     display: flex;
     width: 100%;
 }
 
-.account-edit-balancetime .item-title > .account-edit-balancetime-title > .account-edit-balancetime-time {
+.account-edit-datetime .item-title > .account-edit-datetime-title > .account-edit-datetime-time {
     flex-grow: 1;
     overflow: hidden;
     text-overflow: ellipsis;

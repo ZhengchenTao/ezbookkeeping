@@ -8,9 +8,10 @@ import { useTheme } from 'vuetify';
 
 import { useI18n } from '@/locales/helpers.ts';
 
+import { useSettingsStore } from '@/stores/setting.ts';
+
 import type { ColorValue } from '@/core/color.ts';
 import { ThemeType } from '@/core/theme.ts';
-import { DEFAULT_CHART_COLORS } from '@/consts/color.ts';
 
 import { isNumber } from '@/lib/common.ts';
 import { getDisplayColor } from '@/lib/color.ts';
@@ -38,6 +39,7 @@ const props = defineProps<{
     colorField?: string;
     hiddenField?: string;
     amountValue?: boolean;
+    percentValue?: boolean;
     defaultCurrency?: string;
     showValue?: boolean;
     showPercent?: boolean;
@@ -51,7 +53,10 @@ const {
     formatPercentToLocalizedNumerals
 } = useI18n();
 
+const settingsStore = useSettingsStore();
+
 const isDarkMode = computed<boolean>(() => theme.global.name.value === ThemeType.Dark);
+const chartColors = computed<ColorValue[]>(() => settingsStore.chartColorList);
 
 const radarData = computed<RadarChartData>(() => {
     let totalValidValue = 0;
@@ -80,11 +85,11 @@ const radarData = computed<RadarChartData>(() => {
             if (isNumber(value) &&
                 (!props.hiddenField || !item[props.hiddenField])) {
                 const name = item[props.nameField] as string;
-                const color = getDisplayColor((props.colorField && item[props.colorField]) ? item[props.colorField] as ColorValue : DEFAULT_CHART_COLORS[indicators.length % DEFAULT_CHART_COLORS.length]);
+                const color = getDisplayColor((props.colorField && item[props.colorField]) ? item[props.colorField] as ColorValue : chartColors.value[indicators.length % chartColors.value.length]);
 
                 const finalPercent = (isNumber(percent) && percent >= 0) ? percent : (value > 0 ? value / totalValidValue * 100 : 0);
                 const displayPercent = formatPercentToLocalizedNumerals(finalPercent, 2, '<0.01');
-                const displayValue = props.amountValue ? formatAmountToLocalizedNumeralsWithCurrency(value, props.defaultCurrency) : formatNumberToLocalizedNumerals(value, 2);
+                const displayValue = getDisplayValue(value);
 
                 indicators.push({
                     name: name,
@@ -189,6 +194,18 @@ const chartOptions = computed<object>(() => {
         ] : []
     };
 });
+
+function getDisplayValue(value: number): string {
+    if (props.percentValue) {
+        return formatPercentToLocalizedNumerals(value, 2, '<0.01');
+    }
+
+    if (props.amountValue) {
+        return formatAmountToLocalizedNumeralsWithCurrency(value, props.defaultCurrency);
+    }
+
+    return formatNumberToLocalizedNumerals(value, 4);
+}
 </script>
 
 <style scoped>

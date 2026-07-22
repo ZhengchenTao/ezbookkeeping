@@ -32,7 +32,8 @@ import {
 } from '@/core/base.ts';
 
 import {
-    TextDirection
+    TextDirection,
+    KeywordMatchMode
 } from '@/core/text.ts';
 
 import {
@@ -114,6 +115,10 @@ import {
 } from '@/core/color.ts';
 
 import {
+    ImageUploadQualityType
+} from '@/core/image.ts';
+
+import {
     type LocalizedAccountCategory,
     AccountType,
     AccountCategory
@@ -170,7 +175,7 @@ import {
 import type { LocaleDefaultSettings } from '@/core/setting.ts';
 import type { ErrorResponse } from '@/core/api.ts';
 
-import { DISPLAY_HIDDEN_AMOUNT, INCOMPLETE_AMOUNT_SUFFIX } from '@/consts/numeral.ts';
+import { AMOUNT_FACTOR, DISPLAY_HIDDEN_AMOUNT, INCOMPLETE_AMOUNT_SUFFIX } from '@/consts/numeral.ts';
 import { UTC_TIMEZONE, ALL_TIMEZONES } from '@/consts/timezone.ts';
 import { ALL_CURRENCIES } from '@/consts/currency.ts';
 import { DEFAULT_EXPENSE_CATEGORIES, DEFAULT_INCOME_CATEGORIES, DEFAULT_TRANSFER_CATEGORIES } from '@/consts/category.ts';
@@ -195,6 +200,7 @@ import {
 } from '@/lib/common.ts';
 
 import {
+    getCurrentDateTime,
     formatCurrentTime,
     formatGregorianCalendarYearDashMonthDashDay,
     formatGregorianCalendarMonthDashDay,
@@ -558,6 +564,28 @@ export function useI18n() {
         return ret;
     }
 
+    function getAllImageUploadQualityTypes(): TypeAndDisplayName[] {
+        const ret: TypeAndDisplayName[] = [];
+
+        for (const qualityType of ImageUploadQualityType.values()) {
+            if (isNumber(qualityType.maxLongSidePixels)) {
+                ret.push({
+                    type: qualityType.type,
+                    displayName: t(`format.volume.${qualityType.name}`, {
+                        size: qualityType.estimatedKiB ? appendDigitGroupingSymbolAndDecimalSeparator(qualityType.estimatedKiB.toString(), getNumberFormatOptions({})) : '-',
+                    })
+                });
+            } else {
+                ret.push({
+                    type: qualityType.type,
+                    displayName: t(qualityType.name)
+                })
+            }
+        }
+
+        return ret;
+    }
+
     function getLocalizedDisplayNameAndType(typeAndNames: TypeAndName[] | TypeAndNameWithAlternativeName[], useAlternativeName?: boolean): TypeAndDisplayName[] {
         const ret: TypeAndDisplayName[] = [];
 
@@ -634,7 +662,7 @@ export function useI18n() {
         return ret;
     }
 
-    function getLocalizedChartDateAggregationTypeAndDisplayName(analysisType: StatisticsAnalysisType, fullName: boolean): TypeAndDisplayName[] {
+    function getLocalizedChartDateAggregationTypeAndDisplayName(analysisType: StatisticsAnalysisType, fullName: boolean, includeBillingCycle: boolean): TypeAndDisplayName[] {
         const ret: TypeAndDisplayName[] = [];
         const allTypes: ChartDateAggregationType[] = ChartDateAggregationType.values(analysisType);
 
@@ -642,6 +670,13 @@ export function useI18n() {
             ret.push({
                 type: type.type,
                 displayName: t(fullName ? type.fullName : `granularity.${type.shortName}`)
+            });
+        }
+
+        if (includeBillingCycle) {
+            ret.push({
+                type: ChartDateAggregationType.BillingCycle.type,
+                displayName: t(fullName ? ChartDateAggregationType.BillingCycle.fullName : `granularity.${ChartDateAggregationType.BillingCycle.shortName}`)
             });
         }
 
@@ -1052,6 +1087,20 @@ export function useI18n() {
         return getAllWeekdayNames('min');
     }
 
+    function getAllMonths(): TypeAndDisplayName[] {
+        const ret: TypeAndDisplayName[] = [];
+        const allMonths = Month.values();
+
+        for (const month of allMonths) {
+            ret.push({
+                type: month.month,
+                displayName: t(`datetime.${month.name}.long`)
+            });
+        }
+
+        return ret;
+    }
+
     function getAllWeekDays(firstDayOfWeek?: WeekDayValue): TypeAndDisplayName[] {
         const ret: TypeAndDisplayName[] = [];
         const allWeekDays = WeekDay.values();
@@ -1081,6 +1130,51 @@ export function useI18n() {
         return ret;
     }
 
+    function getAllHours(): TypeAndDisplayName[] {
+        const ret: TypeAndDisplayName[] = [];
+        const now: DateTime = getCurrentDateTime();
+        const format: string = getLocalizedShortTimeFormat();
+        const options: DateTimeFormatOptions = getDateTimeFormatOptions();
+
+        for (let i = 0; i < 24; i++) {
+            const dateTime = now.set({
+                hour: i,
+                minute: 0,
+                second: 0,
+                millisecond: 0
+            });
+
+            ret.push({
+                type: i,
+                displayName: dateTime.format(format, options)
+            });
+        }
+
+        return ret;
+    }
+
+    function getAvailableMonthDays(daysInMonth: number, lastDaysOfMonth?: number): TypeAndDisplayName[] {
+        const ret: TypeAndDisplayName[] = [];
+
+        for (let i = 1; i <= daysInMonth; i++) {
+            ret.push({
+                type: i,
+                displayName: getMonthdayShortName(i),
+            });
+        }
+
+        if (isNumber(lastDaysOfMonth) && lastDaysOfMonth > 0) {
+            for (let i = -lastDaysOfMonth; i < 0; i++) {
+                ret.push({
+                    type: i,
+                    displayName: (i === -1) ? t('Last day') : getMonthLastDayShortName(-i),
+                });
+            }
+        }
+
+        return ret;
+    }
+
     function getLocalizedDateTimeFormats<T extends DateFormat | TimeFormat>(type: string, allFormatMap: Record<string, T>, allFormatArray: T[], languageDefaultTypeNameKey: string, systemDefaultFormatType: T, numeralSystem: NumeralSystem, calendarType?: CalendarType): LocalizedDateTimeFormat[] {
         const defaultFormat = getLocalizedDateTimeFormat<T>(type, allFormatMap, allFormatArray, LANGUAGE_DEFAULT_DATE_TIME_FORMAT_VALUE, languageDefaultTypeNameKey, systemDefaultFormatType);
         const ret: LocalizedDateTimeFormat[] = [];
@@ -1105,36 +1199,26 @@ export function useI18n() {
         return ret;
     }
 
-    function getAllDateRanges(scene: DateRangeScene, includeCustom?: boolean, includeBillingCycle?: boolean): LocalizedDateRange[] {
+    function getAllDateRanges(scene: DateRangeScene, { includeCustom, includeBillingCycle, includeLastReconciledTimeRange } : { includeCustom?: boolean, includeBillingCycle?: boolean, includeLastReconciledTimeRange?: boolean }): LocalizedDateRange[] {
         const ret: LocalizedDateRange[] = [];
         const allDateRanges = DateRange.values();
 
         for (const dateRange of allDateRanges) {
-            if (!dateRange.isAvailableForScene(scene)) {
+            const shouldSkip: boolean = !dateRange.isAvailableForScene(scene)
+                || (dateRange.isBillingCycle && !includeBillingCycle)
+                || (dateRange.isLastReconciledTimeRange && !includeLastReconciledTimeRange)
+                || (dateRange.type === DateRange.Custom.type && !includeCustom);
+
+            if (shouldSkip) {
                 continue;
             }
 
-            if (dateRange.isBillingCycle) {
-                if (includeBillingCycle) {
-                    ret.push({
-                        type: dateRange.type,
-                        displayName: t(dateRange.name),
-                        isBillingCycle: dateRange.isBillingCycle,
-                        isUserCustomRange: dateRange.isUserCustomRange
-                    });
-                }
-
-                continue;
-            }
-
-            if (includeCustom || dateRange.type !== DateRange.Custom.type) {
-                ret.push({
-                    type: dateRange.type,
-                    displayName: t(dateRange.name),
-                    isBillingCycle: dateRange.isBillingCycle,
-                    isUserCustomRange: dateRange.isUserCustomRange
-                });
-            }
+            ret.push({
+                type: dateRange.type,
+                displayName: t(dateRange.name),
+                isBillingCycle: dateRange.isBillingCycle,
+                isUserCustomRange: dateRange.isUserCustomRange
+            });
         }
 
         return ret;
@@ -1471,7 +1555,7 @@ export function useI18n() {
         return availableExchangeRates;
     }
 
-    function getAllSupportedImportFileCagtegoryAndTypes(): LocalizedImportFileCategoryAndTypes[] {
+    function getAllSupportedImportFileCagtegoryAndTypes(supportAITextRecognition: boolean, supportAIImageRecognition: boolean): LocalizedImportFileCategoryAndTypes[] {
         const allSupportedImportFileCategoryAndTypes: LocalizedImportFileCategoryAndTypes[] = [];
 
         for (const categoryAndTypes of SUPPORTED_IMPORT_FILE_CATEGORY_AND_TYPES) {
@@ -1481,6 +1565,14 @@ export function useI18n() {
             };
 
             for (const fileType of categoryAndTypes.fileTypes) {
+                if (fileType.needAITextRecognition && !supportAITextRecognition) {
+                    continue;
+                }
+
+                if (fileType.needAIImageRecognition && !supportAIImageRecognition) {
+                    continue;
+                }
+
                 let document: LocalizedImportFileDocument | undefined;
 
                 if (fileType.document) {
@@ -1564,7 +1656,10 @@ export function useI18n() {
                     subTypes: subTypes.length ? subTypes : undefined,
                     supportedEncodings: supportedEncodings.length ? supportedEncodings : undefined,
                     dataFromTextbox: fileType.dataFromTextbox,
+                    needAITextRecognition: fileType.needAITextRecognition,
+                    needAIImageRecognition: fileType.needAIImageRecognition,
                     supportedAdditionalOptions: fileType.supportedAdditionalOptions,
+                    supportedAIAdditionalPrompt: fileType.supportedAIAdditionalPrompt,
                     document: document
                 };
 
@@ -1599,6 +1694,12 @@ export function useI18n() {
         });
     }
 
+    function getMonthLastDayShortName(ordinal: number): string {
+        return t('format.misc.lastMonthDay', {
+            ordinal: getMonthdayOrdinal(ordinal)
+        });
+    }
+
     function getWeekdayShortName(weekDay: WeekDay): string {
         return t(`datetime.${weekDay.name}.short`);
     }
@@ -1615,21 +1716,75 @@ export function useI18n() {
         }
     }
 
+    function getMultiMonthAndDayLongNames(monthAndDays: number[]): string {
+        if (!monthAndDays) {
+            return '';
+        }
+
+        const now: DateTime = getCurrentDateTime();
+
+        const finalMonthAndDayNames: string[] = monthAndDays.map(monthAndDay => {
+            const month = Math.trunc(monthAndDay / 100);
+            const day = monthAndDay % 100;
+            const dateTime = now.set({
+                month: month,
+                dayOfMonth: day,
+                hour: 0,
+                minute: 0,
+                second: 0,
+                millisecond: 0
+            });
+
+            return formatDateTime(dateTime, getLocalizedLongMonthDayFormat(), getDateTimeFormatOptions());
+        });
+
+        return joinMultiText(finalMonthAndDayNames);
+    }
+
     function getMultiMonthdayShortNames(monthDays: number[]): string {
         if (!monthDays) {
             return '';
         }
 
+        monthDays.sort(function (d1, d2) {
+            if (d1 >= 0 && d2 >= 0) {
+                return d1 - d2;
+            } else if (d1 < 0 && d2 < 0) {
+                return d1 - d2;
+            } else if (d1 >= 0 && d2 < 0) {
+                return -1; // make positive month day come first
+            } else { // if (d1 < 0 && d2 >= 0)
+                return 1; // make positive month day come first
+            }
+        });
+
         if (monthDays.length === 1) {
-            return t('format.misc.monthDay', {
-                ordinal: getMonthdayOrdinal(monthDays[0] as number)
-            });
+            const monthDay = monthDays[0] as number;
+
+            if (monthDay >= 0) {
+                return t('format.misc.monthDay', {
+                    ordinal: getMonthdayOrdinal(monthDay)
+                });
+            } else if (monthDay === -1) {
+                return t('last day');
+            } else {
+                return t('format.misc.lastMonthDayInLowercase', {
+                    ordinal: getMonthdayOrdinal(-monthDay)
+                });
+            }
         } else {
             return t('format.misc.monthDays', {
-                multiMonthDays: joinMultiText(monthDays.map(monthDay =>
-                    t('format.misc.eachMonthDayInMonthDays', {
-                        ordinal: getMonthdayOrdinal(monthDay)
-                    })))
+                multiMonthDays: joinMultiText(monthDays.map(monthDay => {
+                    if (monthDay >= 0) {
+                        return t('format.misc.eachMonthDayInMonthDays', {
+                            ordinal: getMonthdayOrdinal(monthDay)
+                        });
+                    } else {
+                        return t('format.misc.eachLastMonthDayInMonthDays', {
+                            ordinal: getMonthdayOrdinal(-monthDay)
+                        });
+                    }
+                }))
             });
         }
     }
@@ -2062,7 +2217,7 @@ export function useI18n() {
         const currencyName = getCurrencyName(finalCurrencyCode);
 
         if (isNumber(value)) {
-            const isPlural: boolean = value !== 100 && value !== -100;
+            const isPlural: boolean = value !== AMOUNT_FACTOR && value !== -AMOUNT_FACTOR;
             const textualValue = formatAmount(value, numberFormatOptions);
 
             if (!finalCurrencyCode) {
@@ -2092,8 +2247,8 @@ export function useI18n() {
         }
     }
 
-    function getFormattedNumber(value: number, numeralSystem?: NumeralSystem, precision?: number): string {
-        const numberFormatOptions = getNumberFormatOptions({ numeralSystem, digitGrouping: DigitGroupingType.None });
+    function getFormattedNumber(value: number, numeralSystem?: NumeralSystem, digitGrouping?: DigitGroupingType, precision?: number): string {
+        const numberFormatOptions = getNumberFormatOptions({ numeralSystem, digitGrouping: digitGrouping });
         return formatNumber(value, numberFormatOptions, precision);
     }
 
@@ -2404,7 +2559,10 @@ export function useI18n() {
         getAllLongWeekdayNames,
         getAllShortWeekdayNames,
         getAllMinWeekdayNames,
+        getAllMonths,
         getAllWeekDays,
+        getAllHours,
+        getAvailableMonthDays,
         getAllCalendarDisplayTypes: () => getAllLocalizedCalendarTypes(CalendarDisplayType.values(), CalendarDisplayType.parse(t('default.calendarDisplayType')), CalendarDisplayType.Default, CalendarDisplayType.LanguageDefaultType),
         getAllDateDisplayTypes: () => getAllLocalizedCalendarTypes(DateDisplayType.values(), DateDisplayType.parse(t('default.dateDisplayType')), DateDisplayType.Default, DateDisplayType.LanguageDefaultType),
         getAllLongDateFormats: (numeralSystem: NumeralSystem, calendarType: CalendarType) => getLocalizedDateTimeFormats<LongDateFormat>('longDate', LongDateFormat.all(), LongDateFormat.values(), 'longDateFormat', LongDateFormat.Default, numeralSystem, calendarType),
@@ -2423,6 +2581,8 @@ export function useI18n() {
         getAllCurrencyDisplayTypes,
         getAllCurrencySortingTypes: () => getLocalizedDisplayNameAndType(CurrencySortingType.values()),
         getAllCoordinateDisplayTypes: () => getLocalizedDisplayNameAndTypeWithSystemDefault(CoordinateDisplayType.values(), CoordinateDisplayType.SystemDefaultType, CoordinateDisplayType.Default),
+        getAllKeywordMatchModes: () => getLocalizedDisplayNameAndType(KeywordMatchMode.values()),
+        getAllImageUploadQualityTypes,
         getAllExpenseAmountColors: () => getAllExpenseIncomeAmountColors(CategoryType.Expense),
         getAllIncomeAmountColors: () => getAllExpenseIncomeAmountColors(CategoryType.Income),
         getAllAccountCategories,
@@ -2432,9 +2592,9 @@ export function useI18n() {
         getAllAccountBalanceTrendChartTypes: () => getLocalizedDisplayNameAndType(AccountBalanceTrendChartType.values()),
         getAllStatisticsChartDataTypes: (analysisType: StatisticsAnalysisType, withDesktopOnlyChart?: boolean) => getLocalizedDisplayNameAndType(ChartDataType.values(analysisType, withDesktopOnlyChart)),
         getAllStatisticsSortingTypes: (useAlternativeName?: boolean) => getLocalizedDisplayNameAndType(ChartSortingType.values(), useAlternativeName),
-        getAllStatisticsDateAggregationTypes: (analysisType: StatisticsAnalysisType) => getLocalizedChartDateAggregationTypeAndDisplayName(analysisType, true),
-        getAllStatisticsDateAggregationTypesWithShortName: (analysisType: StatisticsAnalysisType) => getLocalizedChartDateAggregationTypeAndDisplayName(analysisType, false),
-        getAllTransactionEditScopeTypes: () => getLocalizedDisplayNameAndType(TransactionEditScopeType.values()),
+        getAllStatisticsDateAggregationTypes: (analysisType: StatisticsAnalysisType, includeBillingCycle: boolean) => getLocalizedChartDateAggregationTypeAndDisplayName(analysisType, true, includeBillingCycle),
+        getAllStatisticsDateAggregationTypesWithShortName: (analysisType: StatisticsAnalysisType, includeBillingCycle: boolean) => getLocalizedChartDateAggregationTypeAndDisplayName(analysisType, false, includeBillingCycle),
+        getAllTransactionEditScopeTypes: (useLastReconciledTime: boolean) => getLocalizedDisplayNameAndType(TransactionEditScopeType.values(useLastReconciledTime)),
         getAllTransactionQuickSaveButtonStyles: () => getLocalizedDisplayNameAndType(TransactionQuickSaveButtonStyle.values()),
         getAllTransactionQuickAddButtonActionTypes: () => getLocalizedDisplayNameAndType(TransactionQuickAddButtonActionType.values()),
         getAllTransactionScheduledFrequencyTypes: () => getLocalizedDisplayNameAndType(ScheduledTemplateFrequencyType.values()),
@@ -2449,6 +2609,7 @@ export function useI18n() {
         getAllTransactionExplorerChartTypes: (operators?: TransactionExplorerChartType[]) => getLocalizedNameValue(operators ?? TransactionExplorerChartType.values()),
         // get localized info
         getLanguageInfo,
+        getEnableDisableOption: (value: boolean) => t(value ? 'Enabled' : 'Disabled'),
         getMonthShortName,
         getMonthLongName,
         getMonthdayOrdinal,
@@ -2456,6 +2617,7 @@ export function useI18n() {
         getWeekdayShortName,
         getWeekdayLongName,
         getQuarterName,
+        getMultiMonthAndDayLongNames,
         getMultiMonthdayShortNames,
         getMultiWeekdayLongNames,
         getAllLocalizedDigits,
@@ -2486,6 +2648,7 @@ export function useI18n() {
         isLongTimeMinuteTwoDigits,
         isLongTimeSecondTwoDigits,
         // format date time (by calendar display type) functions
+        getCalendarDisplayLongYearFromDateTime: (dateTime: DateTime, numeralSystem?: NumeralSystem) => formatDateTime(dateTime, getLocalizedLongYearFormat(), getDateTimeFormatOptions({ calendarType: getCurrentCalendarDisplayType().primaryCalendarType, numeralSystem: numeralSystem })),
         getCalendarDisplayShortYearFromDateTime: (dateTime: DateTime, numeralSystem?: NumeralSystem) => formatDateTime(dateTime, getLocalizedShortYearFormat(), getDateTimeFormatOptions({ calendarType: getCurrentCalendarDisplayType().primaryCalendarType, numeralSystem: numeralSystem })),
         getCalendarDisplayShortMonthFromDateTime: (dateTime: DateTime, numeralSystem?: NumeralSystem) => formatDateTime(dateTime, 'MMM', getDateTimeFormatOptions({ calendarType: getCurrentCalendarDisplayType().primaryCalendarType, numeralSystem: numeralSystem })),
         getCalendarDisplayDayOfMonthFromDateTime: (dateTime: DateTime, numeralSystem?: NumeralSystem) => formatDateTime(dateTime, getLocalizedShortDayFormat(), getDateTimeFormatOptions({ calendarType: getCurrentCalendarDisplayType().primaryCalendarType, numeralSystem: numeralSystem })),
@@ -2530,8 +2693,10 @@ export function useI18n() {
         formatAmountToWesternArabicNumeralsWithoutDigitGrouping: (value: number, currencyCode?: string) => getFormattedAmount(value, NumeralSystem.WesternArabicNumerals, DigitGroupingType.None, currencyCode),
         formatAmountToLocalizedNumeralsWithCurrency: (value: number | HiddenAmount | NumberWithSuffix, currencyCode?: string | false, currencyDisplayType?: CurrencyDisplayType) => getFormattedAmountWithCurrency(value, currencyCode, currencyDisplayType),
         formatAmountToWesternArabicNumeralsWithCurrency: (value: number | HiddenAmount | NumberWithSuffix, currencyCode?: string | false, currencyDisplayType?: CurrencyDisplayType) => getFormattedAmountWithCurrency(value, currencyCode, currencyDisplayType, NumeralSystem.WesternArabicNumerals),
-        formatNumberToLocalizedNumerals: (value: number, precision?: number) => getFormattedNumber(value, undefined, precision),
-        formatNumberToWesternArabicNumerals: (value: number, precision?: number) => getFormattedNumber(value, NumeralSystem.WesternArabicNumerals, precision),
+        formatNumberToLocalizedNumerals: (value: number, precision?: number) => getFormattedNumber(value, undefined, undefined, precision),
+        formatNumberToLocalizedNumeralsWithoutDigitGrouping: (value: number, precision?: number) => getFormattedNumber(value, undefined, DigitGroupingType.None, precision),
+        formatNumberToWesternArabicNumerals: (value: number, precision?: number) => getFormattedNumber(value, NumeralSystem.WesternArabicNumerals, undefined, precision),
+        formatNumberToWesternArabicNumeralsWithoutDigitGrouping: (value: number, precision?: number) => getFormattedNumber(value, NumeralSystem.WesternArabicNumerals, DigitGroupingType.None, precision),
         formatPercentToLocalizedNumerals: (value: number, precision: number, lowPrecisionValue: string) => getFormattedPercentValue(value, precision, lowPrecisionValue),
         formatPercentToWesternArabicNumerals: (value: number, precision: number, lowPrecisionValue: string) => getFormattedPercentValue(value, precision, lowPrecisionValue, NumeralSystem.WesternArabicNumerals),
         formatVolumeToLocalizedNumerals: getFormattedVolume,

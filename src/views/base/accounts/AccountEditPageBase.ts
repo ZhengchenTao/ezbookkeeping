@@ -18,13 +18,13 @@ import {
     getCurrentUnixTime
 } from '@/lib/datetime.ts';
 
-export interface DayAndDisplayName {
-    readonly day: number;
-    readonly displayName: string;
-}
-
 export function useAccountEditPageBase() {
-    const { tt, getAllAccountCategories, getAllAccountTypes, getMonthdayShortName } = useI18n();
+    const {
+        tt,
+        getAvailableMonthDays,
+        getAllAccountCategories,
+        getAllAccountTypes
+    } = useI18n();
 
     const settingsStore = useSettingsStore();
     const userStore = useUserStore();
@@ -37,6 +37,8 @@ export function useAccountEditPageBase() {
     const submitting = ref<boolean>(false);
     const account = ref<Account>(Account.createNewAccount(defaultAccountCategory, userStore.currentUserDefaultCurrency, getCurrentUnixTimeForNewAccount()));
     const subAccounts = ref<Account[]>([]);
+
+    const useLastReconciledTime = computed(() => userStore.currentUserUseLastReconciledTime);
 
     const title = computed<string>(() => {
         if (!editAccountId.value) {
@@ -80,20 +82,13 @@ export function useAccountEditPageBase() {
     const allAccountCategories = computed<LocalizedAccountCategory[]>(() => getAllAccountCategories(customAccountCategoryOrder.value));
     const allAccountTypes = computed<TypeAndDisplayName[]>(() => getAllAccountTypes());
 
-    const allAvailableMonthDays = computed<DayAndDisplayName[]>(() => {
-        const allAvailableDays: DayAndDisplayName[] = [];
+    const allAvailableMonthDays = computed<TypeAndDisplayName[]>(() => {
+        const allAvailableDays: TypeAndDisplayName[] = getAvailableMonthDays(28);
 
-        allAvailableDays.push({
-            day: 0,
+        allAvailableDays.splice(0, 0, {
+            type: 0,
             displayName: tt('Not set'),
         });
-
-        for (let i = 1; i <= 28; i++) {
-            allAvailableDays.push({
-                day: i,
-                displayName: getMonthdayShortName(i),
-            });
-        }
 
         return allAvailableDays;
     });
@@ -104,17 +99,17 @@ export function useAccountEditPageBase() {
         return getSameDateTimeWithCurrentTimezone(parseDateTimeFromUnixTimeWithBrowserTimezone(getCurrentUnixTime())).getUnixTime();
     }
 
-    function getDefaultTimezoneOffsetMinutes(account: Account): number {
-        if (!account.balanceTime) {
-            return 0;
+    function getDefaultTimezoneOffsetMinutes(unixTime?: number): number {
+        if (!unixTime) {
+            return getTimezoneOffsetMinutes(getCurrentUnixTime());
         }
 
-        return getTimezoneOffsetMinutes(account.balanceTime);
+        return getTimezoneOffsetMinutes(unixTime);
     }
 
     function getAccountCreditCardStatementDate(statementDate?: number): string | null {
         for (const item of allAvailableMonthDays.value) {
-            if (item.day === statementDate) {
+            if (item.type === statementDate) {
                 return item.displayName;
             }
         }
@@ -137,6 +132,23 @@ export function useAccountEditPageBase() {
         }
 
         account.balanceTime = balanceTime - (newUtcOffset - oldUtcOffset) * 60;
+    }
+
+    function updateAccountLastReconciledTime(account: Account, lastReconciledTime: number): void {
+        if (!isDefined(account.lastReconciledTime)) {
+            account.lastReconciledTime = lastReconciledTime;
+            return;
+        }
+
+        const oldUtcOffset = getTimezoneOffsetMinutes(account.lastReconciledTime);
+        const newUtcOffset = getTimezoneOffsetMinutes(lastReconciledTime);
+
+        if (oldUtcOffset === newUtcOffset) {
+            account.lastReconciledTime = lastReconciledTime;
+            return;
+        }
+
+        account.lastReconciledTime = lastReconciledTime - (newUtcOffset - oldUtcOffset) * 60;
     }
 
     function getInputEmptyProblemMessage(account: Account, isSubAccount: boolean): string | null {
@@ -196,6 +208,7 @@ export function useAccountEditPageBase() {
         account,
         subAccounts,
         // computed states
+        useLastReconciledTime,
         title,
         saveButtonTitle,
         inputEmptyProblemMessage,
@@ -209,6 +222,7 @@ export function useAccountEditPageBase() {
         getDefaultTimezoneOffsetMinutes,
         getAccountCreditCardStatementDate,
         updateAccountBalanceTime,
+        updateAccountLastReconciledTime,
         isNewAccount,
         addSubAccount,
         setAccount

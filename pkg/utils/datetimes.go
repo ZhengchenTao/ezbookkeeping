@@ -286,6 +286,12 @@ func IsUnixTimeEqualsYearAndMonth(unixTime int64, timezone *time.Location, year 
 	return date.Year() == int(year) && int(date.Month()) == int(month)
 }
 
+// GetMaxDayOfMonth returns the maximum day of the month for the specified year and month
+func GetMaxDayOfMonth(year int, month time.Month) int {
+	t := time.Date(year, month+1, 0, 0, 0, 0, 0, time.UTC)
+	return t.Day()
+}
+
 // GetTimezoneOffsetMinutes returns offset minutes according specified timezone
 func GetTimezoneOffsetMinutes(unixTime int64, timezone *time.Location) int16 {
 	_, tzOffset := parseFromUnixTime(unixTime).In(timezone).Zone()
@@ -307,14 +313,14 @@ func FormatTimezoneOffset(unixTime int64, timezone *time.Location) string {
 	tzMinutesOffset := GetTimezoneOffsetMinutes(unixTime, timezone)
 
 	sign := "+"
+
+	if tzMinutesOffset < 0 {
+		sign = "-"
+		tzMinutesOffset = -tzMinutesOffset
+	}
+
 	hourAbsOffset := tzMinutesOffset / 60
 	minuteAbsOffset := tzMinutesOffset % 60
-
-	if hourAbsOffset < 0 {
-		sign = "-"
-		hourAbsOffset = -hourAbsOffset
-		minuteAbsOffset = -minuteAbsOffset
-	}
 
 	return fmt.Sprintf("%s%02d:%02d", sign, hourAbsOffset, minuteAbsOffset)
 }
@@ -330,14 +336,14 @@ func FormatTimezoneOffsetFromHoursOffset(hoursOffset string) (string, error) {
 	tzMinutesOffset := int16(hoursOffsetValue * 60)
 
 	sign := "+"
+
+	if tzMinutesOffset < 0 {
+		sign = "-"
+		tzMinutesOffset = -tzMinutesOffset
+	}
+
 	hourAbsOffset := tzMinutesOffset / 60
 	minuteAbsOffset := tzMinutesOffset % 60
-
-	if hourAbsOffset < 0 {
-		sign = "-"
-		hourAbsOffset = -hourAbsOffset
-		minuteAbsOffset = -minuteAbsOffset
-	}
 
 	return fmt.Sprintf("%s%02d:%02d", sign, hourAbsOffset, minuteAbsOffset), nil
 }

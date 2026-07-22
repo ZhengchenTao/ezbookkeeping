@@ -109,7 +109,6 @@ input[type=number] {
     --f7-fab-extended-text-font-weight: inherit;
     --f7-fab-extended-text-transform: inherit;
     --f7-glass-shadow-fab: var(--f7-glass-shadow);
-    --f7-popup-push-offset: 5px;
     --f7-color-gray: #8e8e93;
     --f7-color-gray-rgb: 142, 142, 147;
     --f7-color-gray-shade: #79797f;
@@ -129,6 +128,24 @@ input[type=number] {
     --f7-theme-color-rgb: var(--f7-color-gray-rgb);
     --f7-theme-color-shade: var(--f7-color-gray-shade);
     --f7-theme-color-tint: var(--f7-color-gray-tint);
+}
+
+:root {
+    --f7-navbar-height: 60px;
+}
+
+.ios .navbar-inner {
+    padding-top: calc(8px + var(--f7-safe-area-top));
+    padding-bottom: 8px;
+}
+
+.ios .subnavbar {
+    padding-top: calc(var(--f7-typography-margin) / 2);
+}
+
+.ios .subnav-segmented-bar {
+    margin-top: 0;
+    margin-bottom: calc(var(--f7-typography-margin) / 2);
 }
 
 .ios .dark, .ios.dark {
@@ -205,6 +222,10 @@ i.icon.la, i.icon.las, i.icon.lab {
 
 .compact-tabbar {
     --f7-toolbar-height: 48px;
+}
+
+.ebk-extra-small-amount {
+    --f7-list-item-title-font-size: var(--ebk-amount-extra-small-font-size) !important;
 }
 
 .ebk-small-amount {
@@ -345,24 +366,24 @@ html[dir="rtl"] i.icon.icon-with-direction {
 }
 
 /** Replacing the default style of @vuepic/vue-datepicker **/
-.dp__theme_light {
+.dp--theme-light {
     --dp-primary-color: #c67e48;
     --dp-background-color: inherit;
     --dp-border-color: #aaa;
     --dp-menu-border-color: #aaa;
 
-    .dp__overlay {
+    .dp--overlay {
         --dp-background-color: #e1e1e2;
     }
 }
 
-.dp__theme_dark {
+.dp--theme-dark {
     --dp-primary-color: #c67e48;
     --dp-background-color: inherit;
     --dp-border-color: #555;
     --dp-menu-border-color: #555;
 
-    .dp__overlay {
+    .dp--overlay {
         --dp-background-color: #1f1f1f;
     }
 }
@@ -838,33 +859,68 @@ html[dir="rtl"] .combination-list-wrapper .list.combination-list-header .combina
     padding-inline-end: var(--f7-safe-area-right) !important;
 }
 
+/** paste context menu **/
+.paste-context-menu-popover.popover {
+    width: auto;
+
+    .paste-context-menu-list.list {
+        :first-child li:first-child a {
+            &.active-state {
+                border-radius: unset;
+            }
+
+            > .item-content {
+                min-height: var(--ebk-popover-context-menu-min-height);
+
+                > .item-inner {
+                    min-height: var(--ebk-popover-context-menu-min-height);
+                    padding-top: var(--ebk-popover-context-menu-vertical-padding);
+                    padding-bottom: var(--ebk-popover-context-menu-vertical-padding);
+                    padding-left: var(--ebk-popover-context-menu-left-padding);
+                    padding-right: var(--ebk-popover-context-menu-right-padding);
+
+                    > .item-title {
+                        font-size: var(--ebk-popover-context-menu-button-font-size);
+                    }
+                }
+            }
+        }
+    }
+}
+
 /** Fix @vuepic/vue-datepicker style issue **/
-.dp__main.dp__flex_display {
+.dp--main.dp--flex-display {
     flex-direction: column;
 }
 
-.dp__main .dp--tp-wrap {
+.dp--main .dp--tp-wrap {
     max-width: 100%;
 }
 
-.dp__main .dp__menu_inner {
+.dp--main .dp--menu-inner {
     padding-top: 0;
     padding-bottom: 0;
 }
 
-.dp__main .dp__menu_inner .dp--header-wrap > .dp__month_year_wrap > button {
+.dp--main .dp--menu-inner .dp--header-wrap > .dp--month-year-wrap > button {
     width: unset;
 }
 
-.dp__main .dp__calendar .dp__calendar_item {
+.dp--main .dp--calendar .dp--calendar-item {
     flex: 1;
 }
 
-.dp__main .dp__calendar .dp__calendar_item > .dp__cell_inner {
+.dp--main .dp--calendar .dp--calendar-item > .dp--cell-inner {
     width: 100%;
 }
 
-html[dir="rtl"] .dp__main .dp__btn.dp--arrow-btn-nav {
+.dp--btn {
+    border: none;
+    background: none;
+    font: inherit;
+}
+
+html[dir="rtl"] .dp--main .dp--btn.dp--arrow-btn-nav {
     transform: scaleX(-1);
 }
 

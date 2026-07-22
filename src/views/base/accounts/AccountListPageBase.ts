@@ -35,6 +35,7 @@ export function useAccountListPageBase() {
     const firstDayOfWeek = computed<WeekDayValue>(() => userStore.currentUserFirstDayOfWeek);
     const fiscalYearStart = computed<number>(() => userStore.currentUserFiscalYearStart);
     const defaultCurrency = computed<string>(() => userStore.currentUserDefaultCurrency);
+    const useLastReconciledTime = computed(() => userStore.currentUserUseLastReconciledTime);
 
     const allAccounts = computed<Account[]>(() => accountsStore.allAccounts);
     const allCategorizedAccountsMap = computed<Record<number, CategorizedAccount>>(() => accountsStore.allCategorizedAccountsMap);
@@ -99,6 +100,7 @@ export function useAccountListPageBase() {
         firstDayOfWeek,
         fiscalYearStart,
         defaultCurrency,
+        useLastReconciledTime,
         allAccounts,
         allCategorizedAccountsMap,
         allAccountCount,
