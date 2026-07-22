@@ -142,6 +142,7 @@
 
 **第一阶段（2026-05-02）`touch-action: none` 引发的 300ms 双击延迟：** 上游在 `.numpad-button` 上设了 `touch-action: none`（commit `e178a079` "code refactor" by MaysWind），与浏览器双击缩放检测叠加后保留了老式 300ms 点击延迟。
 - 修复：`.numpad-button` 的 `touch-action: none` 改为 `touch-action: manipulation`（W3C 标准"快速点击"值，禁双击缩放）
+- **2026-07-22 更新：上游 1.6 已自行改为 `touch-action: manipulation`，这一阶段不再是 fork delta**；第二、三阶段（pointerdown 零延迟 + 退格长按清空）仍是 fork 独有
 
 **第二阶段（2026-05-08）退格键 `@taphold` 等待 750ms：** backspace 单点仍可感知延迟。根因是 `@click` + `@taphold` 让 F7 必须等 ~750ms 判别 tap vs hold，期间 click 被抑制。
 - 修复：弃用 `@click="backspace" @taphold="clear()"`，改为原生 `pointerdown`/`pointerup`/`pointercancel`/`pointerleave` + 自管定时器

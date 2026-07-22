@@ -30,8 +30,8 @@ git.zhengchentao.win/dev/ezbookkeeping     （origin，本地唯一 remote）
 
 | 分支 | 职责 | force push? |
 |---|---|---|
-| `main` | **锚定上游 release tag**（当前 v1.4.0）。被 `.gitea/workflows/sync-upstream.yml` `git reset --hard <tag>` 覆写。**别在 main 上做任何改动** | 是（由 CI 做） |
-| `custom` | **所有个人改动 + workflow 文件都在这**：信用额度功能、UI 调整、个人需求清单、`.gitea/workflows/*.yml` 等。具体改动清单见 [`FORK.md`](FORK.md)。日常开发分支，**default branch** | 是（rebase 后人工做） |
+| `main` | **锚定上游 release tag**（当前 v1.6.1）。被 `.gitea/workflows/sync-upstream.yml` `git reset --hard <tag>` 覆写。**别在 main 上做任何改动** | merge 模型下 main 是 custom 的祖先，追新 tag 通常纯 fast-forward，一般不再需要 force |
+| `custom` | **所有个人改动 + workflow 文件都在这**：信用额度功能、UI 调整、个人需求清单、`.gitea/workflows/*.yml` 等。具体改动清单见 [`FORK.md`](FORK.md)。日常开发分支，**default branch** | **否**（2026-07-22 起 merge 模型，历史 append-only，普通 push） |
 
 ⚠️ **default branch 是 `custom`**。`git clone` 默认 checkout custom，直接是开发分支。
 
@@ -42,7 +42,7 @@ git.zhengchentao.win/dev/ezbookkeeping     （origin，本地唯一 remote）
 把 workflow 挪回 custom 之后：
 - runs 列表 commit = 真实代码 commit ✅
 - `git clone` 默认落 custom 直接是开发分支 ✅
-- rebase 上游时 workflow 跟 custom 一起平移 ✅
+- 同步上游时 workflow 留在 custom 不动 ✅
 - 代价：失去"workflow 与代码完全独立"的设计美感 —— 这个分离原本就是过度设计
 
 **ci 分支于 2026-05-02 删除**，仅保留这段说明给后续 Claude 会话理解 git log 里"workflow 文件迁到 custom"这条提交（commit `555ecc1a`）的来龙去脉。**workflow 改动直接在 custom 上做**。
@@ -66,13 +66,15 @@ git.zhengchentao.win/dev/ezbookkeeping     （origin，本地唯一 remote）
 
 ---
 
-## 同步发布流程（rebase 模型）
+## 同步发布流程（merge 模型，2026-07-22 起）
 
-1. 上游出新 release（如 v1.4.0）→ Gitea pull mirror 自动把 tag 同步到 mirror
-2. 人工触发 `Sync from upstream` workflow → 服务端把 dev/main reset 到该 tag
-3. 本地 `git fetch && git checkout custom && git rebase origin/main`
-4. 解冲突（如有）→ 验证 → `git push --force-with-lease origin custom`
-5. **build-image workflow 自动触发**（force-push 也算 push 事件），构建新镜像；不需要手动点
+> 2026-07-22 从 rebase 模型切换为 merge 模型。历史上 custom 曾经每次同步都 rebase + force-push，此后不再。
+
+1. 上游出新 release（如 v1.6.1）→ Gitea pull mirror 自动把 tag 同步到 mirror
+2. 人工触发 `Sync from upstream` workflow → 服务端把 dev/main reset 到该 tag（v1.6.1 起 main 是 custom 的祖先，reset 到新 tag 通常是纯 fast-forward，本地直接 `git push origin <tag>:refs/heads/main` 也行）
+3. 本地 `git fetch && git checkout custom && git merge origin/main`
+4. 解冲突（**对着最终状态一次性解**，rerere 已开启会自动复用历史解法）→ 验证（`go vet/test` + `npx vue-tsc --noEmit` + `npx eslint src` + `npm test` + `npm run build`）→ 普通 `git push`
+5. **build-image workflow 自动触发**，构建新镜像；不需要手动点
 
 日常 feature commit 流程（全自动 CD）：
 
@@ -85,17 +87,17 @@ git.zhengchentao.win/dev/ezbookkeeping     （origin，本地唯一 remote）
 
 如果想跳过 build/deploy（例如手动多次 push 调试），commit 时只改文档相关文件即可（落在 paths-ignore 范围内）。如果想强制重打某个旧 commit，去 Actions UI 手动触发 `Build Docker Image`，填要打包的 branch / tag —— 注意手动触发也会跑 deploy job，**没有"只重新部署不重新 build"的单点入口了**（合并的代价，原 `deploy.yml` 那条路径已废）。临时只想重启容器：直接到 NAS 上 `docker compose up -d` 或在 Actions UI 临时禁用 deploy job。
 
-**为什么 rebase 不 merge**：个人项目，无团队协作语义要保留，线性历史更清爽。
+**为什么 merge 不 rebase**（2026-07-22 决策）：rebase 的唯一收益是"干净的 patch 序列"，而 delta 的事实源是 FORK.md 文档不是 git 历史。rebase 成本 = O(commit 数 × 冲突面) 且逐次同步递增，还要 force-push（Actions 历史 run 指向的 commit 变孤儿、其他 checkout 需 hard reset）；merge 成本 = O(冲突面) 一次性，历史 append-only。看 fork 全部 delta 用 `git diff main...custom`。
 
 ---
 
 ## 给后续 Claude 会话的明确提示
 
 - 用户说"我的分支" / "切换到我的分支" → 指 `custom`
-- 用户说"rebase main" → 指 `git rebase origin/main`，目标是把 custom 的改动叠到最新上游 tag 之上
+- 用户说"同步上游" → 指 `git merge origin/main`（2026-07-22 起 merge 模型；**不要 rebase custom**，那是旧模型）
 - **不要在 `main` 分支上提交任何东西**（会被 CI 覆写）
 - **workflow 文件改动直接在 custom 上做**（2026-05-02 起，不再是 ci 分支）
-- force-push custom 是常规操作，但每次用 `--force-with-lease`，不直接 `--force`
+- **不要 force-push custom**（merge 模型下历史 append-only；旧文档/记忆里"force-with-lease 是常规操作"已过时）
 - 如果发现本地配了 upstream remote，那是历史遗留，不要依赖；以 origin/main 为准
 - `.claude/` 在 `.gitignore` 里（个人本地配置不入库），但 `CLAUDE.md` 本身入库
 
@@ -110,6 +112,7 @@ git.zhengchentao.win/dev/ezbookkeeping     （origin，本地唯一 remote）
   - **backend 单元测试撞活 API**：`pkg/exchangerates/` 的 `TestExchangeRatesApiLatestExchangeRateHandler_*` 跑活 API（加拿大银行 / 乌兹别克央行），国内访问超时。upstream Dockerfile 已设 `ARG BUILD_PIPELINE`，测试代码看到 `BUILD_PIPELINE=1 && CHECK_3RD_API!=1` 时早退。修：workflow 加 `build-args: BUILD_PIPELINE=1`（commit `2dd8f099`），对齐上游 GH Actions
 - **2026-05-02 (后续)**：workflow 文件从 ci 分支迁到 custom，default branch 切到 custom（commit `555ecc1a`），随后**删掉 ci 分支**。原因：Gitea Actions runs 列表的 commit 字段一直显示 ci 的 workflow commit，不是被构建的代码 commit，UX 误导性强。挪到 custom 后列表直接显示真实代码 commit。同时清理上游残留的 `docker-release.yml` / `docker-snapshot.yml`（依赖未配的 `secrets.DOCKER_REPO`，永远失败）。仓库回到朴素的 main + custom 双分支模型
 - **2026-05-02 (numpad fix)**：FORK.md #11 定位 + 修复。小键盘点击卡顿真因是 `.numpad-button` 的 `touch-action: none`（上游 e178a079 引入）与 F7 tap 处理叠加，改为 `touch-action: manipulation`（commit `75b4d78d`）
+- **2026-07-22**：**同步模型从 rebase 切换为 merge** + 首次 merge 同步 v1.4.0-dev(422f1844) → v1.6.1（193 个上游 commit，merge commit `57cafadd`）。main fast-forward 到 v1.6.1（本地直接 push，没走 workflow）。开启 `rerere.enabled`。冲突 22 个文件，解决要点见 merge commit message；关键决策：ModifyBalance 保留 fork delta 语义（上游"更新期末余额"走普通收支交易，与 fork 不冲突）；NumberPadSheet `touch-action: manipulation` 已被上游吸收（FORK.md #11 第一阶段不再是 delta）。验证 go vet/test + vue-tsc + eslint + vitest + 生产 build 全过
 - **2026-05-04**：把 `deploy.yml` 合并进 `build-image.yml` 作为第二个 job（`needs: build`），删除 `deploy.yml`。原先 `workflow_run` 链路会在 Actions 列表产生两条独立 run（build 完一条、deploy 又一条），用户视角割裂；合并后 UI 列表单条 run，run 详情里 dependency graph 显示 build → deploy 串联。代价：失去"不 rebuild 只 redeploy"的 UI 单点触发，临时只想重启容器需直接 ssh NAS 跑 compose。`paths-ignore` 移除已不存在的 `deploy.yml` 项
 
 ## 给后续 Claude 会话：CI 故障排查路径
