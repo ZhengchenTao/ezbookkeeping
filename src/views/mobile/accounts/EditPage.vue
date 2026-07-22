@@ -483,7 +483,6 @@
                 <f7-list-item
                     link="#" no-chevron
                     class="list-item-with-header-and-title"
-                    :class="{ 'disabled': editAccountId && !isNewAccount(subAccount) }"
                     :header="account.isLiability ? tt('Sub-account Outstanding Balance') : tt('Sub-account Balance')"
                     :title="formatAccountDisplayBalance(subAccount)"
                     @click="subAccountContexts[idx]!.showBalanceSheet = true"
@@ -645,7 +644,7 @@ const DEFAULT_ACCOUNT_CONTEXT: AccountContext = {
     balanceDateTimeSheetMode: 'time'
 };
 
-const originalBalance = ref<number>(0);
+const originalBalances = ref<Map<string, number>>(new Map());
 
 const accountContext = ref<AccountContext>(Object.assign({}, DEFAULT_ACCOUNT_CONTEXT));
 const subAccountContexts = ref<AccountContext[]>([]);
@@ -701,7 +700,15 @@ function init(): void {
             accountId: editAccountId.value
         }).then(response => {
             setAccount(response);
-            originalBalance.value = response.balance;
+            originalBalances.value.clear();
+            if (account.value.id) {
+                originalBalances.value.set(account.value.id, account.value.balance);
+            }
+            for (const subAccount of subAccounts.value) {
+                if (subAccount.id) {
+                    originalBalances.value.set(subAccount.id, subAccount.balance);
+                }
+            }
             subAccountContexts.value = [];
 
             for (let i = 0; i < subAccounts.value.length; i++) {
@@ -722,7 +729,7 @@ function init(): void {
     }
 }
 
-function save(): void {
+async function save(): Promise<void> {
     const router = props.f7router;
     const problemMessage = inputEmptyProblemMessage.value;
 
@@ -734,46 +741,61 @@ function save(): void {
     submitting.value = true;
     showLoading(() => submitting.value);
 
-    const balanceChanged = !!editAccountId.value && account.value.balance !== originalBalance.value;
-    const adjustPromise = balanceChanged
-        ? transactionsStore.adjustAccountBalance({ accountId: editAccountId.value!, targetBalance: account.value.balance, currentBalance: originalBalance.value })
-        : Promise.resolve(true);
+    // Collect balance adjustments needed for existing accounts
+    let balanceChanged = false;
+    if (editAccountId.value) {
+        const allAccounts = [account.value, ...subAccounts.value];
+        for (const acc of allAccounts) {
+            if (!acc.id || isNewAccount(acc)) continue;
+            const origBalance = originalBalances.value.get(acc.id);
+            if (origBalance !== undefined && acc.balance !== origBalance) {
+                balanceChanged = true;
+                try {
+                    await transactionsStore.adjustAccountBalance({
+                        accountId: acc.id,
+                        targetBalance: acc.balance,
+                        currentBalance: origBalance
+                    });
+                } catch (error: unknown) {
+                    submitting.value = false;
+                    hideLoading();
 
-    adjustPromise.then(() => {
-        accountsStore.saveAccount({
-            account: account.value,
-            subAccounts: subAccounts.value,
-            isEdit: !!editAccountId.value,
-            clientSessionId: clientSessionId.value
-        }).then(() => {
-            submitting.value = false;
-            hideLoading();
-
-            if (!editAccountId.value) {
-                showToast('You have added a new account');
-            } else {
-                showToast('You have saved this account');
+                    const err = error as { processed?: boolean, message?: string };
+                    if (!err.processed) {
+                        showToast(err.message || String(error));
+                    }
+                    return;
+                }
             }
+        }
+    }
 
-            router.back();
-        }).catch(error => {
-            submitting.value = false;
-            hideLoading();
+    accountsStore.saveAccount({
+        account: account.value,
+        subAccounts: subAccounts.value,
+        isEdit: !!editAccountId.value,
+        clientSessionId: clientSessionId.value
+    }).then(() => {
+        submitting.value = false;
+        hideLoading();
 
-            if (balanceChanged && error.error && error.error.errorCode === KnownErrorCode.NothingWillBeUpdated) {
-                // Balance was adjusted but other fields unchanged — treat as success
-                showToast('You have saved this account');
-                router.back();
-                return;
-            }
+        if (!editAccountId.value) {
+            showToast('You have added a new account');
+        } else {
+            showToast('You have saved this account');
+        }
 
-            if (!error.processed) {
-                showToast(error.message || error);
-            }
-        });
+        router.back();
     }).catch(error => {
         submitting.value = false;
         hideLoading();
+
+        if (balanceChanged && error.error && error.error.errorCode === KnownErrorCode.NothingWillBeUpdated) {
+            // Balance was adjusted but other fields unchanged — treat as success
+            showToast('You have saved this account');
+            router.back();
+            return;
+        }
 
         if (!error.processed) {
             showToast(error.message || error);
