@@ -37,6 +37,8 @@ func (j *CronJob) doRun() {
 			log.Warnf(c, "[cron_job.doRun] job \"%s\" is already running (%s)", j.Name, runningInfo)
 			return
 		}
+
+		defer duplicatechecker.Container.RemoveCronJobRunningInfo(j.Name)
 	}
 
 	err := j.Run(c)
