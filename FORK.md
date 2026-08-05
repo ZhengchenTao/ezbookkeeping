@@ -173,6 +173,15 @@
 
 ---
 
+## 九、后端 / cron
+
+### 13. 🟢 cron 运行锁完成后释放（修整月漏单 + DB 锁拖慢 /mcp）
+**描述：** 上游 `doRun()` 用 TTL≈调度周期的内存缓存条目当运行锁，完成后从不释放（`RemoveCronJobRunningInfo` 上游全仓无调用）。tick 迟到几秒就会撞上一次的残留锁，被 `already running` 误判跳过；跳过的正好是每月触发 tick 时，整月定时交易不生成（2026-07-04 实例：闪电贷两笔等额本息整月未生成）。2026-08-05 还观察到 cron 卡死数小时伴随 `token_record` 表锁，把 `/mcp` initialize 拖到 4-10 秒，导致 NAS butler 的 claude.ai connector 重连连续失败。
+
+**修复：** `doRun()` 拿锁成功后 `defer duplicatechecker.Container.RemoveCronJobRunningInfo(j.Name)`（commit `32de5cad`）。单实例 + gocron SingletonMode 本已防重入，完成即释放是安全的。
+
+---
+
 ## 进度总览
 
 | # | 需求 | 状态 |
@@ -189,3 +198,4 @@
 | 10 | 全局动画加速 | 🟢 已完成 |
 | 11 | 小键盘点击卡顿（touch-action 修复） | 🟢 已完成 |
 | 12 | 离线缓存 | ❌ 暂缓 |
+| 13 | cron 锁完成后释放 | 🟢 已完成 |
