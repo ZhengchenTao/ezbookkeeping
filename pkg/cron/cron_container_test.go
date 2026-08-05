@@ -118,6 +118,9 @@ func TestCronJobSchedulerContainerRepeatRun(t *testing.T) {
 		},
 		Run: func(c *core.CronContext) error {
 			runCount.Add(1)
+			// fork: 运行锁改为完成即释放（见 FORK.md #13），去重语义从「整周期」收敛为「运行中」。
+			// 睡眠让 5 个并发触发与首次运行重叠，验证运行中去重仍然成立。
+			time.Sleep(3 * time.Second)
 			return nil
 		},
 	}
