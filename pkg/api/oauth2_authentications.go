@@ -290,7 +290,7 @@ func (a *OAuth2AuthenticationApi) CallbackHandler(c *core.WebContext) (string, *
 			email := strings.TrimSpace(oauth2UserInfo.Email)
 			nickName := strings.TrimSpace(oauth2UserInfo.NickName)
 			languageCode := ""
-			currencyCode := "USD"
+			currencyCode := "CNY" // fork #14：上游写死 USD，OIDC 自动注册的新用户都在国内，默认人民币
 
 			if nickName == "" {
 				nickName = userName

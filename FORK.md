@@ -180,6 +180,13 @@
 
 **修复：** `doRun()` 拿锁成功后 `defer duplicatechecker.Container.RemoveCronJobRunningInfo(j.Name)`（commit `32de5cad`）。单实例 + gocron SingletonMode 本已防重入，完成即释放是安全的。
 
+## 十、登录 / OAuth
+
+### 14. 🟢 OIDC 自动注册的新用户默认币种 CNY
+**描述：** 2026-10-02 起网页登录改走 nas-auth（OIDC），新人首登自动建号。上游 `CallbackHandler` 建号时 `currencyCode := "USD"`，只有 IdP 发了 currency claim 才覆盖（nas-auth 不发），新人都得自己改。
+
+**修改：** `pkg/api/oauth2_authentications.go` 默认值改 `"CNY"`，其余逻辑不动（IdP 带合法 currency claim 时仍以它为准）。
+
 ---
 
 ## 进度总览
@@ -199,3 +206,4 @@
 | 11 | 小键盘点击卡顿（touch-action 修复） | 🟢 已完成 |
 | 12 | 离线缓存 | ❌ 暂缓 |
 | 13 | cron 锁完成后释放 | 🟢 已完成 |
+| 14 | OIDC 新用户默认币种 CNY | 🟢 已完成 |
