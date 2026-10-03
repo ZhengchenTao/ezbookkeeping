@@ -747,3 +747,14 @@ func (s *UserService) SendVerifyEmail(user *models.User, verifyEmailToken string
 func (s *UserService) IsPasswordEqualsUserPassword(password string, user *models.User) bool {
 	return user.Password == utils.EncodePassword(password, user.Salt)
 }
+
+// IsCurrentPasswordConfirmed returns whether a sensitive operation is confirmed by the current password of the user.
+// When internal auth is disabled, nobody can log in with a password and the users registered by oauth 2.0 have no password at all,
+// so the confirmation is skipped (fork change, see FORK.md #15)
+func (s *UserService) IsCurrentPasswordConfirmed(password string, user *models.User) bool {
+	if !s.CurrentConfig().EnableInternalAuth {
+		return true
+	}
+
+	return s.IsPasswordEqualsUserPassword(password, user)
+}

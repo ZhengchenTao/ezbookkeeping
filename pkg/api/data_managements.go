@@ -159,7 +159,7 @@ func (a *DataManagementsApi) ClearAllDataHandler(c *core.WebContext) (any, *errs
 		return nil, errs.ErrUserNotFound
 	}
 
-	if !a.users.IsPasswordEqualsUserPassword(clearDataReq.Password, user) {
+	if !a.users.IsCurrentPasswordConfirmed(clearDataReq.Password, user) {
 		return nil, errs.ErrUserPasswordWrong
 	}
 
@@ -241,7 +241,7 @@ func (a *DataManagementsApi) ClearAllTransactionsHandler(c *core.WebContext) (an
 		return nil, errs.ErrUserNotFound
 	}
 
-	if !a.users.IsPasswordEqualsUserPassword(clearDataReq.Password, user) {
+	if !a.users.IsCurrentPasswordConfirmed(clearDataReq.Password, user) {
 		return nil, errs.ErrUserPasswordWrong
 	}
 
@@ -281,7 +281,7 @@ func (a *DataManagementsApi) ClearAllTransactionsByAccountHandler(c *core.WebCon
 		return nil, errs.ErrUserNotFound
 	}
 
-	if !a.users.IsPasswordEqualsUserPassword(clearDataReq.Password, user) {
+	if !a.users.IsCurrentPasswordConfirmed(clearDataReq.Password, user) {
 		return nil, errs.ErrUserPasswordWrong
 	}
 

@@ -4,8 +4,8 @@
             <template #title>
                 <h4 class="text-h4 text-error text-wrap">{{ tt('Are you sure you want to clear all transactions?') }}</h4>
             </template>
-            <v-card-text class="pb-2 text-error">{{ tt('format.misc.clearTransactionsInAccountTip', { account: currentAccount?.name }) }}</v-card-text>
-            <v-card-text class="w-100 d-flex justify-center">
+            <v-card-text class="pb-2 text-error">{{ tt(isPasswordConfirmationEnabled() ? 'format.misc.clearTransactionsInAccountTip' : 'format.misc.clearTransactionsInAccountTipWithoutPassword', { account: currentAccount?.name }) }}</v-card-text>
+            <v-card-text class="w-100 d-flex justify-center" v-if="isPasswordConfirmationEnabled()">
                 <div class="w-100">
                     <v-text-field
                         autocomplete="current-password"
@@ -20,7 +20,7 @@
             </v-card-text>
             <v-card-text>
                 <div class="w-100 d-flex justify-center flex-wrap mt-sm-1 mt-md-2 gap-4">
-                    <v-btn color="error" :disabled="!currentPassword || clearingData" @click="confirm">
+                    <v-btn color="error" :disabled="(isPasswordConfirmationEnabled() && !currentPassword) || clearingData" @click="confirm">
                         {{ tt('Confirm') }}
                         <v-progress-circular indeterminate size="22" class="ms-2" v-if="clearingData"></v-progress-circular>
                     </v-btn>
@@ -45,6 +45,8 @@ import { useI18n } from '@/locales/helpers.ts';
 import { useRootStore } from '@/stores/index.ts';
 
 import { Account } from '@/models/account.ts';
+
+import { isPasswordConfirmationEnabled } from '@/lib/server_settings.ts';
 
 type SnackBarType = InstanceType<typeof SnackBar>;
 
@@ -75,7 +77,7 @@ function open(account: Account): Promise<void> {
 }
 
 function confirm(): void {
-    if (!currentAccount.value || !currentPassword.value) {
+    if (!currentAccount.value || (isPasswordConfirmationEnabled() && !currentPassword.value)) {
         return;
     }
 

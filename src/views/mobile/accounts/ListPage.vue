@@ -212,7 +212,8 @@
         </f7-actions>
 
         <password-input-sheet :title="tt('Are you sure you want to clear all transactions?')"
-                              :hint="tt('format.misc.clearTransactionsInAccountTip', { account: accountToClearTransactions?.name ?? 'undefined' })"
+                              :hint="tt(isPasswordConfirmationEnabled() ? 'format.misc.clearTransactionsInAccountTip' : 'format.misc.clearTransactionsInAccountTipWithoutPassword', { account: accountToClearTransactions?.name ?? 'undefined' })"
+                              :password-optional="!isPasswordConfirmationEnabled()"
                               :confirm-disabled="clearingData"
                               :cancel-disabled="clearingData"
                               color="red"
@@ -239,6 +240,7 @@ import { AccountType, AccountCategory } from '@/core/account.ts';
 import type { Account, AccountShowingIds } from '@/models/account.ts';
 
 import { getCurrentUnixTime } from '@/lib/datetime.ts';
+import { isPasswordConfirmationEnabled } from '@/lib/server_settings.ts';
 import { onSwipeoutDeleted } from '@/lib/ui/mobile.ts';
 
 const props = defineProps<{

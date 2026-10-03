@@ -7,8 +7,8 @@
                 <div class="ebk-sheet-title" v-if="title"><b>{{ title }}</b></div>
             </div>
             <div class="padding-horizontal padding-bottom">
-                <p class="no-margin" v-if="hint">{{ hint }}</p>
-                <f7-list class="no-margin">
+                <p class="no-margin" :class="{ 'margin-bottom': passwordOptional }" v-if="hint">{{ hint }}</p>
+                <f7-list class="no-margin" v-if="!passwordOptional">
                     <f7-list-input
                         type="password"
                         autocomplete="current-password"
@@ -22,7 +22,7 @@
                     ></f7-list-input>
                 </f7-list>
                 <f7-button large fill
-                           :class="{ 'disabled': !currentPassword || confirmDisabled }"
+                           :class="{ 'disabled': (!passwordOptional && !currentPassword) || confirmDisabled }"
                            :color="color || 'primary'"
                            :text="tt('Confirm')"
                            @click="confirm">
@@ -47,6 +47,7 @@ const props = defineProps<{
     color?: string;
     confirmDisabled?: boolean;
     cancelDisabled?: boolean;
+    passwordOptional?: boolean;
     show: boolean;
 }>();
 
@@ -61,7 +62,7 @@ const { tt } = useI18n();
 const currentPassword = ref<string>('');
 
 function confirm(): void {
-    if (!currentPassword.value || props.confirmDisabled) {
+    if ((!props.passwordOptional && !currentPassword.value) || props.confirmDisabled) {
         return;
     }
 

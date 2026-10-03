@@ -4,8 +4,8 @@
             <template #title>
                 <h4 class="text-h4 text-error text-wrap">{{ tt('Delete Transactions') }}</h4>
             </template>
-            <v-card-text class="pb-2 text-error">{{ tt('format.misc.deleteTransactionsTip', { count: formatNumberToLocalizedNumerals(deleteIds?.length ?? 0) }) }}</v-card-text>
-            <v-card-text class="w-100 d-flex justify-center">
+            <v-card-text class="pb-2 text-error">{{ tt(isPasswordConfirmationEnabled() ? 'format.misc.deleteTransactionsTip' : 'format.misc.deleteTransactionsTipWithoutPassword', { count: formatNumberToLocalizedNumerals(deleteIds?.length ?? 0) }) }}</v-card-text>
+            <v-card-text class="w-100 d-flex justify-center" v-if="isPasswordConfirmationEnabled()">
                 <div class="w-100">
                     <v-text-field
                         autocomplete="current-password"
@@ -20,7 +20,7 @@
             </v-card-text>
             <v-card-text>
                 <div class="w-100 d-flex justify-center flex-wrap mt-sm-1 mt-md-2 gap-4">
-                    <v-btn color="error" :disabled="!currentPassword || deleting || deleteIds.length < 1" @click="confirm">
+                    <v-btn color="error" :disabled="(isPasswordConfirmationEnabled() && !currentPassword) || deleting || deleteIds.length < 1" @click="confirm">
                         {{ tt('Confirm') }}
                         <v-progress-circular indeterminate size="22" class="ms-2" v-if="deleting"></v-progress-circular>
                     </v-btn>
@@ -41,6 +41,8 @@ import { ref, useTemplateRef } from 'vue';
 import { useI18n } from '@/locales/helpers.ts';
 
 import { useTransactionsStore } from '@/stores/transaction.ts';
+
+import { isPasswordConfirmationEnabled } from '@/lib/server_settings.ts';
 
 type SnackBarType = InstanceType<typeof SnackBar>;
 

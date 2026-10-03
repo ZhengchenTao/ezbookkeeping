@@ -68,7 +68,8 @@
         </f7-sheet>
 
         <password-input-sheet :title="tt('Are you sure you want to clear all transactions?')"
-                              :hint="tt('You CANNOT undo this action. This will clear your transactions data. Please enter your current password to confirm.')"
+                              :hint="tt(isPasswordConfirmationEnabled() ? 'You CANNOT undo this action. This will clear your transactions data. Please enter your current password to confirm.' : 'You CANNOT undo this action. This will clear your transactions data.')"
+                              :password-optional="!isPasswordConfirmationEnabled()"
                               :confirm-disabled="clearingData"
                               :cancel-disabled="clearingData"
                               color="red"
@@ -78,7 +79,8 @@
         </password-input-sheet>
 
         <password-input-sheet :title="tt('Are you sure you want to clear all data?')"
-                              :hint="tt('You CANNOT undo this action. This will clear your accounts, categories, tags and transactions data. Please enter your current password to confirm.')"
+                              :hint="tt(isPasswordConfirmationEnabled() ? 'You CANNOT undo this action. This will clear your accounts, categories, tags and transactions data. Please enter your current password to confirm.' : 'You CANNOT undo this action. This will clear your accounts, categories, tags and transactions data.')"
+                              :password-optional="!isPasswordConfirmationEnabled()"
                               :confirm-disabled="clearingData"
                               :cancel-disabled="clearingData"
                               color="red"
@@ -100,7 +102,7 @@ import { useDataManagementPageBase } from '@/views/base/users/DataManagementPage
 import { useRootStore } from '@/stores/index.ts';
 import { useUserStore } from '@/stores/user.ts';
 
-import { isDataExportingEnabled } from '@/lib/server_settings.ts';
+import { isDataExportingEnabled, isPasswordConfirmationEnabled } from '@/lib/server_settings.ts';
 
 const props = defineProps<{
     f7router: Router.Router;
@@ -162,7 +164,7 @@ function exportData(): void {
 }
 
 function clearAllTransactions(password: string | null): void {
-    if (!password) {
+    if (password === null) {
         currentPasswordForClearData.value = '';
         showInputPasswordSheetForClearAllTransactions.value = true;
         return;
@@ -193,7 +195,7 @@ function clearAllTransactions(password: string | null): void {
 }
 
 function clearAllData(password: string | null): void {
-    if (!password) {
+    if (password === null) {
         currentPasswordForClearData.value = '';
         showInputPasswordSheetForClearAllData.value = true;
         return;

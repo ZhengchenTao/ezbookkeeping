@@ -109,7 +109,7 @@ func (a *TokensApi) TokenGenerateAPIHandler(c *core.WebContext) (any, *errs.Erro
 		return false, errs.ErrNotPermittedToPerformThisAction
 	}
 
-	if !a.users.IsPasswordEqualsUserPassword(generateAPITokenReq.Password, user) {
+	if !a.users.IsCurrentPasswordConfirmed(generateAPITokenReq.Password, user) {
 		return nil, errs.ErrUserPasswordWrong
 	}
 
@@ -156,7 +156,7 @@ func (a *TokensApi) TokenGenerateMCPHandler(c *core.WebContext) (any, *errs.Erro
 		return false, errs.ErrNotPermittedToPerformThisAction
 	}
 
-	if !a.users.IsPasswordEqualsUserPassword(generateMCPTokenReq.Password, user) {
+	if !a.users.IsCurrentPasswordConfirmed(generateMCPTokenReq.Password, user) {
 		return nil, errs.ErrUserPasswordWrong
 	}
 

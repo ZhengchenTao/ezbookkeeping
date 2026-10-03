@@ -123,11 +123,11 @@
                 <v-card-text class="py-0">
                     <span class="text-body-1 text-error">
                         <v-icon class="mt-n1" :icon="mdiAlert"/>
-                        {{ tt('You CANNOT undo this action. "Clear All Transactions" will clear all your transactions data, and "Clear All Data" will clear your accounts, categories, tags and transactions data. Please enter your current password to confirm.') }}
+                        {{ tt(isPasswordConfirmationEnabled() ? 'You CANNOT undo this action. "Clear All Transactions" will clear all your transactions data, and "Clear All Data" will clear your accounts, categories, tags and transactions data. Please enter your current password to confirm.' : 'You CANNOT undo this action. "Clear All Transactions" will clear all your transactions data, and "Clear All Data" will clear your accounts, categories, tags and transactions data.') }}
                     </span>
                 </v-card-text>
 
-                <v-card-text class="pb-0">
+                <v-card-text class="pb-0" v-if="isPasswordConfirmationEnabled()">
                     <v-row class="mb-3">
                         <v-col cols="12" md="6">
                             <v-text-field
@@ -145,11 +145,11 @@
                 </v-card-text>
 
                 <v-card-text class="d-flex flex-wrap gap-4">
-                    <v-btn color="error" :disabled="loadingDataStatistics || !currentPasswordForClearData || clearingData">
+                    <v-btn color="error" :disabled="loadingDataStatistics || (isPasswordConfirmationEnabled() && !currentPasswordForClearData) || clearingData">
                         {{ tt('Clear User Data') }}
                         <v-progress-circular indeterminate size="22" class="ms-2" v-if="clearingData"></v-progress-circular>
                         <v-menu activator="parent">
-                            <v-list :disabled="loadingDataStatistics || !currentPasswordForClearData || clearingData">
+                            <v-list :disabled="loadingDataStatistics || (isPasswordConfirmationEnabled() && !currentPasswordForClearData) || clearingData">
                                 <v-list-item @click="clearAllTransactions">
                                     <v-list-item-title>{{ tt('Clear All Transactions') }}</v-list-item-title>
                                 </v-list-item>
@@ -181,7 +181,7 @@ import { useRootStore } from '@/stores/index.ts';
 import { useUserStore } from '@/stores/user.ts';
 
 import { isEquals } from '@/lib/common.ts';
-import { isDataExportingEnabled } from '@/lib/server_settings.ts';
+import { isDataExportingEnabled, isPasswordConfirmationEnabled } from '@/lib/server_settings.ts';
 import { startDownloadFile } from '@/lib/ui/common.ts';
 
 import {
@@ -257,7 +257,7 @@ function exportData(fileType: string): void {
 }
 
 function clearAllTransactions(): void {
-    if (!currentPasswordForClearData.value) {
+    if (isPasswordConfirmationEnabled() && !currentPasswordForClearData.value) {
         snackbar.value?.showMessage('Current password cannot be blank');
         return;
     }
@@ -288,7 +288,7 @@ function clearAllTransactions(): void {
 }
 
 function clearAllData(): void {
-    if (!currentPasswordForClearData.value) {
+    if (isPasswordConfirmationEnabled() && !currentPasswordForClearData.value) {
         snackbar.value?.showMessage('Current password cannot be blank');
         return;
     }

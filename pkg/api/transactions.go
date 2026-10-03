@@ -2146,7 +2146,7 @@ func (a *TransactionsApi) TransactionBatchDeleteHandler(c *core.WebContext) (any
 		return nil, errs.ErrUserNotFound
 	}
 
-	if !a.users.IsPasswordEqualsUserPassword(transactionBatchDeleteReq.Password, user) {
+	if !a.users.IsCurrentPasswordConfirmed(transactionBatchDeleteReq.Password, user) {
 		return nil, errs.ErrUserPasswordWrong
 	}
 

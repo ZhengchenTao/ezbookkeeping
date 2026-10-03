@@ -187,6 +187,20 @@
 
 **修改：** `pkg/api/oauth2_authentications.go` 默认值改 `"CNY"`，其余逻辑不动（IdP 带合法 currency claim 时仍以它为准）。
 
+### 15. 🟢 关闭密码登录时，敏感操作不再要求输入当前密码
+**描述：** OIDC 自动注册的账号密码为空（`noPassword`），而上游的 `IsPasswordEqualsUserPassword` 对空密码永远返回 false，这些账号生成 API / MCP 令牌、批量删除交易、清空数据全部失败。上游留的出路是让用户在个人资料里设一个密码，但密码登录关着时这个密码只用来做确认，等于又让人记一个密码（2026-10-04，用户决定去掉）。
+
+**修改：** 判据是 `enable_internal_auth=false`（密码登录关闭），不是「该用户有没有密码」——老账号（有密码）同样不再要求。
+- 后端：`UserService.IsCurrentPasswordConfirmed`（`pkg/services/users.go`）在密码登录关闭时直接放行，否则走原来的 `IsPasswordEqualsUserPassword`。替换 6 处调用：`pkg/api/tokens.go`（API / MCP 令牌）、`pkg/api/data_managements.go`（清空全部数据 / 全部交易 / 某账户交易）、`pkg/api/transactions.go`（批量删除）。测试 `pkg/services/users_test.go`。
+- 前端：`src/lib/server_settings.ts` 加 `isPasswordConfirmationEnabled()`（= `isInternalAuthEnabled()`）。为 false 时隐藏密码框、按钮不再因密码为空而禁用、提示语换成不带「请输入当前密码」的版本。桌面端 `UserGenerateTokenDialog` / `BatchDeleteDialog` / `ClearAllTransactionsDialog` / `UserDataManagementSettingTab`；手机端 `PasswordInputSheet` 加 `passwordOptional` 属性，`accounts/ListPage`、`users/DataManagementPage` 传入（后者把 `!password` 判断改成 `password === null`，否则空密码确认后会再弹一次）。
+- 语言包：en / zh_Hans / zh_Hant 各加 5 条不带密码提示的文案（其他语言回落英文）。
+
+**没改的（仍要密码）：** 解绑外部登录（`user_external_auths.go`，密码登录关着时解绑等于把自己锁在外面，空密码账号解不了正好）、关闭 / 重置两步验证（密码登录关着时两步验证不参与登录）、改密码、重发验证邮件。
+
+**安全取舍：** 密码登录关闭时，上述操作只靠登录会话保护；登录本身走 nas-auth（Google / 微软的两步验证）。恢复密码登录（`EBK_AUTH_ENABLE_INTERNAL_AUTH=true`）后自动回到要密码。
+
+**合上游注意：** 上游若新增「要当前密码确认」的操作，默认会对空密码账号失败，要不要纳入本条逐个判断。
+
 ---
 
 ## 进度总览
@@ -207,3 +221,4 @@
 | 12 | 离线缓存 | ❌ 暂缓 |
 | 13 | cron 锁完成后释放 | 🟢 已完成 |
 | 14 | OIDC 新用户默认币种 CNY | 🟢 已完成 |
+| 15 | 关闭密码登录时敏感操作免输密码 | 🟢 已完成 |

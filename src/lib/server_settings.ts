@@ -11,6 +11,12 @@ export function isInternalAuthEnabled(): boolean {
     return getServerSetting('a') !== 0;
 }
 
+// fork #15: when password login is disabled, sensitive operations are not confirmed by the current password
+// (users registered by OAuth 2.0 have no password), the server skips the check as well
+export function isPasswordConfirmationEnabled(): boolean {
+    return isInternalAuthEnabled();
+}
+
 export function isOAuth2Enabled(): boolean {
     return getServerSetting('o') === 1;
 }

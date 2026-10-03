@@ -84,7 +84,7 @@
                             v-model="tokenCustomExpirationTime"
                         />
                     </v-col>
-                    <v-col cols="12" md="12">
+                    <v-col cols="12" md="12" v-if="isPasswordConfirmationEnabled()">
                         <v-text-field
                             autocomplete="current-password"
                             type="password"
@@ -113,7 +113,7 @@
 
             <v-card-text>
                 <div ref="buttonContainer" class="w-100 d-flex justify-center flex-wrap mt-sm-1 mt-md-2 gap-4">
-                    <v-btn :disabled="generating || !currentPassword" @click="generateToken" v-if="!generatedToken">
+                    <v-btn :disabled="generating || (isPasswordConfirmationEnabled() && !currentPassword)" @click="generateToken" v-if="!generatedToken">
                         {{ tt('Generate') }}
                         <v-progress-circular indeterminate size="22" class="ms-2" v-if="generating"></v-progress-circular>
                     </v-btn>
@@ -140,7 +140,7 @@ import { useTokensStore } from '@/stores/token.ts';
 
 import { type TokenGenerateAPIResponse, type TokenGenerateMCPResponse } from '@/models/token.ts';
 
-import { isAPITokenEnabled, isMCPServerEnabled } from '@/lib/server_settings.ts';
+import { isAPITokenEnabled, isMCPServerEnabled, isPasswordConfirmationEnabled } from '@/lib/server_settings.ts';
 import { copyTextToClipboard } from '@/lib/ui/common.ts';
 
 type SnackBarType = InstanceType<typeof SnackBar>;
@@ -213,7 +213,7 @@ function open(): Promise<void> {
 }
 
 function generateToken(): void {
-    if (generating.value || !currentPassword.value) {
+    if (generating.value || (isPasswordConfirmationEnabled() && !currentPassword.value)) {
         return;
     }
 
