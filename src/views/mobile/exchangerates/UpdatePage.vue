@@ -4,8 +4,8 @@
             <f7-nav-left :back-link="tt('Back')"></f7-nav-left>
             <f7-nav-title :title="tt('Update User Custom Exchange Rate')"></f7-nav-title>
             <f7-nav-right>
-                <f7-link icon-f7="checkmark_alt"
-                         :class="{ 'disabled': submitting || !defaultCurrencyAmount || !currency || !targetCurrencyAmount }"
+                <f7-link icon-f7="checkmark_alt" :class="{ 'disabled': submitting || !defaultCurrencyAmount || !currency || !targetCurrencyAmount }"
+                         :aria-label="tt('Save')"
                          @click="confirm"></f7-link>
             </f7-nav-right>
         </f7-navbar>
@@ -39,7 +39,7 @@
             </f7-list-item>
         </f7-list>
 
-        <f7-block class="display-flex justify-content-center full-line margin-vertical">
+        <f7-block class="display-flex justify-content-center width-100 margin-vertical">
             <f7-icon class="separate-icon" f7="arrow_up_arrow_down"></f7-icon>
         </f7-block>
 

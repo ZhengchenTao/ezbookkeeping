@@ -22,6 +22,9 @@ const (
 	twoFactorSecretSize         uint = 20 // bytes
 	twoFactorRecoveryCodeCount  int  = 10
 	twoFactorRecoveryCodeLength int  = 10 // bytes
+	twoFactorSkew               uint = 0
+	twoFactorDigits                  = otp.DigitsSix
+	twoFactorAlgorithm               = otp.AlgorithmSHA1
 )
 
 // TwoFactorAuthorizationService represents 2fa service
@@ -94,6 +97,23 @@ func (s *TwoFactorAuthorizationService) GenerateTwoFactorSecret(c core.Context, 
 	return key, err
 }
 
+// ValidateTwoFactorPasscode validates whether the given 2fa passcode is valid according to the given secret
+func (s *TwoFactorAuthorizationService) ValidateTwoFactorPasscode(c core.Context, passcode string, secret string) bool {
+	ret, _ := totp.ValidateCustom(passcode, secret, time.Now().UTC(), totp.ValidateOpts{
+		Period:    twoFactorPeriod,
+		Skew:      twoFactorSkew,
+		Digits:    twoFactorDigits,
+		Algorithm: twoFactorAlgorithm,
+	})
+
+	return ret
+}
+
+// GetTwoFactorPasscodeExpirationDuration returns the expiration duration of 2fa passcode
+func (s *TwoFactorAuthorizationService) GetTwoFactorPasscodeExpirationDuration() time.Duration {
+	return time.Duration(twoFactorPeriod) * time.Second
+}
+
 // CreateTwoFactorSetting saves a new 2fa setting to database
 func (s *TwoFactorAuthorizationService) CreateTwoFactorSetting(c core.Context, twoFactor *models.TwoFactor) error {
 	if twoFactor.Uid <= 0 {
@@ -143,24 +163,24 @@ func (s *TwoFactorAuthorizationService) ExistsTwoFactorSetting(c core.Context, u
 	return s.UserDB().NewSession(c).Cols("uid").Where("uid=?", uid).Exist(&models.TwoFactor{})
 }
 
-// GetAndUseUserTwoFactorRecoveryCode checks whether the given 2fa recovery code exists and marks it used
-func (s *TwoFactorAuthorizationService) GetAndUseUserTwoFactorRecoveryCode(c core.Context, uid int64, recoveryCode string, salt string) error {
+// UseUserTwoFactorRecoveryCode marks the given 2fa recovery code as used
+func (s *TwoFactorAuthorizationService) UseUserTwoFactorRecoveryCode(c core.Context, uid int64, recoveryCode string, salt string) error {
 	if uid <= 0 {
 		return errs.ErrUserIdInvalid
 	}
 
 	recoveryCode = utils.EncodePassword(recoveryCode, salt)
-	exists, err := s.UserDB().NewSession(c).Cols("uid", "recovery_code").Where("uid=? AND recovery_code=? AND used=?", uid, recoveryCode, false).Exist(&models.TwoFactorRecoveryCode{})
-
-	if err != nil {
-		return err
-	} else if !exists {
-		return errs.ErrTwoFactorRecoveryCodeNotExist
-	}
 
 	return s.UserDB().DoTransaction(c, func(sess *xorm.Session) error {
-		_, err := sess.Cols("used", "used_unix_time").Where("uid=? AND recovery_code=?", uid, recoveryCode).Update(&models.TwoFactorRecoveryCode{Used: true, UsedUnixTime: time.Now().Unix()})
-		return err
+		updatedRows, err := sess.Cols("used", "used_unix_time").Where("uid=? AND recovery_code=? AND used=?", uid, recoveryCode, false).Update(&models.TwoFactorRecoveryCode{Used: true, UsedUnixTime: time.Now().Unix()})
+
+		if err != nil {
+			return err
+		} else if updatedRows < 1 {
+			return errs.ErrTwoFactorRecoveryCodeNotExist
+		}
+
+		return nil
 	})
 }
 

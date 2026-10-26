@@ -1,7 +1,11 @@
 import { type PartialRecord, itemAndIndex } from '@/core/base.ts';
+import type { BigDecimal } from '@/core/numeral.ts';
 import type { TextualYearMonthDay, Year1BasedMonth, YearMonthDay, StartEndTime, WeekDay } from '@/core/datetime.ts';
 import { type Coordinate, getNormalizedCoordinate } from '@/core/coordinate.ts';
+import type { ColorValue } from '@/core/color.ts';
+import type { IconType } from '@/core/icon.ts';
 import { TransactionType, TransactionTagFilterType } from '@/core/transaction.ts';
+import type { CategoricalChartSourceDataItem } from '@/core/chart.ts';
 
 import { Account, type AccountInfoResponse } from './account.ts';
 import { TransactionCategory, type TransactionCategoryInfoResponse } from './transaction_category.ts';
@@ -16,7 +20,7 @@ export class Transaction implements TransactionInfoResponse {
     public incomeCategoryId: string = '';
     public transferCategoryId: string = '';
     public time: number;
-    public timeZone?: string; // only in new transaction
+    public timeZone?: string; // only in new transaction or scheduled transaction
     public utcOffset: number;
     public sourceAccountId: string;
     public destinationAccountId: string;
@@ -604,6 +608,12 @@ export interface TransactionImportRequest {
     readonly clientSessionId: string;
 }
 
+export interface TransactionImportResponse {
+    readonly finished: boolean;
+    readonly importedCount: number;
+    readonly totalCount: number;
+}
+
 export interface TransactionListByMaxTimeRequest {
     readonly maxTime: number;
     readonly minTime: number;
@@ -790,16 +800,29 @@ export interface TransactionInfoPageWrapperResponse2 {
 }
 
 export interface TransactionReconciliationStatementResponseItem extends TransactionInfoResponse {
-    readonly accountOpeningBalance: number;
-    readonly accountClosingBalance: number;
+    readonly accountOpeningBalance: string;
+    readonly accountClosingBalance: string;
 }
 
 export interface TransactionReconciliationStatementResponse {
     readonly transactions: TransactionReconciliationStatementResponseItem[];
-    readonly totalInflows: number;
-    readonly totalOutflows: number;
-    readonly openingBalance: number;
-    readonly closingBalance: number;
+    readonly totalInflows: string;
+    readonly totalOutflows: string;
+    readonly openingBalance: string;
+    readonly closingBalance: string;
+}
+
+export interface TransactionUnreconciledCountRequest {
+    readonly accountIds: string[];
+}
+
+export interface TransactionUnreconciledCountItem {
+    readonly accountId: string;
+    readonly count: number;
+}
+
+export interface TransactionUnreconciledCountResponse {
+    readonly items: TransactionUnreconciledCountItem[];
 }
 
 export interface TransactionReconciliationStatementResponseItemWithInfo extends TransactionReconciliationStatementResponseItem {
@@ -812,10 +835,10 @@ export interface TransactionReconciliationStatementResponseItemWithInfo extends 
 
 export interface TransactionReconciliationStatementResponseWithInfo {
     readonly transactions: TransactionReconciliationStatementResponseItemWithInfo[];
-    readonly totalInflows: number;
-    readonly totalOutflows: number;
-    readonly openingBalance: number;
-    readonly closingBalance: number;
+    readonly totalInflows: BigDecimal;
+    readonly totalOutflows: BigDecimal;
+    readonly openingBalance: BigDecimal;
+    readonly closingBalance: BigDecimal;
 }
 
 export interface TransactionPageWrapper {
@@ -834,7 +857,7 @@ export interface TransactionStatisticResponseItem {
     readonly accountId: string;
     readonly relatedAccountId?: string;
     readonly relatedAccountType?: number;
-    readonly amount: number;
+    readonly amount: string;
 }
 
 export interface TransactionStatisticTrendsResponseItem {
@@ -852,8 +875,8 @@ export interface TransactionStatisticAssetTrendsResponseItem extends YearMonthDa
 
 export interface TransactionStatisticAssetTrendsResponseDataItem {
     readonly accountId: string;
-    readonly accountOpeningBalance: number;
-    readonly accountClosingBalance: number;
+    readonly accountOpeningBalance: string;
+    readonly accountClosingBalance: string;
 }
 
 export interface YearMonthDataItem extends Year1BasedMonth, Record<string, unknown> {}
@@ -871,14 +894,14 @@ export interface YearMonthDayItems<T extends YearMonthDay> extends Record<string
 export interface SortableTransactionStatisticDataItem {
     readonly name: string;
     readonly displayOrders: number[];
-    readonly totalAmount: number;
+    readonly value: BigDecimal;
 }
 
 export interface TransactionStatisticResponseItemWithInfo extends TransactionStatisticResponseItem {
     categoryId: string;
     accountId: string;
     relatedAccountId?: string;
-    amount: number;
+    amount: string;
     account?: Account;
     primaryAccount?: Account;
     relatedAccount?: Account;
@@ -886,7 +909,7 @@ export interface TransactionStatisticResponseItemWithInfo extends TransactionSta
     relatedAccountType?: number;
     category?: TransactionCategory;
     primaryCategory?: TransactionCategory;
-    amountInDefaultCurrency: number | null;
+    amountInDefaultCurrency: BigDecimal | null;
 }
 
 export interface TransactionStatisticResponseWithInfo {
@@ -910,20 +933,21 @@ export interface TransactionStatisticAssetTrendsResponseItemWithInfo {
 
 export type TransactionStatisticDataItemType = 'category' | 'account' | 'total';
 
-export interface TransactionStatisticDataItemBase extends SortableTransactionStatisticDataItem {
+export interface TransactionStatisticDataItemBase extends SortableTransactionStatisticDataItem, CategoricalChartSourceDataItem {
     readonly name: string;
     readonly type: TransactionStatisticDataItemType;
     readonly id: string;
     readonly icon: string;
-    readonly color: string;
+    readonly iconType: IconType;
+    readonly color: ColorValue;
     readonly hidden: boolean;
     readonly displayOrders: number[];
-    readonly totalAmount: number;
+    readonly value: BigDecimal;
 }
 
 export interface TransactionCategoricalOverviewAnalysisData {
-    readonly totalIncome: number;
-    readonly totalExpense: number;
+    readonly totalIncome: BigDecimal;
+    readonly totalExpense: BigDecimal;
     readonly items: TransactionCategoricalOverviewAnalysisDataItem[];
 }
 
@@ -945,24 +969,26 @@ export interface TransactionCategoricalOverviewAnalysisDataItem extends Sortable
     readonly hidden: boolean;
     readonly inflows: TransactionCategoricalOverviewAnalysisDataItemOutflowItem[];
     readonly outflows: TransactionCategoricalOverviewAnalysisDataItemOutflowItem[];
-    totalAmount: number;
-    totalNonNegativeAmount: number;
+    value: BigDecimal;
+    totalNonNegativeAmount: BigDecimal;
     includeInPercent?: boolean;
     percent?: number;
 }
 
 export interface TransactionCategoricalOverviewAnalysisDataItemOutflowItem {
     readonly relatedItem: TransactionCategoricalOverviewAnalysisDataItem;
-    amount: number;
+    amount: BigDecimal;
 }
 
 export interface TransactionCategoricalAnalysisData {
-    readonly totalAmount: number;
+    readonly value: BigDecimal;
     readonly items: TransactionCategoricalAnalysisDataItem[];
 }
 
-export interface TransactionCategoricalAnalysisDataItem extends Record<string, unknown> , TransactionStatisticDataItemBase {
+export interface TransactionCategoricalAnalysisDataItem extends Record<string, unknown>, TransactionStatisticDataItemBase {
     readonly percent: number;
+    readonly originalValue?: BigDecimal;
+    readonly originalCurrency?: string;
 }
 
 export interface TransactionTrendsAnalysisData {
@@ -976,7 +1002,7 @@ export interface TransactionTrendsAnalysisDataItem extends Record<string, unknow
 export interface TransactionTrendsAnalysisDataAmount extends Record<string, unknown>, Year1BasedMonth {
     readonly year: number;
     readonly month1base: number;
-    readonly totalAmount: number;
+    readonly value: BigDecimal;
 }
 
 export interface TransactionAssetTrendsAnalysisData {
@@ -991,7 +1017,7 @@ export interface TransactionAssetTrendsAnalysisDataAmount extends Record<string,
     readonly year: number;
     readonly month: number;
     readonly day: number;
-    readonly totalAmount: number;
+    readonly value: BigDecimal;
 }
 
 export interface TransactionInsightDataItem extends TransactionInfoResponse {
@@ -1015,6 +1041,10 @@ export interface TransactionInsightDataItem extends TransactionInfoResponse {
     readonly geoLocation?: TransactionGeoLocationResponse;
 }
 
+export interface TransactionInsightDataItemWithQueryIndexes extends TransactionInsightDataItem {
+    readonly queryIndexes: number[];
+}
+
 export type TransactionAmountsResponse = PartialRecord<TransactionAmountsRequestType, TransactionAmountsResponseItem>;
 
 export interface TransactionAmountsResponseItem {
@@ -1025,11 +1055,25 @@ export interface TransactionAmountsResponseItem {
 
 export interface TransactionAmountsResponseItemAmountInfo {
     readonly currency: string;
-    readonly incomeAmount: number;
-    readonly expenseAmount: number;
+    readonly incomeAmount: string;
+    readonly expenseAmount: string;
 }
 
-export type TransactionOverviewResponse = PartialRecord<TransactionAmountsRequestType, TransactionOverviewResponseItem>;
+export interface TransactionDailyAmountsRequest {
+    readonly startTime: number;
+    readonly endTime: number;
+    readonly useTransactionTimezone: boolean;
+    readonly excludeAccountIds: string[];
+    readonly excludeCategoryIds: string[];
+    readonly tagFilter: string;
+}
+
+export interface TransactionDailyAmountsResponseItem {
+    readonly date: string;
+    readonly amounts: TransactionAmountsResponseItemAmountInfo[];
+}
+
+export type TransactionOverviewData = PartialRecord<TransactionAmountsRequestType, TransactionOverviewDataItem>;
 
 export type TransactionOverviewDisplayTime = PartialRecord<TransactionAmountsRequestType, TransactionOverviewDisplayTimeItem>;
 
@@ -1039,10 +1083,10 @@ export interface TransactionOverviewDisplayTimeItem {
     readonly endTime?: string;
 }
 
-export interface TransactionOverviewResponseItem {
+export interface TransactionOverviewDataItem {
     readonly valid: boolean;
-    readonly incomeAmount: number;
-    readonly expenseAmount: number;
+    readonly incomeAmount: BigDecimal;
+    readonly expenseAmount: BigDecimal;
     readonly incompleteIncomeAmount: boolean;
     readonly incompleteExpenseAmount: boolean;
     readonly amounts?: TransactionAmountsResponseItemAmountInfo[];
@@ -1050,8 +1094,8 @@ export interface TransactionOverviewResponseItem {
 
 export interface TransactionMonthlyIncomeAndExpenseData {
     readonly monthStartTime: number;
-    readonly incomeAmount: number;
-    readonly expenseAmount: number;
+    readonly incomeAmount: BigDecimal;
+    readonly expenseAmount: BigDecimal;
     readonly incompleteIncomeAmount: boolean;
     readonly incompleteExpenseAmount: boolean;
 }

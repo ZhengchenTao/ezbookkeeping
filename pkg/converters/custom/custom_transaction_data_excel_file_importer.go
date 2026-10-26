@@ -5,7 +5,6 @@ import (
 	"time"
 
 	"github.com/mayswind/ezbookkeeping/pkg/converters/converter"
-	csvconverter "github.com/mayswind/ezbookkeeping/pkg/converters/csv"
 	"github.com/mayswind/ezbookkeeping/pkg/converters/datatable"
 	"github.com/mayswind/ezbookkeeping/pkg/converters/excel"
 	"github.com/mayswind/ezbookkeeping/pkg/core"
@@ -73,8 +72,8 @@ func (c *customTransactionDataExcelFileImporter) ParseImportedData(ctx core.Cont
 		return nil, nil, nil, nil, nil, nil, err
 	}
 
-	dataTable := csvconverter.CreateNewCustomCsvBasicDataTable(allLines, c.hasHeaderLine)
-	transactionDataTable := CreateNewCustomPlainTextDataTable(dataTable, c.columnIndexMapping, c.transactionTypeNameMapping, c.timeFormat, c.timezoneFormat, c.amountDecimalSeparator, c.amountDigitGroupingSymbol)
+	dataTable := datatable.CreateNewPlainTextDataTableWithoutLineNumbers(allLines, c.hasHeaderLine)
+	transactionDataTable := CreateNewCustomPlainTextDataTable(dataTable, c.columnIndexMapping, c.transactionTypeNameMapping, c.timeFormat, c.timezoneFormat, c.amountDecimalSeparator, c.amountDigitGroupingSymbol, c.geoLocationSeparator)
 	dataTableImporter := converter.CreateNewImporterWithTypeNameMapping(customTransactionTypeNameMapping, c.geoLocationSeparator, c.geoLocationOrder, c.transactionTagSeparator)
 
 	return dataTableImporter.ParseImportedData(ctx, user, transactionDataTable, defaultTimezone, additionalOptions, accountMap, expenseCategoryMap, incomeCategoryMap, transferCategoryMap, tagMap)

@@ -1,7 +1,8 @@
 package cmd
 
 import (
-	"encoding/json"
+	jsonv1 "encoding/json"
+	"encoding/json/v2"
 	"os"
 
 	"github.com/mayswind/ezbookkeeping/pkg/avatars"
@@ -145,7 +146,14 @@ func initializeSystem(c *core.CliContext) (*settings.Config, error) {
 		return nil, err
 	}
 
-	cfgJson, _ := json.Marshal(getConfigWithoutSensitiveData(config))
+	cfgJson, err := json.Marshal(getConfigWithoutSensitiveData(config), jsonv1.FormatDurationAsNano(true))
+
+	if err != nil {
+		if !isDisableBootLog {
+			log.BootErrorf(c, "[initializer.initializeSystem] cannot marshal configuration to json, because %s", err.Error())
+		}
+		return nil, err
+	}
 
 	if !isDisableBootLog {
 		log.BootInfof(c, "[initializer.initializeSystem] has loaded configuration %s", cfgJson)
@@ -170,16 +178,16 @@ func getConfigWithoutSensitiveData(config *settings.Config) *settings.Config {
 		clonedConfig.SMTPConfig.SMTPPasswd = "****"
 	}
 
+	if clonedConfig.S3Config.SecretAccessKey != "" {
+		clonedConfig.S3Config.SecretAccessKey = "****"
+	}
+
+	if clonedConfig.S3Config.SessionToken != "" {
+		clonedConfig.S3Config.SessionToken = "****"
+	}
+
 	if clonedConfig.MinIOConfig.SecretAccessKey != "" {
 		clonedConfig.MinIOConfig.SecretAccessKey = "****"
-	}
-
-	if clonedConfig.SecretKey != "" {
-		clonedConfig.SecretKey = "****"
-	}
-
-	if clonedConfig.AmapApplicationSecret != "" {
-		clonedConfig.AmapApplicationSecret = "****"
 	}
 
 	if clonedConfig.WebDAVConfig != nil && clonedConfig.WebDAVConfig.Password != "" {
@@ -194,8 +202,20 @@ func getConfigWithoutSensitiveData(config *settings.Config) *settings.Config {
 		removeSensitiveDataFromLLMConfig(clonedConfig.ReceiptImageRecognitionLLMConfig)
 	}
 
+	if clonedConfig.CodingAssistantLLMConfig != nil {
+		removeSensitiveDataFromLLMConfig(clonedConfig.CodingAssistantLLMConfig)
+	}
+
+	if clonedConfig.SecretKey != "" {
+		clonedConfig.SecretKey = "****"
+	}
+
 	if clonedConfig.OAuth2ClientSecret != "" {
 		clonedConfig.OAuth2ClientSecret = "****"
+	}
+
+	if clonedConfig.AmapApplicationSecret != "" {
+		clonedConfig.AmapApplicationSecret = "****"
 	}
 
 	return clonedConfig

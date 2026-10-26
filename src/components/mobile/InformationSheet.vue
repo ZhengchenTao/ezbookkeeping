@@ -8,6 +8,7 @@
                     <b>{{ title }}</b>
                     <f7-link class="margin-inline-start-half icon-after-text"
                              icon-only icon-f7="doc_on_doc"
+                             :aria-label="tt('Copy')"
                              @click="copyBackupCodes"
                              v-if="!hint && enableCopy"
                     ></f7-link>
@@ -18,11 +19,12 @@
                     <span>{{ hint }}</span>
                     <f7-link class="icon-after-text"
                              icon-only icon-f7="doc_on_doc"
+                             :aria-label="tt('Copy')"
                              @click="copyBackupCodes"
                              v-if="enableCopy"
                     ></f7-link>
                 </p>
-                <textarea class="information-content full-line" :readonly="true" :rows="rowCount" :value="information"></textarea>
+                <textarea class="information-content always-ltr width-100" :readonly="true" :rows="rowCount" :value="information"></textarea>
                 <div class="margin-top text-align-center">
                     <f7-link @click="close" :text="tt('Close')"></f7-link>
                 </div>
@@ -65,3 +67,9 @@ function onSheetClosed(): void {
     close();
 }
 </script>
+
+<style>
+.code-information-sheet .information-content {
+    font-family: monospace;
+}
+</style>

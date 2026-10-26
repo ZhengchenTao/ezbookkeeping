@@ -1,7 +1,8 @@
 package _default
 
 import (
-	"encoding/json"
+	"encoding/json/v2"
+	"fmt"
 	"time"
 
 	"github.com/mayswind/ezbookkeeping/pkg/converters/converter"
@@ -71,7 +72,7 @@ func (c *defaultTransactionDataJsonImporter) createNewDefaultTransactionDataTabl
 		utcOffset, err := utils.StringToInt(transaction.UtcOffset)
 
 		if err != nil {
-			return nil, errs.ErrTransactionTimeZoneInvalid
+			return nil, errs.NewImportError(errs.ErrTransactionTimeZoneInvalid, fmt.Sprintf("record:%d", i+1), transaction.UtcOffset)
 		}
 
 		timezone := time.FixedZone("Transaction Timezone", utcOffset*60)

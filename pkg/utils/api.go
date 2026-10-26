@@ -1,7 +1,7 @@
 package utils
 
 import (
-	"encoding/json"
+	"encoding/json/v2"
 	"errors"
 	"net/http"
 	"reflect"
@@ -186,6 +186,8 @@ func getValidationErrorText(err validator.FieldError) string {
 		return errs.GetParameterInvalidHexRGBColorMessage(fieldName)
 	case "validAmountFilter":
 		return errs.GetParameterInvalidAmountFilterMessage(fieldName)
+	case "validTransactionAmount":
+		return errs.GetParameterInvalidTransactionAmountMessage(fieldName)
 	case "validTagFilter":
 		return errs.GetParameterInvalidTagFilterMessage(fieldName)
 	}

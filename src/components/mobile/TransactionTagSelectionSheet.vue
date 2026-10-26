@@ -5,7 +5,7 @@
         <f7-toolbar class="toolbar-with-swipe-handler">
             <div class="swipe-handler"></div>
             <div class="left">
-                <f7-link sheet-close icon-f7="xmark"></f7-link>
+                <f7-link sheet-close icon-f7="xmark" :aria-label="tt('Close')"></f7-link>
             </div>
             <f7-searchbar ref="searchbar" custom-searchs
                           :value="tagSearchContent"
@@ -16,19 +16,19 @@
                           @focus="onSearchBarFocus">
             </f7-searchbar>
             <div class="right">
-                <f7-button round fill icon-f7="checkmark_alt" @click="save"
-                           v-if="filteredTagsWithGroupHeader && filteredTagsWithGroupHeader.length > 0"></f7-button>
-                <f7-link icon-f7="plus" :class="{'disabled': newTag}" @click="addNewTag"
-                         v-if="!filteredTagsWithGroupHeader || filteredTagsWithGroupHeader.length < 1"></f7-link>
+                <f7-button round fill icon-f7="checkmark_alt" :aria-label="tt('Save')" @click="save"
+                           v-if="finalFilteredTagsWithGroupHeader && finalFilteredTagsWithGroupHeader.length > 0"></f7-button>
+                <f7-link icon-f7="plus" :class="{'disabled': newTag}" :aria-label="tt('Add')" @click="addNewTag"
+                         v-if="!finalFilteredTagsWithGroupHeader || finalFilteredTagsWithGroupHeader.length < 1"></f7-link>
             </div>
         </f7-toolbar>
         <f7-page-content :class="'margin-top ' + heightClass">
-            <f7-list class="no-margin-top no-margin-bottom" v-if="(!filteredTagsWithGroupHeader || filteredTagsWithGroupHeader.length < 1) && !newTag">
+            <f7-list class="no-margin-top no-margin-bottom" v-if="(!finalFilteredTagsWithGroupHeader || finalFilteredTagsWithGroupHeader.length < 1) && !newTag">
                 <f7-list-item :title="tt('No available tag')"></f7-list-item>
             </f7-list>
-            <f7-list dividers class="no-margin-top no-margin-bottom tag-selection-list" v-else-if="(filteredTagsWithGroupHeader && filteredTagsWithGroupHeader.length > 0) || newTag">
+            <f7-list dividers class="no-margin-top no-margin-bottom tag-selection-list" v-else-if="(finalFilteredTagsWithGroupHeader && finalFilteredTagsWithGroupHeader.length > 0) || newTag">
                 <template :key="(tag instanceof TransactionTag) ? tag.id : (tag.type === 'subheader' ? `${tag.type}-${index}-${tag.title}` : `${tag.type}-${index}`)"
-                          v-for="(tag, index) in filteredTagsWithGroupHeader">
+                          v-for="(tag, index) in finalFilteredTagsWithGroupHeader">
                     <f7-list-item group-title v-if="!(tag instanceof TransactionTag) && tag.type === 'subheader'">
                         <div class="tag-selection-list-item">
                             {{ tag.title }}
@@ -55,16 +55,14 @@
                                 </div>
                             </template>
                             <template #after>
-                                <f7-button :class="{ 'no-padding': true, 'disabled': !newTag || !newTag.name }"
-                                           raised fill
-                                           icon-f7="checkmark_alt"
-                                           color="blue"
+                                <f7-button raised fill icon-f7="checkmark_alt" color="blue"
+                                           :class="{ 'no-padding': true, 'disabled': !newTag || !newTag.name }"
+                                           :aria-label="tt('Save')"
                                            @click="saveNewTag()">
                                 </f7-button>
-                                <f7-button class="no-padding margin-inline-start-half"
-                                           raised fill
-                                           icon-f7="xmark"
-                                           color="gray"
+                                <f7-button raised fill icon-f7="xmark" color="gray"
+                                           class="no-padding margin-inline-start-half"
+                                           :aria-label="tt('Cancel')"
                                            @click="cancelSaveNewTag()">
                                 </f7-button>
                             </template>
@@ -99,13 +97,18 @@
 </template>
 
 <script setup lang="ts">
-import { ref, useTemplateRef } from 'vue';
+import { ref, computed, useTemplateRef } from 'vue';
 import type { Sheet, Searchbar } from 'framework7/types';
 
 import { useI18n } from '@/locales/helpers.ts';
 import { useI18nUIComponents, showLoading, hideLoading } from '@/lib/ui/mobile.ts';
-import { type CommonTransactionTagSelectionProps, useTransactionTagSelectionBase } from '@/components/base/TransactionTagSelectionBase.ts';
+import {
+    type CommonTransactionTagSelectionProps,
+    type TransactionTagWithGroupHeader,
+    useTransactionTagSelectionBase
+} from '@/components/base/TransactionTagSelectionBase.ts';
 
+import { useSettingsStore } from '@/stores/setting.ts';
 import { useTransactionTagsStore } from '@/stores/transactionTag.ts';
 
 import { TransactionTag } from '@/models/transaction_tag.ts';
@@ -132,9 +135,11 @@ const {
     clonedModelValue,
     tagSearchContent,
     selectedTagIds,
-    filteredTagsWithGroupHeader
+    filteredTagsWithGroupHeader,
+    filteredTagsWithGroupHeaderAndSelectedTagsOnTop
 } = useTransactionTagSelectionBase(props, true, true);
 
+const settingsStore = useSettingsStore();
 const transactionTagsStore = useTransactionTagsStore();
 
 const sheet = useTemplateRef<Sheet.Sheet>('sheet');
@@ -142,6 +147,14 @@ const searchbar = useTemplateRef<Searchbar.Searchbar>('searchbar');
 
 const newTag = ref<TransactionTag | null>(null);
 const heightClass = ref<string>(getHeightClass());
+
+const finalFilteredTagsWithGroupHeader = computed<TransactionTagWithGroupHeader[]>(() => {
+    if (settingsStore.appSettings.showSelectedTagsOnTopInMobile) {
+        return filteredTagsWithGroupHeaderAndSelectedTagsOnTop.value;
+    } else {
+        return filteredTagsWithGroupHeader.value;
+    }
+});
 
 function getHeightClass(): string {
     if (filteredTagsWithGroupHeader.value.length > 6) {

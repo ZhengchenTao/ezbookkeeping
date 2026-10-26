@@ -1,4 +1,4 @@
-import { ref, computed } from 'vue';
+import { type ComputedRef, ref, computed } from 'vue';
 
 import { useSettingsStore } from '@/stores/setting.ts';
 import { useAccountsStore } from '@/stores/account.ts';
@@ -17,7 +17,7 @@ import {
 
 export type AccountFilterType = 'statisticsDefault' | 'statisticsCurrent' | 'homePageOverview' | 'transactionListCurrent' | 'accountListTotalAmount' | 'custom';
 
-export function useAccountFilterSettingPageBase(type?: AccountFilterType, selectedAccountIds?: string[]) {
+export function useAccountFilterSettingPageBase(type: AccountFilterType, disableHiddenAccount: ComputedRef<boolean | undefined>) {
     const settingsStore = useSettingsStore();
     const accountsStore = useAccountsStore();
     const transactionsStore = useTransactionsStore();
@@ -46,6 +46,10 @@ export function useAccountFilterSettingPageBase(type?: AccountFilterType, select
     });
 
     const allowHiddenAccount = computed<boolean>(() => {
+        if (disableHiddenAccount.value) {
+            return false;
+        }
+
         return type === 'statisticsDefault' || type === 'statisticsCurrent' || type === 'homePageOverview' || type === 'transactionListCurrent' || type === 'custom';
     });
 
@@ -83,7 +87,7 @@ export function useAccountFilterSettingPageBase(type?: AccountFilterType, select
         return !filterAccountIds[account.id];
     }
 
-    function loadFilterAccountIds(): boolean {
+    function loadFilterAccountIds(selectedAccountIds?: string[]): boolean {
         const allAccountIds: Record<string, boolean> = {};
 
         for (const account of values(accountsStore.allAccountsMap)) {
@@ -94,7 +98,7 @@ export function useAccountFilterSettingPageBase(type?: AccountFilterType, select
             if (type === 'transactionListCurrent' && transactionsStore.allFilterAccountIdsCount > 0) {
                 allAccountIds[account.id] = true;
             } else if (type === 'custom') {
-                allAccountIds[account.id] = true;
+                allAccountIds[account.id] = !!selectedAccountIds;
             } else {
                 allAccountIds[account.id] = false;
             }

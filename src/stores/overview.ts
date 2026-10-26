@@ -5,29 +5,53 @@ import { useSettingsStore } from './setting.ts';
 import { useUserStore } from './user.ts';
 import { useAccountsStore } from './account.ts';
 import { useTransactionCategoriesStore } from './transactionCategory.ts';
+import { type TransactionTotalAmount, type TransactionDailyTotalAmounts, useTransactionsStore } from './transaction.ts';
 import { useExchangeRatesStore } from './exchangeRates.ts';
 
-import { type WritableStartEndTime, DateRange } from '@/core/datetime.ts';
+import { itemAndIndex, entries, keys } from '@/core/base.ts';
+import { type StartEndTime, type WritableStartEndTime, DateRange} from '@/core/datetime.ts';
 import { TimezoneTypeForStatistics } from '@/core/timezone.ts';
-import type { TransactionType } from '@/core/transaction.ts';
+import { KeywordMatchMode } from '@/core/text.ts';
+import { TransactionType } from '@/core/transaction.ts';
+import type { OverviewRecentTransactionsQuery } from '@/core/overview_layout.ts';
+
+import { KnownErrorCode } from '@/consts/api.ts';
 
 import type {
     TransactionAmountsRequestType,
     TransactionAmountsRequestParams,
+    TransactionInfoPageWrapperResponse,
+    TransactionUnreconciledCountItem,
     TransactionAmountsResponse,
-    TransactionOverviewResponse
+    TransactionOverviewData,
+    TransactionStatisticResponse,
+    TransactionStatisticAssetTrendsResponseItem,
+    TransactionDailyAmountsResponseItem
 } from '@/models/transaction.ts';
-import { ALL_TRANSACTION_AMOUNTS_REQUEST_TYPE } from '@/models/transaction.ts';
+import {
+    type TransactionInfoResponse,
+    ALL_TRANSACTION_AMOUNTS_REQUEST_TYPE,
+    LATEST_12MONTHS_TRANSACTION_AMOUNTS_REQUEST_TYPES
+} from '@/models/transaction.ts';
 
 import {
     isDefined,
     isNumber,
     isEquals,
     isObjectEmpty,
-    objectFieldWithValueToArrayItem
+    normalizeInteger,
+    getObjectOwnFieldCount,
+    objectFieldWithValueToArrayItem,
+    objectValueToArrayItem
 } from '@/lib/common.ts';
 import {
+    BIG_DECIMAL_ZERO,
+    parseBigDecimal
+} from '@/lib/numeral.ts';
+import {
+    parseDateTimeFromUnixTime,
     getUnixTimeBeforeUnixTime,
+    getUnixTimeAfterUnixTime,
     getTodayFirstUnixTime,
     getTodayLastUnixTime,
     getThisWeekFirstUnixTime,
@@ -37,10 +61,11 @@ import {
     getThisYearFirstUnixTime,
     getThisYearLastUnixTime
 } from '@/lib/datetime.ts';
+
 import { getFinalAccountIdsByFilteredAccountIds } from '@/lib/account.ts';
 import { getFinalCategoryIdsByFilteredCategoryIds } from '@/lib/category.ts';
+import services, { type ApiResponsePromise } from '@/lib/services.ts';
 import logger from '@/lib/logger.ts';
-import services from '@/lib/services.ts';
 
 interface TransactionDataRange extends Record<TransactionAmountsRequestType, WritableStartEndTime> {
     today: {
@@ -106,7 +131,7 @@ interface TransactionDataRange extends Record<TransactionAmountsRequestType, Wri
 }
 
 interface TransactionOverviewOptions {
-    loadLast11Months: boolean;
+    loadedMonths: number;
 }
 
 export const useOverviewStore = defineStore('overview', () => {
@@ -114,33 +139,49 @@ export const useOverviewStore = defineStore('overview', () => {
     const userStore = useUserStore();
     const accountsStore = useAccountsStore();
     const transactionCategoriesStore = useTransactionCategoriesStore();
+    const transactionsStore = useTransactionsStore();
     const exchangeRatesStore = useExchangeRatesStore();
 
     const transactionDataRange = ref<TransactionDataRange>(getTransactionDateRange());
 
     const transactionOverviewOptions = ref<TransactionOverviewOptions>({
-        loadLast11Months: false
+        loadedMonths: 1
     });
 
     const transactionOverviewData = ref<TransactionAmountsResponse>({});
     const transactionOverviewStateInvalid = ref<boolean>(true);
+    const transactionUnreconciledCounts = ref<TransactionUnreconciledCountItem[]>([]);
+    const transactionUnreconciledCountsStateInvalid = ref<boolean>(true);
+    const transactionUnreconciledCountsAccountIds = ref<string[]>([]);
+    const transactionCategoryStatisticsData = ref<Record<number, TransactionStatisticResponse>>({});
+    const transactionCategoryStatisticsStateInvalid = ref<Record<number, boolean>>({});
+    const transactionAssetTrendsData = ref<TransactionStatisticAssetTrendsResponseItem[]>([]);
+    const transactionAssetTrendsStateInvalid = ref<boolean>(true);
+    const recentTransactions = ref<Record<string, TransactionInfoResponse[]>>({});
+    const recentTransactionsStateInvalid = ref<Record<string, boolean>>({});
+    const currentMonthTransactions = ref<TransactionInfoResponse[]>([]);
+    const currentMonthTransactionInflowOutflowDailyTotalAmounts = ref<Record<string, TransactionTotalAmount>>({});
+    const currentMonthTransactionIncomeExpenseDailyTotalAmounts = ref<Record<string, TransactionTotalAmount>>({});
+    const currentMonthTransactionsStateInvalid = ref<boolean>(true);
+    const transactionDailyAmountsData = ref<TransactionDailyAmountsResponseItem[]>([]);
+    const transactionDailyAmountsStateInvalid = ref<boolean>(true);
 
-    const transactionOverview = computed<TransactionOverviewResponse>(() => {
+    const transactionOverview = computed<TransactionOverviewData>(() => {
         const overviewData = transactionOverviewData.value;
 
         if (!overviewData || !overviewData.thisMonth) {
             return {
                 thisMonth: {
                     valid: false,
-                    incomeAmount: 0,
-                    expenseAmount: 0,
+                    incomeAmount: BIG_DECIMAL_ZERO,
+                    expenseAmount: BIG_DECIMAL_ZERO,
                     incompleteIncomeAmount: false,
                     incompleteExpenseAmount: false
                 }
-            } as TransactionOverviewResponse;
+            } as TransactionOverviewData;
         }
 
-        const finalOverviewData: TransactionOverviewResponse = {};
+        const finalOverviewData: TransactionOverviewData = {};
         const defaultCurrency = userStore.currentUserDefaultCurrency;
 
         ALL_TRANSACTION_AMOUNTS_REQUEST_TYPE.forEach(field => {
@@ -150,31 +191,31 @@ export const useOverviewStore = defineStore('overview', () => {
                 return;
             }
 
-            let totalIncomeAmount = 0;
-            let totalExpenseAmount = 0;
+            let totalIncomeAmount = BIG_DECIMAL_ZERO;
+            let totalExpenseAmount = BIG_DECIMAL_ZERO;
             let hasUnCalculatedTotalIncome = false;
             let hasUnCalculatedTotalExpense = false;
 
             if (item.amounts) {
                 for (const amount of item.amounts) {
                     if (amount.currency !== defaultCurrency) {
-                        const incomeAmount = exchangeRatesStore.getExchangedAmount(amount.incomeAmount, amount.currency, defaultCurrency);
-                        const expenseAmount = exchangeRatesStore.getExchangedAmount(amount.expenseAmount, amount.currency, defaultCurrency);
+                        const incomeAmount = exchangeRatesStore.getExchangedAmount(parseBigDecimal(amount.incomeAmount), amount.currency, defaultCurrency);
+                        const expenseAmount = exchangeRatesStore.getExchangedAmount(parseBigDecimal(amount.expenseAmount), amount.currency, defaultCurrency);
 
-                        if (isNumber(incomeAmount)) {
-                            totalIncomeAmount += Math.trunc(incomeAmount);
+                        if (incomeAmount) {
+                            totalIncomeAmount = totalIncomeAmount.add(incomeAmount.truncate());
                         } else {
                             hasUnCalculatedTotalIncome = true;
                         }
 
-                        if (isNumber(expenseAmount)) {
-                            totalExpenseAmount += Math.trunc(expenseAmount);
+                        if (expenseAmount) {
+                            totalExpenseAmount = totalExpenseAmount.add(expenseAmount.truncate());
                         } else {
                             hasUnCalculatedTotalExpense = true;
                         }
                     } else {
-                        totalIncomeAmount += amount.incomeAmount;
-                        totalExpenseAmount += amount.expenseAmount;
+                        totalIncomeAmount = totalIncomeAmount.add(parseBigDecimal(amount.incomeAmount));
+                        totalExpenseAmount = totalExpenseAmount.add(parseBigDecimal(amount.expenseAmount));
                     }
                 }
             }
@@ -215,6 +256,11 @@ export const useOverviewStore = defineStore('overview', () => {
         return dateRange;
     }
 
+    function getRecentTransactionsQueryCacheKey(query: OverviewRecentTransactionsQuery): string {
+        const normalizedQuery = {...query, count: 0 };
+        return JSON.stringify(normalizedQuery);
+    }
+
     function initTransactionDateRange(dateRange: TransactionDataRange): void {
         dateRange.today.startTime = getTodayFirstUnixTime();
         dateRange.today.endTime = getTodayLastUnixTime();
@@ -249,25 +295,56 @@ export const useOverviewStore = defineStore('overview', () => {
 
     function updateTransactionOverviewInvalidState(invalidState: boolean): void {
         transactionOverviewStateInvalid.value = invalidState;
+        transactionUnreconciledCountsStateInvalid.value = invalidState;
+
+        for (const dateType of keys(transactionCategoryStatisticsData.value)) {
+            transactionCategoryStatisticsStateInvalid.value[parseInt(dateType)] = invalidState;
+        }
+
+        transactionAssetTrendsStateInvalid.value = invalidState;
+
+        for (const query of keys(recentTransactions.value)) {
+            recentTransactionsStateInvalid.value[query] = invalidState;
+        }
+
+        currentMonthTransactionsStateInvalid.value = invalidState;
+        transactionDailyAmountsStateInvalid.value = invalidState;
     }
 
     function resetTransactionOverview(): void {
         updateTransactionDateRange();
-        transactionOverviewOptions.value.loadLast11Months = false;
+        transactionOverviewOptions.value.loadedMonths = 1;
         transactionOverviewData.value = {};
         transactionOverviewStateInvalid.value = true;
+        transactionUnreconciledCounts.value = [];
+        transactionUnreconciledCountsStateInvalid.value = true;
+        transactionUnreconciledCountsAccountIds.value = [];
+        transactionCategoryStatisticsData.value = {};
+        transactionCategoryStatisticsStateInvalid.value = {};
+        transactionAssetTrendsData.value = [];
+        transactionAssetTrendsStateInvalid.value = true;
+        recentTransactions.value = {};
+        recentTransactionsStateInvalid.value = {};
+        currentMonthTransactions.value = [];
+        currentMonthTransactionInflowOutflowDailyTotalAmounts.value = {};
+        currentMonthTransactionIncomeExpenseDailyTotalAmounts.value = {};
+        currentMonthTransactionsStateInvalid.value = true;
+        transactionDailyAmountsData.value = [];
+        transactionDailyAmountsStateInvalid.value = true;
     }
 
-    function loadTransactionOverview({ force, loadLast11Months }: { force: boolean, loadLast11Months?: boolean }): Promise<TransactionAmountsResponse> {
-        let dateChanged = false;
-        let rangeChanged = false;
+    function loadTransactionOverview({ force, months }: { force: boolean, months?: number }): Promise<TransactionAmountsResponse> {
+        const requestedMonths: number = normalizeInteger(months, 1, 1, 12);
+        let dateChanged: boolean = false;
+        let rangeChanged: boolean = false;
 
-        if (transactionDataRange.value.today.startTime !== getTodayFirstUnixTime()) {
+        if (transactionDataRange.value.today.startTime !== getTodayFirstUnixTime()
+            || transactionDataRange.value.thisWeek.startTime !== getThisWeekFirstUnixTime(userStore.currentUserFirstDayOfWeek)) {
             dateChanged = true;
             updateTransactionDateRange();
         }
 
-        if (loadLast11Months && !transactionOverviewOptions.value.loadLast11Months) {
+        if (requestedMonths > transactionOverviewOptions.value.loadedMonths) {
             rangeChanged = true;
         }
 
@@ -285,25 +362,18 @@ export const useOverviewStore = defineStore('overview', () => {
             thisYear: transactionDataRange.value.thisYear
         };
 
-        if (loadLast11Months) {
-            requestParams.lastMonth = transactionDataRange.value.lastMonth;
-            requestParams.monthBeforeLastMonth = transactionDataRange.value.monthBeforeLastMonth;
-            requestParams.monthBeforeLast2Months = transactionDataRange.value.monthBeforeLast2Months;
-            requestParams.monthBeforeLast3Months = transactionDataRange.value.monthBeforeLast3Months;
-            requestParams.monthBeforeLast4Months = transactionDataRange.value.monthBeforeLast4Months;
-            requestParams.monthBeforeLast5Months = transactionDataRange.value.monthBeforeLast5Months;
-            requestParams.monthBeforeLast6Months = transactionDataRange.value.monthBeforeLast6Months;
-            requestParams.monthBeforeLast7Months = transactionDataRange.value.monthBeforeLast7Months;
-            requestParams.monthBeforeLast8Months = transactionDataRange.value.monthBeforeLast8Months;
-            requestParams.monthBeforeLast9Months = transactionDataRange.value.monthBeforeLast9Months;
-            requestParams.monthBeforeLast10Months = transactionDataRange.value.monthBeforeLast10Months;
+        const requestedMonthTypes: TransactionAmountsRequestType[] = LATEST_12MONTHS_TRANSACTION_AMOUNTS_REQUEST_TYPES.slice(-requestedMonths, -1);
+
+        for (const requestType of requestedMonthTypes) {
+            requestParams[requestType] = transactionDataRange.value[requestType];
         }
 
         const excludeAccountIds: string[] = objectFieldWithValueToArrayItem(settingsStore.appSettings.overviewAccountFilterInHomePage, true);
         const excludeCategoryIds: string[] = objectFieldWithValueToArrayItem(settingsStore.appSettings.overviewTransactionCategoryFilterInHomePage, true);
+        const tagFilter: string = settingsStore.appSettings.overviewTransactionTagFilterInHomePage;
 
         return new Promise((resolve, reject) => {
-            services.getTransactionAmounts(requestParams, excludeAccountIds, excludeCategoryIds).then(response => {
+            services.getTransactionAmounts(requestParams, excludeAccountIds, excludeCategoryIds, tagFilter).then(response => {
                 const data = response.data;
 
                 if (!data || !data.success || !data.result) {
@@ -312,7 +382,7 @@ export const useOverviewStore = defineStore('overview', () => {
                 }
 
                 if (transactionOverviewStateInvalid.value) {
-                    updateTransactionOverviewInvalidState(false);
+                    transactionOverviewStateInvalid.value = false;
                 }
 
                 if (force && data.result && isEquals(transactionOverviewData.value, data.result)) {
@@ -321,7 +391,7 @@ export const useOverviewStore = defineStore('overview', () => {
                 }
 
                 transactionOverviewData.value = data.result;
-                transactionOverviewOptions.value.loadLast11Months = !!loadLast11Months;
+                transactionOverviewOptions.value.loadedMonths = requestedMonths;
 
                 resolve(data.result);
             }).catch(error => {
@@ -342,7 +412,444 @@ export const useOverviewStore = defineStore('overview', () => {
         });
     }
 
-    function getTransactionListPageParams({ type, dateType, minTime, maxTime }: { type?: TransactionType, dateType?: number, minTime?: number, maxTime?: number }): string {
+    function loadTransactionUnreconciledCounts({ force, accountIds }: { force: boolean, accountIds: string[] }): Promise<TransactionUnreconciledCountItem[]> {
+        const requestedAccountIds = [...accountIds].sort();
+        const accountIdsChanged = !isEquals(transactionUnreconciledCountsAccountIds.value, requestedAccountIds);
+
+        if (!accountIdsChanged && !force && !transactionUnreconciledCountsStateInvalid.value) {
+            return Promise.resolve(transactionUnreconciledCounts.value);
+        }
+
+        return new Promise((resolve, reject) => {
+            services.getUnreconciledTransactionCounts({
+                accountIds: requestedAccountIds
+            }).then(response => {
+                const data = response.data;
+
+                if (!data || !data.success || !data.result || !data.result.items) {
+                    reject({ message: 'Unable to retrieve unreconciled transaction counts' });
+                    return;
+                }
+
+                if (transactionUnreconciledCountsStateInvalid.value) {
+                    transactionUnreconciledCountsStateInvalid.value = false;
+                }
+
+                transactionUnreconciledCountsAccountIds.value = requestedAccountIds;
+
+                if (!accountIdsChanged && force && data.result && isEquals(transactionUnreconciledCounts.value, data.result.items)) {
+                    reject({ message: 'Data is up to date', isUpToDate: true });
+                    return;
+                }
+
+                transactionUnreconciledCounts.value = data.result.items;
+
+                resolve(data.result.items);
+            }).catch(error => {
+                logger.error('failed to retrieve unreconciled transaction counts', error);
+
+                if (error.response && error.response.data && error.response.data.errorCode === KnownErrorCode.UserLastReconciledTimeNotEnabled) {
+                    transactionUnreconciledCounts.value = [];
+                    transactionUnreconciledCountsAccountIds.value = requestedAccountIds;
+                    transactionUnreconciledCountsStateInvalid.value = false;
+                    resolve([]);
+                } else if (error.response && error.response.data && error.response.data.errorMessage) {
+                    reject({ error: error.response.data });
+                } else if (!error.processed) {
+                    reject({ message: 'Unable to retrieve unreconciled transaction counts' });
+                } else {
+                    reject(error);
+                }
+            });
+        });
+    }
+
+    function loadTransactionCategoryStatistics({ force, dateType }: { force: boolean, dateType: number }): Promise<TransactionStatisticResponse> {
+        if (transactionDataRange.value.today.startTime !== getTodayFirstUnixTime()) {
+            updateTransactionDateRange();
+            transactionCategoryStatisticsData.value = {};
+            transactionCategoryStatisticsStateInvalid.value = {};
+        }
+
+        if (!force && !transactionCategoryStatisticsStateInvalid.value[dateType] && transactionCategoryStatisticsData.value[dateType]) {
+            return Promise.resolve(transactionCategoryStatisticsData.value[dateType]);
+        }
+
+        let requestDateRange: StartEndTime | null = null;
+
+        if (dateType === DateRange.ThisMonth.type) {
+            requestDateRange = transactionDataRange.value.thisMonth;
+        } else if (dateType === DateRange.ThisYear.type) {
+            requestDateRange = transactionDataRange.value.thisYear;
+        }
+
+        if (!requestDateRange) {
+            return Promise.reject({ message: 'Invalid date range' });
+        }
+
+        return new Promise((resolve, reject) => {
+            services.getTransactionStatistics({
+                startTime: requestDateRange.startTime,
+                endTime: requestDateRange.endTime,
+                tagFilter: settingsStore.appSettings.overviewTransactionTagFilterInHomePage,
+                keyword: '',
+                matchMode: KeywordMatchMode.Default.type,
+                useTransactionTimezone: settingsStore.appSettings.timezoneUsedForStatisticsInHomePage === TimezoneTypeForStatistics.TransactionTimezone.type
+            }).then(response => {
+                const data = response.data;
+
+                if (!data || !data.success || !data.result) {
+                    reject({ message: 'Unable to retrieve transaction statistics' });
+                    return;
+                }
+
+                if (transactionCategoryStatisticsStateInvalid.value[dateType]) {
+                    transactionCategoryStatisticsStateInvalid.value[dateType] = false;
+                }
+
+                if (force && data.result && isEquals(transactionCategoryStatisticsData.value[dateType], data.result)) {
+                    reject({ message: 'Data is up to date', isUpToDate: true });
+                    return;
+                }
+
+                transactionCategoryStatisticsData.value[dateType] = data.result;
+
+                resolve(data.result);
+            }).catch(error => {
+                logger.error('failed to retrieve transaction statistics', error);
+
+                if (error.response && error.response.data && error.response.data.errorMessage) {
+                    reject({ error: error.response.data });
+                } else if (!error.processed) {
+                    reject({ message: 'Unable to retrieve transaction statistics' });
+                } else {
+                    reject(error);
+                }
+            });
+        });
+    }
+
+    function loadTransactionAssetTrends({ force, months }: { force: boolean, months: number }): Promise<TransactionStatisticAssetTrendsResponseItem[]> {
+        if (!force && !transactionAssetTrendsStateInvalid.value) {
+            return Promise.resolve(transactionAssetTrendsData.value);
+        }
+
+        const endTime = transactionDataRange.value.thisMonth.endTime;
+        const startTime = getUnixTimeBeforeUnixTime(transactionDataRange.value.thisMonth.startTime, Math.max(1, months) - 1, 'months');
+
+        return new Promise((resolve, reject) => {
+            services.getTransactionStatisticsAssetTrends({
+                startTime: startTime,
+                endTime: endTime
+            }).then(response => {
+                const data = response.data;
+
+                if (!data || !data.success || !data.result) {
+                    reject({ message: 'Unable to retrieve transaction statistics' });
+                    return;
+                }
+
+                if (transactionAssetTrendsStateInvalid.value) {
+                    transactionAssetTrendsStateInvalid.value = false;
+                }
+
+                if (force && data.result && isEquals(transactionAssetTrendsData.value, data.result)) {
+                    reject({ message: 'Data is up to date', isUpToDate: true });
+                    return;
+                }
+
+                transactionAssetTrendsData.value = data.result;
+
+                resolve(data.result);
+            }).catch(error => {
+                logger.error('failed to retrieve transaction statistics', error);
+
+                if (error.response && error.response.data && error.response.data.errorMessage) {
+                    reject({ error: error.response.data });
+                } else if (!error.processed) {
+                    reject({ message: 'Unable to retrieve transaction statistics' });
+                } else {
+                    reject(error);
+                }
+            });
+        });
+    }
+
+    function loadRecentTransactions({ force, queries }: { force: boolean, queries: Record<string, OverviewRecentTransactionsQuery> }): Promise<Record<string, TransactionInfoResponse[]>> {
+        const widetIdCacheKeyMap: Record<string, string> = {};
+        const cacheKeyQueryMap: Record<string, OverviewRecentTransactionsQuery> = {};
+
+        for (const [widgetId, query] of entries(queries)) {
+            const cacheKey = getRecentTransactionsQueryCacheKey(query);
+            widetIdCacheKeyMap[widgetId] = cacheKey;
+
+            const existsQuery = cacheKeyQueryMap[cacheKey];
+
+            if (!existsQuery || existsQuery.count < query.count) {
+                cacheKeyQueryMap[cacheKey] = query;
+            }
+        }
+
+        const result: Record<string, TransactionInfoResponse[]> = {};
+        let missedCacheKeyQueryMap: Record<string, OverviewRecentTransactionsQuery> = {};
+
+        if (!force) {
+            for (const [widgetId, query] of entries(queries)) {
+                const cacheKey = widetIdCacheKeyMap[widgetId];
+
+                if (!cacheKey) {
+                    continue;
+                }
+
+                const cachedTransactions = recentTransactions.value[cacheKey];
+
+                if (cachedTransactions && cachedTransactions.length >= query.count && !recentTransactionsStateInvalid.value[cacheKey]) {
+                    result[widgetId] = cachedTransactions;
+                } else {
+                    missedCacheKeyQueryMap[cacheKey] = cacheKeyQueryMap[cacheKey] ?? query;
+                }
+            }
+        } else {
+            missedCacheKeyQueryMap = cacheKeyQueryMap;
+        }
+
+        if (getObjectOwnFieldCount(missedCacheKeyQueryMap) < 1) {
+            return Promise.resolve(result);
+        }
+
+        const promises: ApiResponsePromise<TransactionInfoPageWrapperResponse>[] = [];
+        const missedQueries: OverviewRecentTransactionsQuery[] = objectValueToArrayItem(missedCacheKeyQueryMap);
+
+        return new Promise((resolve, reject) => {
+            for (const query of missedQueries) {
+                promises.push(services.getTransactions({
+                    maxTime: 0,
+                    minTime: 0,
+                    count: query.count,
+                    page: 1,
+                    withCount: false,
+                    withPictures: false,
+                    mustHavePictures: false,
+                    type: 0,
+                    categoryIds: query.categoryIds.join(','),
+                    accountIds: query.accountIds.join(','),
+                    tagFilter: query.tagFilter,
+                    amountFilter: query.amountFilter,
+                    keyword: query.keyword,
+                    matchMode: KeywordMatchMode.Default.type
+                }));
+            }
+
+            Promise.all(promises).then(responses => {
+                let hasError = false;
+
+                for (const [response, index] of itemAndIndex(responses)) {
+                    const query = missedQueries[index];
+
+                    if (!query) {
+                        continue;
+                    }
+
+                    const cacheKey = getRecentTransactionsQueryCacheKey(query);
+                    const data = response.data;
+
+                    if (!data || !data.success || !data.result) {
+                        hasError = true;
+                        continue;
+                    }
+
+                    if (recentTransactionsStateInvalid.value[cacheKey]) {
+                        recentTransactionsStateInvalid.value[cacheKey] = false;
+                    }
+
+                    recentTransactions.value[cacheKey] = data.result.items;
+                }
+
+                if (hasError) {
+                    reject({ message: 'Unable to retrieve transaction list' });
+                    return;
+                }
+
+                for (const [widgetId, query] of entries(queries)) {
+                    const cacheKey = widetIdCacheKeyMap[widgetId];
+
+                    if (!cacheKey) {
+                        continue;
+                    }
+
+                    const cachedTransactions = recentTransactions.value[cacheKey];
+
+                    if (cachedTransactions && cachedTransactions.length >= query.count) {
+                        result[widgetId] = cachedTransactions;
+                    }
+                }
+
+                resolve(result);
+            }).catch(error => {
+                logger.error('failed to retrieve transaction list', error);
+
+                if (error.response && error.response.data && error.response.data.errorMessage) {
+                    reject({ error: error.response.data });
+                } else if (!error.processed) {
+                    reject({ message: 'Unable to retrieve transaction list' });
+                } else {
+                    reject(error);
+                }
+            });
+        });
+    }
+
+    function loadTransactionDailyAmounts({ force, months }: { force: boolean, months: number }): Promise<TransactionDailyAmountsResponseItem[]> {
+        if (transactionDataRange.value.today.startTime !== getTodayFirstUnixTime()) {
+            updateTransactionDateRange();
+            transactionDailyAmountsData.value = [];
+            transactionDailyAmountsStateInvalid.value = true;
+        }
+
+        if (!force && !transactionDailyAmountsStateInvalid.value) {
+            return Promise.resolve(transactionDailyAmountsData.value);
+        }
+
+        const excludeAccountIds = objectFieldWithValueToArrayItem(settingsStore.appSettings.overviewAccountFilterInHomePage, true);
+        const excludeCategoryIds = objectFieldWithValueToArrayItem(settingsStore.appSettings.overviewTransactionCategoryFilterInHomePage, true);
+        const endTime = transactionDataRange.value.today.endTime;
+        const startTime = getUnixTimeAfterUnixTime(getUnixTimeBeforeUnixTime(transactionDataRange.value.today.startTime, Math.max(1, months), 'months'), 1, 'days');
+
+        return new Promise((resolve, reject) => {
+            services.getTransactionDailyAmounts({
+                startTime: startTime,
+                endTime: endTime,
+                useTransactionTimezone: settingsStore.appSettings.timezoneUsedForStatisticsInHomePage === TimezoneTypeForStatistics.TransactionTimezone.type,
+                excludeAccountIds: excludeAccountIds,
+                excludeCategoryIds: excludeCategoryIds,
+                tagFilter: settingsStore.appSettings.overviewTransactionTagFilterInHomePage
+            }).then(response => {
+                const data = response.data;
+
+                if (!data || !data.success || !data.result) {
+                    reject({ message: 'Unable to retrieve transaction overview' });
+                    return;
+                }
+
+                if (transactionDailyAmountsStateInvalid.value) {
+                    transactionDailyAmountsStateInvalid.value = false;
+                }
+
+                if (force && data.result && isEquals(transactionDailyAmountsData.value, data.result)) {
+                    reject({ message: 'Data is up to date', isUpToDate: true });
+                    return;
+                }
+
+                transactionDailyAmountsData.value = data.result;
+
+                resolve(data.result);
+            }).catch(error => {
+                logger.error('failed to retrieve transaction overview', error);
+
+                if (error.response && error.response.data && error.response.data.errorMessage) {
+                    reject({ error: error.response.data });
+                } else if (!error.processed) {
+                    reject({ message: 'Unable to retrieve transaction overview' });
+                } else {
+                    reject(error);
+                }
+            });
+        });
+    }
+
+    function loadCurrentMonthTransactions({ force }: { force: boolean }): Promise<TransactionDailyTotalAmounts> {
+        if (transactionDataRange.value.today.startTime !== getTodayFirstUnixTime()) {
+            updateTransactionDateRange();
+            currentMonthTransactions.value = [];
+            currentMonthTransactionInflowOutflowDailyTotalAmounts.value = {};
+            currentMonthTransactionIncomeExpenseDailyTotalAmounts.value = {};
+            currentMonthTransactionsStateInvalid.value = true;
+        }
+
+        if (!force && !currentMonthTransactionsStateInvalid.value) {
+            return Promise.resolve({
+                inflowOutflowDailyTotalAmounts: currentMonthTransactionInflowOutflowDailyTotalAmounts.value,
+                incomeExpenseDailyTotalAmounts: currentMonthTransactionIncomeExpenseDailyTotalAmounts.value
+            });
+        }
+
+        return new Promise((resolve, reject) => {
+            Promise.all([
+                accountsStore.loadAllAccounts({ force: false }),
+                transactionCategoriesStore.loadAllCategories({ force: false })
+            ]).then(() => {
+                const currentMonth = parseDateTimeFromUnixTime(transactionDataRange.value.thisMonth.startTime);
+                let accountIds = '';
+                let categoryIds = '';
+
+                if (!isObjectEmpty(settingsStore.appSettings.overviewAccountFilterInHomePage)) {
+                    accountIds = getFinalAccountIdsByFilteredAccountIds(accountsStore.allAccountsMap, settingsStore.appSettings.overviewAccountFilterInHomePage);
+                }
+
+                if (!isObjectEmpty(settingsStore.appSettings.overviewTransactionCategoryFilterInHomePage)) {
+                    categoryIds = getFinalCategoryIdsByFilteredCategoryIds(transactionCategoriesStore.allTransactionCategoriesMap, settingsStore.appSettings.overviewTransactionCategoryFilterInHomePage);
+                }
+
+                services.getAllTransactionsByMonth({
+                    year: currentMonth.getGregorianCalendarYear(),
+                    month: currentMonth.getGregorianCalendarMonth(),
+                    type: 0,
+                    categoryIds: categoryIds,
+                    accountIds: accountIds,
+                    tagFilter: settingsStore.appSettings.overviewTransactionTagFilterInHomePage,
+                    amountFilter: '',
+                    keyword: '',
+                    matchMode: KeywordMatchMode.Default.type,
+                    mustHavePictures: false,
+                    withPictures: false
+                }).then(response => {
+                    const data = response.data;
+
+                    if (!data || !data.success || !data.result) {
+                        reject({ message: 'Unable to retrieve transaction list' });
+                        return;
+                    }
+
+                    if (currentMonthTransactionsStateInvalid.value) {
+                        currentMonthTransactionsStateInvalid.value = false;
+                    }
+
+                    if (force && data.result && isEquals(currentMonthTransactions.value, data.result.items)) {
+                        reject({ message: 'Data is up to date', isUpToDate: true });
+                        return;
+                    }
+
+                    currentMonthTransactions.value = data.result.items;
+
+                    const dailyTotalAmounts = transactionsStore.getCurrentMonthTransactionDailyTotalAmounts(currentMonthTransactions.value, accountIds);
+                    currentMonthTransactionInflowOutflowDailyTotalAmounts.value = dailyTotalAmounts.inflowOutflowDailyTotalAmounts;
+                    currentMonthTransactionIncomeExpenseDailyTotalAmounts.value = dailyTotalAmounts.incomeExpenseDailyTotalAmounts;
+
+                    resolve(dailyTotalAmounts);
+                }).catch(error => {
+                    logger.error('failed to retrieve transaction list', error);
+
+                    if (error.response && error.response.data && error.response.data.errorMessage) {
+                        reject({ error: error.response.data });
+                    } else if (!error.processed) {
+                        reject({ message: 'Unable to retrieve transaction list' });
+                    } else {
+                        reject(error);
+                    }
+                });
+            }).catch(error => {
+                logger.error('failed to load accounts or categories', error);
+                reject(error);
+            });
+        });
+    }
+
+    function getRecentTransactions(query: OverviewRecentTransactionsQuery): TransactionInfoResponse[] {
+        const cacheKey = getRecentTransactionsQueryCacheKey(query);
+        return recentTransactions.value[cacheKey] ?? [];
+    }
+
+    function getTransactionListPageParams({ type, dateType, minTime, maxTime, categoryIds }: { type?: TransactionType, dateType?: number, minTime?: number, maxTime?: number, categoryIds?: string[] }): string {
         const querys: string[] = [];
 
         if (isDefined(type)) {
@@ -363,12 +870,18 @@ export const useOverviewStore = defineStore('overview', () => {
             }
         }
 
-        if (!isObjectEmpty(settingsStore.appSettings.overviewTransactionCategoryFilterInHomePage)) {
+        if (categoryIds && categoryIds.length > 0) {
+            querys.push('categoryIds=' + categoryIds.join(','));
+        } else if (!isObjectEmpty(settingsStore.appSettings.overviewTransactionCategoryFilterInHomePage)) {
             querys.push('categoryIds=' + getFinalCategoryIdsByFilteredCategoryIds(transactionCategoriesStore.allTransactionCategoriesMap, settingsStore.appSettings.overviewTransactionCategoryFilterInHomePage));
         }
 
         if (!isObjectEmpty(settingsStore.appSettings.overviewAccountFilterInHomePage)) {
             querys.push('accountIds=' + getFinalAccountIdsByFilteredAccountIds(accountsStore.allAccountsMap, settingsStore.appSettings.overviewAccountFilterInHomePage));
+        }
+
+        if (settingsStore.appSettings.overviewTransactionTagFilterInHomePage) {
+            querys.push('tagFilter=' + encodeURIComponent(settingsStore.appSettings.overviewTransactionTagFilterInHomePage));
         }
 
         return querys.join('&');
@@ -380,12 +893,27 @@ export const useOverviewStore = defineStore('overview', () => {
         transactionOverviewOptions,
         transactionOverviewData,
         transactionOverviewStateInvalid,
+        transactionUnreconciledCounts,
+        transactionCategoryStatisticsData,
+        transactionAssetTrendsData,
+        recentTransactions,
+        currentMonthTransactionInflowOutflowDailyTotalAmounts,
+        currentMonthTransactionIncomeExpenseDailyTotalAmounts,
+        currentMonthTransactionsStateInvalid,
+        transactionDailyAmountsData,
         // computed states,
         transactionOverview,
         // functions
         updateTransactionOverviewInvalidState,
         resetTransactionOverview,
         loadTransactionOverview,
+        loadTransactionUnreconciledCounts,
+        loadTransactionCategoryStatistics,
+        loadTransactionAssetTrends,
+        loadRecentTransactions,
+        loadCurrentMonthTransactions,
+        loadTransactionDailyAmounts,
+        getRecentTransactions,
         getTransactionListPageParams
     };
 });

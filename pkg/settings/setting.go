@@ -65,19 +65,21 @@ const (
 // Object Storage types
 const (
 	LocalFileSystemObjectStorageType string = "local_filesystem"
+	S3StorageType                    string = "s3"
 	MinIOStorageType                 string = "minio"
 	WebDAVStorageType                string = "webdav"
 )
 
 const (
-	OpenAILLMProvider              string = "openai"
-	OpenAICompatibleLLMProvider    string = "openai_compatible"
-	AnthropicLLMProvider           string = "anthropic"
-	AnthropicCompatibleLLMProvider string = "anthropic_compatible"
-	OpenRouterLLMProvider          string = "openrouter"
-	OllamaLLMProvider              string = "ollama"
-	LMStudioLLMProvider            string = "lm_studio"
-	GoogleAILLMProvider            string = "google_ai"
+	OpenAILLMProvider                    string = "openai"
+	OpenAICompatibleLLMProvider          string = "openai_compatible"
+	OpenAIResponsesCompatibleLLMProvider string = "openai_responses_compatible"
+	AnthropicLLMProvider                 string = "anthropic"
+	AnthropicCompatibleLLMProvider       string = "anthropic_compatible"
+	OpenRouterLLMProvider                string = "openrouter"
+	OllamaLLMProvider                    string = "ollama"
+	LMStudioLLMProvider                  string = "lm_studio"
+	GoogleAILLMProvider                  string = "google_ai"
 )
 
 // LLMThinkingLevel represents the thinking level of a large language model
@@ -144,6 +146,7 @@ const (
 // Exchange rates data source types
 const (
 	CentralBankOfArgentinaDataSource   string = "central_bank_of_argentina"
+	NationalBankOfBelarusDataSource    string = "national_bank_of_belarus"
 	BankOfCanadaDataSource             string = "bank_of_canada"
 	CzechNationalBankDataSource        string = "czech_national_bank"
 	DanmarksNationalbankDataSource     string = "danmarks_national_bank"
@@ -151,7 +154,9 @@ const (
 	NationalBankOfGeorgiaDataSource    string = "national_bank_of_georgia"
 	CentralBankOfHungaryDataSource     string = "central_bank_of_hungary"
 	BankOfIsraelDataSource             string = "bank_of_israel"
+	BankOfItalyDataSource              string = "bank_of_italy"
 	NationalBankOfKazakhstanDataSource string = "national_bank_of_kazakhstan"
+	CentralBankOfMalaysiaDataSource    string = "central_bank_of_malaysia"
 	CentralBankOfMyanmarDataSource     string = "central_bank_of_myanmar"
 	NorgesBankDataSource               string = "norges_bank"
 	NationalBankOfPolandDataSource     string = "national_bank_of_poland"
@@ -201,6 +206,7 @@ const (
 	defaultOAuth2StateExpiredTime uint32 = 300   // 5 minutes
 	defaultOAuth2RequestTimeout   uint32 = 10000 // 10 seconds
 
+	defaultUserCustomIconFileMaxSize     uint32 = 1048576  // 1MB
 	defaultTransactionPictureFileMaxSize uint32 = 10485760 // 10MB
 	defaultUserAvatarFileMaxSize         uint32 = 1048576  // 1MB
 
@@ -233,6 +239,20 @@ type SMTPConfig struct {
 	SMTPPasswd        string
 	SMTPSkipTLSVerify bool
 	FromAddress       string
+}
+
+// S3Config represents the S3-compatible object storage setting config
+type S3Config struct {
+	Endpoint        string
+	Region          string
+	AccessKeyID     string
+	SecretAccessKey string
+	SessionToken    string
+	UseSSL          bool
+	SkipTLSVerify   bool
+	UsePathStyle    bool
+	Bucket          string
+	RootPath        string
 }
 
 // MinIOConfig represents the MinIO setting config
@@ -353,12 +373,14 @@ type Config struct {
 	// Storage
 	StorageType         string
 	LocalFileSystemPath string
+	S3Config            *S3Config
 	MinIOConfig         *MinIOConfig
 	WebDAVConfig        *WebDAVConfig
 
 	// Large Language Model
 	TransactionFromAITextRecognition  bool
 	TransactionFromAIImageRecognition bool
+	InsightsExplorerCodingAssistant   bool
 	MaxAIRecognitionPictureFileSize   uint32
 
 	// Large Language Model for Transaction Text Recognition
@@ -366,6 +388,9 @@ type Config struct {
 
 	// Large Language Model for Receipt Image Recognition
 	ReceiptImageRecognitionLLMConfig *LLMConfig
+
+	// Large Language Model for coding assistant
+	CodingAssistantLLMConfig *LLMConfig
 
 	// Uuid
 	UuidGeneratorType string
@@ -429,6 +454,8 @@ type Config struct {
 	EnableUserRegister            bool
 	EnableUserVerifyEmail         bool
 	EnableUserForceVerifyEmail    bool
+	EnableUserCustomIcon          bool
+	MaxUserCustomIconFileSize     uint32
 	EnableTransactionPictures     bool
 	MaxTransactionPictureFileSize uint32
 	EnableScheduledTransaction    bool
@@ -473,6 +500,9 @@ type Config struct {
 	ExchangeRatesRequestTimeoutExceedDefaultValue bool
 	ExchangeRatesProxy                            string
 	ExchangeRatesSkipTLSVerify                    bool
+
+	// Developer Tools
+	EnableLanguagePreview bool
 }
 
 // LoadConfiguration loads setting config from given config file path
@@ -536,7 +566,7 @@ func LoadConfiguration(configFilePath string) (*Config, error) {
 		return nil, err
 	}
 
-	err = loadLLMGlobalConfiguration(config, cfgFile, "llm")
+	err = loadAIConfiguration(config, cfgFile, "ai")
 
 	if err != nil {
 		return nil, err
@@ -549,6 +579,12 @@ func LoadConfiguration(configFilePath string) (*Config, error) {
 	}
 
 	config.ReceiptImageRecognitionLLMConfig, err = loadLLMConfiguration(cfgFile, "llm_image_recognition")
+
+	if err != nil {
+		return nil, err
+	}
+
+	config.CodingAssistantLLMConfig, err = loadLLMConfiguration(cfgFile, "llm_coding_assistant")
 
 	if err != nil {
 		return nil, err
@@ -615,6 +651,12 @@ func LoadConfiguration(configFilePath string) (*Config, error) {
 	}
 
 	err = loadExchangeRatesConfiguration(config, cfgFile, "exchange_rates")
+
+	if err != nil {
+		return nil, err
+	}
+
+	err = loadDeveloperTools(config, cfgFile, "developer")
 
 	if err != nil {
 		return nil, err
@@ -836,6 +878,8 @@ func loadLogConfiguration(config *Config, configFile *ini.File, sectionName stri
 func loadStorageConfiguration(config *Config, configFile *ini.File, sectionName string) error {
 	if getConfigItemStringValue(configFile, sectionName, "type") == LocalFileSystemObjectStorageType {
 		config.StorageType = LocalFileSystemObjectStorageType
+	} else if getConfigItemStringValue(configFile, sectionName, "type") == S3StorageType {
+		config.StorageType = S3StorageType
 	} else if getConfigItemStringValue(configFile, sectionName, "type") == MinIOStorageType {
 		config.StorageType = MinIOStorageType
 	} else if getConfigItemStringValue(configFile, sectionName, "type") == WebDAVStorageType {
@@ -851,6 +895,19 @@ func loadStorageConfiguration(config *Config, configFile *ini.File, sectionName 
 	if config.StorageType == LocalFileSystemObjectStorageType && err != nil {
 		return errs.ErrInvalidLocalFileSystemStoragePath
 	}
+
+	s3Config := &S3Config{}
+	s3Config.Endpoint = getConfigItemStringValue(configFile, sectionName, "s3_endpoint")
+	s3Config.Region = getConfigItemStringValue(configFile, sectionName, "s3_region")
+	s3Config.AccessKeyID = getConfigItemStringValue(configFile, sectionName, "s3_access_key_id")
+	s3Config.SecretAccessKey = getConfigItemStringValue(configFile, sectionName, "s3_secret_access_key")
+	s3Config.SessionToken = getConfigItemStringValue(configFile, sectionName, "s3_session_token")
+	s3Config.UseSSL = getConfigItemBoolValue(configFile, sectionName, "s3_use_ssl", false)
+	s3Config.SkipTLSVerify = getConfigItemBoolValue(configFile, sectionName, "s3_skip_tls_verify", false)
+	s3Config.UsePathStyle = getConfigItemBoolValue(configFile, sectionName, "s3_use_path_style", false)
+	s3Config.Bucket = getConfigItemStringValue(configFile, sectionName, "s3_bucket")
+	s3Config.RootPath = getConfigItemStringValue(configFile, sectionName, "s3_root_path")
+	config.S3Config = s3Config
 
 	minIOConfig := &MinIOConfig{}
 	minIOConfig.Endpoint = getConfigItemStringValue(configFile, sectionName, "minio_endpoint")
@@ -876,9 +933,10 @@ func loadStorageConfiguration(config *Config, configFile *ini.File, sectionName 
 	return nil
 }
 
-func loadLLMGlobalConfiguration(config *Config, configFile *ini.File, sectionName string) error {
+func loadAIConfiguration(config *Config, configFile *ini.File, sectionName string) error {
 	config.TransactionFromAITextRecognition = getConfigItemBoolValue(configFile, sectionName, "transaction_from_ai_text_recognition", false)
 	config.TransactionFromAIImageRecognition = getConfigItemBoolValue(configFile, sectionName, "transaction_from_ai_image_recognition", false)
+	config.InsightsExplorerCodingAssistant = getConfigItemBoolValue(configFile, sectionName, "insights_explorer_coding_assistant", false)
 	config.MaxAIRecognitionPictureFileSize = getConfigItemUint32Value(configFile, sectionName, "max_ai_recognition_picture_size", defaultAIRecognitionPictureMaxSize)
 
 	return nil
@@ -894,6 +952,8 @@ func loadLLMConfiguration(configFile *ini.File, sectionName string) (*LLMConfig,
 		llmConfig.LLMProvider = OpenAILLMProvider
 	} else if llmProvider == OpenAICompatibleLLMProvider {
 		llmConfig.LLMProvider = OpenAICompatibleLLMProvider
+	} else if llmProvider == OpenAIResponsesCompatibleLLMProvider {
+		llmConfig.LLMProvider = OpenAIResponsesCompatibleLLMProvider
 	} else if llmProvider == AnthropicLLMProvider {
 		llmConfig.LLMProvider = AnthropicLLMProvider
 	} else if llmProvider == AnthropicCompatibleLLMProvider {
@@ -1142,6 +1202,8 @@ func loadUserConfiguration(config *Config, configFile *ini.File, sectionName str
 	config.EnableUserRegister = getConfigItemBoolValue(configFile, sectionName, "enable_register", false)
 	config.EnableUserVerifyEmail = getConfigItemBoolValue(configFile, sectionName, "enable_email_verify", false)
 	config.EnableUserForceVerifyEmail = getConfigItemBoolValue(configFile, sectionName, "enable_force_email_verify", false)
+	config.EnableUserCustomIcon = getConfigItemBoolValue(configFile, sectionName, "enable_custom_icon", false)
+	config.MaxUserCustomIconFileSize = getConfigItemUint32Value(configFile, sectionName, "max_user_custom_icon_size", defaultUserCustomIconFileMaxSize)
 	config.EnableTransactionPictures = getConfigItemBoolValue(configFile, sectionName, "enable_transaction_picture", false)
 	config.MaxTransactionPictureFileSize = getConfigItemUint32Value(configFile, sectionName, "max_transaction_picture_size", defaultTransactionPictureFileMaxSize)
 	config.EnableScheduledTransaction = getConfigItemBoolValue(configFile, sectionName, "enable_scheduled_transaction", false)
@@ -1252,6 +1314,7 @@ func loadExchangeRatesConfiguration(config *Config, configFile *ini.File, sectio
 	dataSource := getConfigItemStringValue(configFile, sectionName, "data_source")
 
 	if dataSource == CentralBankOfArgentinaDataSource ||
+		dataSource == NationalBankOfBelarusDataSource ||
 		dataSource == BankOfCanadaDataSource ||
 		dataSource == CzechNationalBankDataSource ||
 		dataSource == DanmarksNationalbankDataSource ||
@@ -1259,7 +1322,9 @@ func loadExchangeRatesConfiguration(config *Config, configFile *ini.File, sectio
 		dataSource == NationalBankOfGeorgiaDataSource ||
 		dataSource == CentralBankOfHungaryDataSource ||
 		dataSource == BankOfIsraelDataSource ||
+		dataSource == BankOfItalyDataSource ||
 		dataSource == NationalBankOfKazakhstanDataSource ||
+		dataSource == CentralBankOfMalaysiaDataSource ||
 		dataSource == CentralBankOfMyanmarDataSource ||
 		dataSource == NorgesBankDataSource ||
 		dataSource == NationalBankOfPolandDataSource ||
@@ -1282,6 +1347,12 @@ func loadExchangeRatesConfiguration(config *Config, configFile *ini.File, sectio
 	}
 
 	config.ExchangeRatesSkipTLSVerify = getConfigItemBoolValue(configFile, sectionName, "skip_tls_verify", false)
+
+	return nil
+}
+
+func loadDeveloperTools(config *Config, configFile *ini.File, sectionName string) error {
+	config.EnableLanguagePreview = getConfigItemBoolValue(configFile, sectionName, "enable_language_preview", false)
 
 	return nil
 }

@@ -8,6 +8,14 @@ export interface ErrorResponse {
     readonly errorCode: number;
     readonly errorMessage: string;
     readonly path: string;
+    readonly context?: {
+        readonly email?: string;
+        readonly hasValidEmailVerifyToken?: boolean;
+        readonly recordId?: string;
+        readonly originalData?: unknown;
+        readonly importedCount?: number;
+        readonly totalCount?: number;
+    };
 }
 
 export function buildErrorResponse(errorCode: number, errorMessage: string): ErrorResponse {

@@ -6,8 +6,6 @@ import (
 	"image/png"
 	"time"
 
-	"github.com/pquerna/otp/totp"
-
 	"github.com/mayswind/ezbookkeeping/pkg/core"
 	"github.com/mayswind/ezbookkeeping/pkg/errs"
 	"github.com/mayswind/ezbookkeeping/pkg/log"
@@ -60,6 +58,16 @@ func (a *TwoFactorAuthorizationsApi) TwoFactorStatusHandler(c *core.WebContext) 
 // TwoFactorEnableRequestHandler returns a new 2fa secret and qr code for current user to set 2fa and verify passcode next
 func (a *TwoFactorAuthorizationsApi) TwoFactorEnableRequestHandler(c *core.WebContext) (any, *errs.Error) {
 	uid := c.GetCurrentUid()
+	claims := c.GetTokenClaims()
+
+	if claims == nil {
+		log.Warnf(c, "[twofactor_authorizations.TwoFactorEnableRequestHandler] current token is null")
+		return nil, errs.ErrInvalidToken
+	} else if claims.Type != core.USER_TOKEN_TYPE_NORMAL {
+		log.Warnf(c, "[twofactor_authorizations.TwoFactorEnableRequestHandler] token type \"%d\" is not allowed to enable two-factor authentication", claims.Type)
+		return nil, errs.ErrInvalidToken
+	}
+
 	enabled, err := a.twoFactorAuthorizations.ExistsTwoFactorSetting(c, uid)
 
 	if err != nil {
@@ -124,6 +132,16 @@ func (a *TwoFactorAuthorizationsApi) TwoFactorEnableConfirmHandler(c *core.WebCo
 	}
 
 	uid := c.GetCurrentUid()
+	claims := c.GetTokenClaims()
+
+	if claims == nil {
+		log.Warnf(c, "[twofactor_authorizations.TwoFactorEnableConfirmHandler] current token is null")
+		return nil, errs.ErrInvalidToken
+	} else if claims.Type != core.USER_TOKEN_TYPE_NORMAL {
+		log.Warnf(c, "[twofactor_authorizations.TwoFactorEnableConfirmHandler] token type \"%d\" is not allowed to enable two-factor authentication", claims.Type)
+		return nil, errs.ErrInvalidToken
+	}
+
 	exists, err := a.twoFactorAuthorizations.ExistsTwoFactorSetting(c, uid)
 
 	if err != nil {
@@ -154,7 +172,7 @@ func (a *TwoFactorAuthorizationsApi) TwoFactorEnableConfirmHandler(c *core.WebCo
 		Secret: confirmReq.Secret,
 	}
 
-	if !totp.Validate(confirmReq.Passcode, confirmReq.Secret) {
+	if !a.twoFactorAuthorizations.ValidateTwoFactorPasscode(c, confirmReq.Passcode, confirmReq.Secret) {
 		log.Warnf(c, "[twofactor_authorizations.TwoFactorEnableConfirmHandler] passcode is invalid")
 		return nil, errs.ErrPasscodeInvalid
 	}
@@ -228,6 +246,16 @@ func (a *TwoFactorAuthorizationsApi) TwoFactorDisableHandler(c *core.WebContext)
 	}
 
 	uid := c.GetCurrentUid()
+	claims := c.GetTokenClaims()
+
+	if claims == nil {
+		log.Warnf(c, "[twofactor_authorizations.TwoFactorDisableHandler] current token is null")
+		return nil, errs.ErrInvalidToken
+	} else if claims.Type != core.USER_TOKEN_TYPE_NORMAL {
+		log.Warnf(c, "[twofactor_authorizations.TwoFactorDisableHandler] token type \"%d\" is not allowed to disable two-factor authentication", claims.Type)
+		return nil, errs.ErrInvalidToken
+	}
+
 	user, err := a.users.GetUserById(c, uid)
 
 	if err != nil {
@@ -287,6 +315,16 @@ func (a *TwoFactorAuthorizationsApi) TwoFactorRecoveryCodeRegenerateHandler(c *c
 	}
 
 	uid := c.GetCurrentUid()
+	claims := c.GetTokenClaims()
+
+	if claims == nil {
+		log.Warnf(c, "[twofactor_authorizations.TwoFactorRecoveryCodeRegenerateHandler] current token is null")
+		return nil, errs.ErrInvalidToken
+	} else if claims.Type != core.USER_TOKEN_TYPE_NORMAL {
+		log.Warnf(c, "[twofactor_authorizations.TwoFactorRecoveryCodeRegenerateHandler] token type \"%d\" is not allowed to regenerate two-factor recovery codes", claims.Type)
+		return nil, errs.ErrInvalidToken
+	}
+
 	user, err := a.users.GetUserById(c, uid)
 
 	if err != nil {

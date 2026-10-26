@@ -4,8 +4,8 @@
             <f7-nav-left :class="{ 'disabled': loading }" :back-link="tt('Back')"></f7-nav-left>
             <f7-nav-title :title="tt(title)"></f7-nav-title>
             <f7-nav-right :class="{ 'navbar-compact-icons': true, 'disabled': loading }">
-                <f7-link icon-f7="ellipsis" :class="{ 'disabled': account.type !== AccountType.MultiSubAccounts.type }" @click="showMoreActionSheet = true"></f7-link>
-                <f7-link icon-f7="checkmark_alt" :class="{ 'disabled': inputIsEmpty || submitting }" @click="save"></f7-link>
+                <f7-link icon-f7="ellipsis" :class="{ 'disabled': account.type !== AccountType.MultiSubAccounts.type }" :aria-label="tt('More')" @click="showMoreActionSheet = true"></f7-link>
+                <f7-link icon-f7="checkmark_alt" :class="{ 'disabled': inputIsEmpty || submitting }" :aria-label="tt('Save')" @click="save"></f7-link>
             </f7-nav-right>
         </f7-navbar>
 
@@ -97,6 +97,7 @@
         <f7-list form strong inset dividers class="margin-vertical" v-else-if="!loading && account.type === AccountType.SingleAccount.type">
             <f7-list-input
                 type="text"
+                autocomplete="off"
                 clear-button
                 :label="tt('Account Name')"
                 :placeholder="tt('Your account name')"
@@ -115,16 +116,17 @@
                                         </div>
                                         <div class="item-title">
                                             <div class="list-item-custom-title no-padding">
-                                                <ItemIcon icon-type="account" :icon-id="account.icon" :color="account.color"></ItemIcon>
+                                                <ItemIcon :icon-type="getAccountIconType(account.iconType)" :icon-id="account.icon" :color="account.color"></ItemIcon>
                                             </div>
                                         </div>
                                     </div>
                                 </div>
                             </a>
 
-                            <icon-selection-sheet :all-icon-infos="ALL_ACCOUNT_ICONS"
+                            <icon-selection-sheet :all-system-icon-infos="ALL_ACCOUNT_ICONS"
                                                   :color="account.color"
                                                   v-model:show="accountContext.showIconSelectionSheet"
+                                                  v-model:icon-type="account.iconType"
                                                   v-model="account.icon"
                             ></icon-selection-sheet>
                         </div>
@@ -144,7 +146,7 @@
                                 </div>
                             </a>
 
-                            <color-selection-sheet :all-color-infos="ALL_ACCOUNT_COLORS"
+                            <color-selection-sheet :all-system-color-infos="ALL_ACCOUNT_COLORS"
                                                    v-model:show="accountContext.showColorSelectionSheet"
                                                    v-model="account.color"
                             ></color-selection-sheet>
@@ -181,11 +183,28 @@
             </f7-list-item>
 
             <f7-list-item
+                link="#" no-chevron
+                class="list-item-with-header-and-title"
+                :class="{ 'disabled': account.currency === '' || account.currency === ACCOUNT_CURRENCY_NOT_SET_VALUE }"
+                :header="tt('Credit Limit')"
+                :title="getAccountCreditCardCreditLimitDisplayValue(account.numericCreditCardLimit, account.currency)"
+                v-if="account.category === AccountCategory.CreditCard.type"
+                @click="showCreditCardLimitSheet = true"
+            >
+                <number-pad-sheet :min-value="0"
+                                  :max-value="TRANSACTION_MAX_AMOUNT"
+                                  :currency="account.currency"
+                                  v-model:show="showCreditCardLimitSheet"
+                                  v-model="account.numericCreditCardLimit"
+                ></number-pad-sheet>
+            </f7-list-item>
+
+            <f7-list-item
                 link="#"
                 class="list-item-with-header-and-title list-item-no-item-after"
                 :header="tt('Statement Date')"
                 :title="getAccountCreditCardStatementDate(account.creditCardStatementDate)"
-                v-if="isAccountSupportCreditCardStatementDate"
+                v-if="account.category === AccountCategory.CreditCard.type"
                 @click="accountContext.showCreditCardStatementDatePopup = true"
             >
                 <list-item-selection-popup value-type="item"
@@ -206,7 +225,7 @@
                 class="list-item-with-header-and-title"
                 :header="tt('Credit Limit')"
                 :title="formatCreditLimitDisplay(account)"
-                v-if="isAccountSupportCreditCardStatementDate"
+                v-if="account.category === AccountCategory.CreditCard.type"
                 @click="accountContext.showCreditLimitSheet = true"
             >
                 <number-pad-sheet :min-value="0"
@@ -214,8 +233,7 @@
                                   :currency="account.currency"
                                   :flip-negative="false"
                                   v-model:show="accountContext.showCreditLimitSheet"
-                                  :model-value="account.creditLimit ?? 0"
-                                  @update:model-value="account.creditLimit = $event > 0 ? $event : undefined"
+                                  v-model="account.numericCreditCardLimit"
                 ></number-pad-sheet>
             </f7-list-item>
 
@@ -231,14 +249,14 @@
                                   :currency="account.currency"
                                   :flip-negative="account.isLiability"
                                   v-model:show="accountContext.showBalanceSheet"
-                                  v-model="account.balance"
+                                  v-model="account.numericBalance"
                 ></number-pad-sheet>
             </f7-list-item>
 
             <f7-list-item
                 class="account-edit-datetime list-item-with-header-and-title"
                 link="#" no-chevron
-                v-show="account.balance"
+                v-show="account.numericBalance"
                 v-if="!editAccountId"
             >
                 <template #header>
@@ -292,6 +310,7 @@
             <f7-list-input
                 type="textarea"
                 style="height: auto"
+                autocomplete="off"
                 :label="tt('Description')"
                 :placeholder="tt('Your account description (optional)')"
                 v-textarea-auto-size
@@ -302,6 +321,7 @@
         <f7-list form strong inset dividers class="margin-vertical" v-else-if="!loading && account.type === AccountType.MultiSubAccounts.type">
             <f7-list-input
                 type="text"
+                autocomplete="off"
                 clear-button
                 :label="tt('Account Name')"
                 :placeholder="tt('Your account name')"
@@ -320,16 +340,17 @@
                                         </div>
                                         <div class="item-title">
                                             <div class="list-item-custom-title no-padding">
-                                                <ItemIcon icon-type="account" :icon-id="account.icon" :color="account.color"></ItemIcon>
+                                                <ItemIcon :icon-type="getAccountIconType(account.iconType)" :icon-id="account.icon" :color="account.color"></ItemIcon>
                                             </div>
                                         </div>
                                     </div>
                                 </div>
                             </a>
 
-                            <icon-selection-sheet :all-icon-infos="ALL_ACCOUNT_ICONS"
+                            <icon-selection-sheet :all-system-icon-infos="ALL_ACCOUNT_ICONS"
                                                   :color="account.color"
                                                   v-model:show="accountContext.showIconSelectionSheet"
+                                                  v-model:icon-type="account.iconType"
                                                   v-model="account.icon"
                             ></icon-selection-sheet>
                         </div>
@@ -349,7 +370,7 @@
                                 </div>
                             </a>
 
-                            <color-selection-sheet :all-color-infos="ALL_ACCOUNT_COLORS"
+                            <color-selection-sheet :all-system-color-infos="ALL_ACCOUNT_COLORS"
                                                    v-model:show="accountContext.showColorSelectionSheet"
                                                    v-model="account.color"
                             ></color-selection-sheet>
@@ -359,11 +380,54 @@
             </f7-list-item>
 
             <f7-list-item
+                class="list-item-with-header-and-title list-item-no-item-after"
+                link="#"
+                :header="tt('Default Currency')"
+                @click="accountContext.showCurrencyPopup = true"
+                v-if="account.category === AccountCategory.CreditCard.type"
+            >
+                <template #title>
+                    <div class="no-padding no-margin">
+                        <span>{{ getCurrencyName(account.currency) }}&nbsp;</span>
+                        <small class="smaller" v-if="account.currency !== ACCOUNT_CURRENCY_NOT_SET_VALUE">{{ account.currency }}</small>
+                    </div>
+                </template>
+                <list-item-selection-popup value-type="item"
+                                           key-field="currencyCode" value-field="currencyCode"
+                                           title-field="displayName" after-field="currencyCode"
+                                           :title="tt('Currency Name')"
+                                           :enable-filter="true"
+                                           :filter-placeholder="tt('Currency')"
+                                           :filter-no-items-text="tt('No results')"
+                                           :items="allCurrenciesWithNotSet"
+                                           v-model:show="accountContext.showCurrencyPopup"
+                                           v-model="account.currency">
+                </list-item-selection-popup>
+            </f7-list-item>
+
+            <f7-list-item
+                link="#" no-chevron
+                class="list-item-with-header-and-title"
+                :class="{ 'disabled': account.currency === '' || account.currency === ACCOUNT_CURRENCY_NOT_SET_VALUE }"
+                :header="tt('Credit Limit')"
+                :title="getAccountCreditCardCreditLimitDisplayValue(account.numericCreditCardLimit, account.currency)"
+                v-if="account.category === AccountCategory.CreditCard.type"
+                @click="showCreditCardLimitSheet = true"
+            >
+                <number-pad-sheet :min-value="0"
+                                  :max-value="TRANSACTION_MAX_AMOUNT"
+                                  :currency="account.currency"
+                                  v-model:show="showCreditCardLimitSheet"
+                                  v-model="account.numericCreditCardLimit"
+                ></number-pad-sheet>
+            </f7-list-item>
+
+            <f7-list-item
                 link="#"
                 class="list-item-with-header-and-title list-item-no-item-after"
                 :header="tt('Statement Date')"
                 :title="getAccountCreditCardStatementDate(account.creditCardStatementDate)"
-                v-if="isAccountSupportCreditCardStatementDate"
+                v-if="account.category === AccountCategory.CreditCard.type"
                 @click="accountContext.showCreditCardStatementDatePopup = true"
             >
                 <list-item-selection-popup value-type="item"
@@ -384,7 +448,7 @@
                 class="list-item-with-header-and-title"
                 :header="tt('Credit Limit')"
                 :title="formatCreditLimitDisplay(account)"
-                v-if="isAccountSupportCreditCardStatementDate"
+                v-if="account.category === AccountCategory.CreditCard.type"
                 @click="accountContext.showCreditLimitSheet = true"
             >
                 <number-pad-sheet :min-value="0"
@@ -392,8 +456,7 @@
                                   :currency="account.currency"
                                   :flip-negative="false"
                                   v-model:show="accountContext.showCreditLimitSheet"
-                                  :model-value="account.creditLimit ?? 0"
-                                  @update:model-value="account.creditLimit = $event > 0 ? $event : undefined"
+                                  v-model="account.numericCreditCardLimit"
                 ></number-pad-sheet>
             </f7-list-item>
 
@@ -406,6 +469,7 @@
             <f7-list-input
                 type="textarea"
                 style="height: auto"
+                autocomplete="off"
                 :label="tt('Description')"
                 :placeholder="tt('Your account description (optional)')"
                 v-textarea-auto-size
@@ -419,7 +483,7 @@
                      v-for="(subAccount, idx) in subAccounts">
                 <f7-list-item group-title>
                     <small>{{ tt('Sub Account') + ' #' + (idx + 1) }}</small>
-                    <f7-button rasied fill class="subaccount-delete-button" color="red" icon-f7="trash" icon-size="16px"
+                    <f7-button rasied fill class="subaccount-delete-button" color="red" icon-f7="trash" icon-size="16px" :aria-label="tt('Remove')"
                                :tooltip="tt('Remove Sub-account')"
                                @click="removeSubAccount(subAccount, false)">
                     </f7-button>
@@ -427,6 +491,7 @@
 
                 <f7-list-input
                     type="text"
+                    autocomplete="off"
                     clear-button
                     :label="tt('Sub-account Name')"
                     :placeholder="tt('Your sub-account name')"
@@ -445,16 +510,17 @@
                                             </div>
                                             <div class="item-title">
                                                 <div class="list-item-custom-title no-padding">
-                                                    <ItemIcon icon-type="account" :icon-id="subAccount.icon" :color="subAccount.color"></ItemIcon>
+                                                    <ItemIcon :icon-type="getAccountIconType(subAccount.iconType)" :icon-id="subAccount.icon" :color="subAccount.color"></ItemIcon>
                                                 </div>
                                             </div>
                                         </div>
                                     </div>
                                 </a>
 
-                                <icon-selection-sheet :all-icon-infos="ALL_ACCOUNT_ICONS"
+                                <icon-selection-sheet :all-system-icon-infos="ALL_ACCOUNT_ICONS"
                                                       :color="subAccount.color"
                                                       v-model:show="subAccountContexts[idx]!.showIconSelectionSheet"
+                                                      v-model:icon-type="subAccount.iconType"
                                                       v-model="subAccount.icon"
                                 ></icon-selection-sheet>
                             </div>
@@ -474,7 +540,7 @@
                                     </div>
                                 </a>
 
-                                <color-selection-sheet :all-color-infos="ALL_ACCOUNT_COLORS"
+                                <color-selection-sheet :all-system-color-infos="ALL_ACCOUNT_COLORS"
                                                        v-model:show="subAccountContexts[idx]!.showColorSelectionSheet"
                                                        v-model="subAccount.color"
                                 ></color-selection-sheet>
@@ -522,14 +588,14 @@
                                       :currency="subAccount.currency"
                                       :flip-negative="account.isLiability"
                                       v-model:show="subAccountContexts[idx]!.showBalanceSheet"
-                                      v-model="subAccount.balance"
+                                      v-model="subAccount.numericBalance"
                     ></number-pad-sheet>
                 </f7-list-item>
 
                 <f7-list-item
                     class="account-edit-datetime list-item-with-header-and-title"
                     link="#" no-chevron
-                    v-show="subAccount.balance"
+                    v-show="subAccount.numericBalance"
                     v-if="!editAccountId || isNewAccount(subAccount)"
                 >
                     <template #header>
@@ -583,6 +649,7 @@
                 <f7-list-input
                     type="textarea"
                     style="height: auto"
+                    autocomplete="off"
                     :label="tt('Description')"
                     :placeholder="tt('Your sub-account description (optional)')"
                     v-textarea-auto-size
@@ -625,20 +692,23 @@ import { useTransactionsStore } from '@/stores/transaction.ts';
 
 import { itemAndIndex } from '@/core/base.ts';
 import type { LocalizedCurrencyInfo } from '@/core/currency.ts';
-import { AccountType } from '@/core/account.ts';
+import { AccountCategory, AccountType } from '@/core/account.ts';
 import { ALL_ACCOUNT_ICONS } from '@/consts/icon.ts';
 import { KnownErrorCode } from '@/consts/api.ts';
 import { ALL_ACCOUNT_COLORS } from '@/consts/color.ts';
+import { ACCOUNT_CURRENCY_NOT_SET_VALUE } from '@/consts/currency.ts';
 import { TRANSACTION_MIN_AMOUNT, TRANSACTION_MAX_AMOUNT } from '@/consts/transaction.ts';
 import type { Account } from '@/models/account.ts';
 
 import { isDefined, findDisplayNameByType } from '@/lib/common.ts';
-import { generateRandomUUID } from '@/lib/misc.ts';
+import { parseBigDecimal } from '@/lib/numeral.ts';
+import { getAccountIconType } from '@/lib/icon.ts';
 import {
     getTimezoneOffsetMinutes,
     getCurrentUnixTime,
     parseDateTimeFromUnixTimeWithTimezoneOffset
 } from '@/lib/datetime.ts';
+import { generateRandomUUID } from '@/lib/misc.ts';
 
 interface AccountContext {
     showIconSelectionSheet: boolean;
@@ -683,9 +753,9 @@ const {
     allAccountCategories,
     allAccountTypes,
     allAvailableMonthDays,
-    isAccountSupportCreditCardStatementDate,
     getDefaultTimezoneOffsetMinutes,
     getAccountCreditCardStatementDate,
+    getAccountCreditCardCreditLimitDisplayValue,
     updateAccountBalanceTime,
     updateAccountLastReconciledTime,
     isNewAccount,
@@ -719,19 +789,21 @@ const showAccountCategorySheet = ref<boolean>(false);
 const showAccountTypeSheet = ref<boolean>(false);
 const showMoreActionSheet = ref<boolean>(false);
 const showDeleteActionSheet = ref<boolean>(false);
+const showCreditCardLimitSheet = ref<boolean>(false);
 
 const allCurrencies = computed<LocalizedCurrencyInfo[]>(() => getAllCurrencies());
+const allCurrenciesWithNotSet = computed<LocalizedCurrencyInfo[]>(() => getAllCurrencies(true));
 
 function formatAccountDisplayBalance(selectedAccount: Account): string {
-    const balance = account.value.isLiability ? -selectedAccount.balance : selectedAccount.balance;
-    return formatAmountToLocalizedNumeralsWithCurrency(balance, selectedAccount.currency);
+    const balance = parseBigDecimal(selectedAccount.balance);
+    return formatAmountToLocalizedNumeralsWithCurrency(account.value.isLiability ? balance.negate() : balance, selectedAccount.currency);
 }
 
 function formatCreditLimitDisplay(selectedAccount: Account): string {
-    if (!selectedAccount.creditLimit) {
+    if (!selectedAccount.numericCreditCardLimit) {
         return tt('Not set');
     }
-    return formatAmountToLocalizedNumeralsWithCurrency(selectedAccount.creditLimit, selectedAccount.currency);
+    return formatAmountToLocalizedNumeralsWithCurrency(parseBigDecimal(selectedAccount.numericCreditCardLimit), selectedAccount.currency);
 }
 
 function formatDate(unixTime?: number): string {
@@ -767,11 +839,11 @@ function init(): void {
             setAccount(response);
             originalBalances.value.clear();
             if (account.value.id) {
-                originalBalances.value.set(account.value.id, account.value.balance);
+                originalBalances.value.set(account.value.id, account.value.numericBalance);
             }
             for (const subAccount of subAccounts.value) {
                 if (subAccount.id) {
-                    originalBalances.value.set(subAccount.id, subAccount.balance);
+                    originalBalances.value.set(subAccount.id, subAccount.numericBalance);
                 }
             }
             subAccountContexts.value = [];
@@ -813,14 +885,15 @@ async function save(): Promise<void> {
         for (const acc of allAccounts) {
             if (!acc.id || isNewAccount(acc)) continue;
             const origBalance = originalBalances.value.get(acc.id);
-            if (origBalance !== undefined && acc.balance !== origBalance) {
+            if (origBalance !== undefined && acc.numericBalance !== origBalance) {
                 balanceChanged = true;
                 try {
                     await transactionsStore.adjustAccountBalance({
                         accountId: acc.id,
-                        targetBalance: acc.balance,
+                        targetBalance: acc.numericBalance,
                         currentBalance: origBalance
                     });
+                    originalBalances.value.set(acc.id, acc.numericBalance);
                 } catch (error: unknown) {
                     submitting.value = false;
                     hideLoading();

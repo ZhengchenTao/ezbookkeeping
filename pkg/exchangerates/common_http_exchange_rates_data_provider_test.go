@@ -30,6 +30,22 @@ func TestExchangeRatesApiLatestExchangeRateHandler_CentralBankOfArgentinaDataSou
 	checkExchangeRatesHaveSpecifiedCurrencies(t, exchangeRateResponse.BaseCurrency, supportedCurrencyCodes, exchangeRateResponse.ExchangeRates)
 }
 
+func TestExchangeRatesApiLatestExchangeRateHandler_NationalBankOfBelarusDataSource(t *testing.T) {
+	exchangeRateResponse := executeLatestExchangeRateHandler(t, settings.NationalBankOfBelarusDataSource)
+
+	if exchangeRateResponse == nil {
+		return
+	}
+
+	assert.Equal(t, "BYN", exchangeRateResponse.BaseCurrency)
+
+	supportedCurrencyCodes := []string{"AED", "AMD", "AUD", "BRL", "CAD", "CHF", "CNY", "CZK",
+		"DKK", "EUR", "GBP", "INR", "IRR", "ISK", "JPY", "KGS", "KWD", "KZT", "MDL", "NOK",
+		"NZD", "PLN", "RUB", "SEK", "SGD", "TRY", "UAH", "USD", "VND"}
+
+	checkExchangeRatesHaveSpecifiedCurrencies(t, exchangeRateResponse.BaseCurrency, supportedCurrencyCodes, exchangeRateResponse.ExchangeRates)
+}
+
 func TestExchangeRatesApiLatestExchangeRateHandler_BankOfCanadaDataSource(t *testing.T) {
 	exchangeRateResponse := executeLatestExchangeRateHandler(t, settings.BankOfCanadaDataSource)
 
@@ -66,7 +82,7 @@ func TestExchangeRatesApiLatestExchangeRateHandler_CzechNationalBankDataSource(t
 		"QAR", "RON", "RSD", "RUB", "RWF",
 		"SAR", "SBD", "SCR", "SDG", "SEK", "SGD", "SHP", "SLE", "SOS", "SRD", "SSP", "STN", "SVC", "SYP", "SZL",
 		"THB", "TJS", "TMT", "TND", "TOP", "TRY", "TTD", "TWD", "TZS", "UAH", "UGX", "USD", "UYU", "UZS",
-		"VND", "VUV", "WST", "XAF", "XCD", "XOF", "XPF", "YER", "ZAR", "ZMW"}
+		"VND", "VUV", "WST", "XAF", "XCD", "XCG", "XOF", "XPF", "YER", "ZAR", "ZMW"}
 
 	checkExchangeRatesHaveSpecifiedCurrencies(t, exchangeRateResponse.BaseCurrency, supportedCurrencyCodes, exchangeRateResponse.ExchangeRates)
 }
@@ -151,6 +167,33 @@ func TestExchangeRatesApiLatestExchangeRateHandler_BankOfIsraelDataSource(t *tes
 	checkExchangeRatesHaveSpecifiedCurrencies(t, exchangeRateResponse.BaseCurrency, supportedCurrencyCodes, exchangeRateResponse.ExchangeRates)
 }
 
+func TestExchangeRatesApiLatestExchangeRateHandler_BankOfItalyDataSource(t *testing.T) {
+	exchangeRateResponse := executeLatestExchangeRateHandler(t, settings.BankOfItalyDataSource)
+
+	if exchangeRateResponse == nil {
+		return
+	}
+
+	assert.Equal(t, "EUR", exchangeRateResponse.BaseCurrency)
+
+	supportedCurrencyCodes := []string{"AED", "AFN", "ALL", "AMD", "AOA", "ARS", "AUD", "AWG", "AZN",
+		"BAM", "BBD", "BDT", "BHD", "BIF", "BMD", "BND", "BOB", "BRL", "BSD", "BTN", "BWP", "BZD",
+		"CAD", "CDF", "CHF", "CLP", "CNY", "COP", "CRC", "CUP", "CVE", "CZK",
+		"DJF", "DKK", "DOP", "DZD", "EGP", "ERN", "ETB", "FJD", "FKP",
+		"GBP", "GEL", "GHS", "GIP", "GMD", "GNF", "GTQ", "GYD", "HKD", "HNL", "HTG", "HUF",
+		"IDR", "ILS", "INR", "IQD", "ISK", "JMD", "JOD", "JPY",
+		"KES", "KGS", "KHR", "KMF", "KRW", "KWD", "KYD", "KZT", "LAK", "LBP", "LKR", "LRD", "LSL", "LYD",
+		"MAD", "MDL", "MGA", "MKD", "MMK", "MNT", "MOP", "MRU", "MUR", "MVR", "MWK", "MXN", "MYR", "MZN",
+		"NAD", "NGN", "NIO", "NOK", "NPR", "NZD", "OMR", "PAB", "PEN", "PGK", "PHP", "PKR", "PLN", "PYG",
+		"QAR", "RON", "RSD", "RWF",
+		"SAR", "SBD", "SCR", "SDG", "SEK", "SGD", "SHP", "SLE", "SOS", "SRD", "SSP", "STN", "SVC", "SYP", "SZL",
+		"THB", "TJS", "TMT", "TND", "TOP", "TRY", "TTD", "TWD", "TZS",
+		"UAH", "UGX", "USD", "UYU", "UZS", "VES", "VND", "VUV", "WST",
+		"XAF", "XCD", "XCG", "XOF", "XPF", "YER", "ZAR", "ZMW", "ZWG"}
+
+	checkExchangeRatesHaveSpecifiedCurrencies(t, exchangeRateResponse.BaseCurrency, supportedCurrencyCodes, exchangeRateResponse.ExchangeRates)
+}
+
 func TestExchangeRatesApiLatestExchangeRateHandler_NationalBankOfKazakhstan(t *testing.T) {
 	exchangeRateResponse := executeLatestExchangeRateHandler(t, settings.NationalBankOfKazakhstanDataSource)
 
@@ -164,6 +207,22 @@ func TestExchangeRatesApiLatestExchangeRateHandler_NationalBankOfKazakhstan(t *t
 		"DKK", "EGP", "EUR", "GBP", "GEL", "HKD", "HUF", "IDR", "ILS", "INR", "IRR", "JPY",
 		"KGS", "KRW", "KWD", "MDL", "MNT", "MXN", "MYR", "NOK", "OMR", "PKR", "PLN", "QAR", "RON", "RUB",
 		"SAR", "SEK", "SGD", "THB", "TJS", "TRY", "UAH", "USD", "UZS", "VND", "ZAR"}
+
+	checkExchangeRatesHaveSpecifiedCurrencies(t, exchangeRateResponse.BaseCurrency, supportedCurrencyCodes, exchangeRateResponse.ExchangeRates)
+}
+
+func TestExchangeRatesApiLatestExchangeRateHandler_CentralBankOfMalaysiaDataSource(t *testing.T) {
+	exchangeRateResponse := executeLatestExchangeRateHandler(t, settings.CentralBankOfMalaysiaDataSource)
+
+	if exchangeRateResponse == nil {
+		return
+	}
+
+	assert.Equal(t, "MYR", exchangeRateResponse.BaseCurrency)
+
+	supportedCurrencyCodes := []string{"AED", "AUD", "BND", "CAD", "CHF", "CNY", "EGP", "EUR", "GBP",
+		"HKD", "IDR", "INR", "JPY", "KHR", "KRW", "MMK", "NPR", "NZD", "PHP", "PKR", "SAR", "SGD",
+		"THB", "TWD", "USD", "VND"}
 
 	checkExchangeRatesHaveSpecifiedCurrencies(t, exchangeRateResponse.BaseCurrency, supportedCurrencyCodes, exchangeRateResponse.ExchangeRates)
 }
@@ -222,7 +281,7 @@ func TestExchangeRatesApiLatestExchangeRateHandler_NationalBankOfPolandDataSourc
 		"QAR", "RON", "RSD", "RUB", "RWF",
 		"SAR", "SBD", "SCR", "SDG", "SEK", "SGD", "SLE", "SOS", "SRD", "SSP", "STN", "SVC", "SYP", "SZL",
 		"THB", "TJS", "TMT", "TND", "TOP", "TRY", "TTD", "TWD", "TZS", "UAH", "UGX", "USD", "UYU", "UZS",
-		"VES", "VND", "VUV", "WST", "XAF", "XCD", "XOF", "XPF", "YER", "ZAR", "ZMW", "ZWG"}
+		"VES", "VND", "VUV", "WST", "XAF", "XCD", "XCG", "XOF", "XPF", "YER", "ZAR", "ZMW", "ZWG"}
 
 	checkExchangeRatesHaveSpecifiedCurrencies(t, exchangeRateResponse.BaseCurrency, supportedCurrencyCodes, exchangeRateResponse.ExchangeRates)
 }

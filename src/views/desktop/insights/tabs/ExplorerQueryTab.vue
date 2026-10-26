@@ -1,5 +1,5 @@
 <template>
-    <v-card-subtitle class="px-5">
+    <v-card-subtitle class="px-4">
         <div class="title-and-toolbar d-flex">
             <v-btn color="default" variant="outlined"
                    :disabled="loading || disabled || !!editingQuery"
@@ -18,43 +18,43 @@
             v-model="queries"
         >
             <template #item="{ element, index }">
-                <v-card border class="card-title-with-bg mt-4 mb-8">
+                <v-card border class="card-title-with-bg my-4">
                     <v-card-title class="d-flex align-center py-2 px-5">
                         <v-icon :icon="mdiTextBoxSearchOutline" size="20" />
-                        <span class="query-name text-subtitle-1 ms-2" v-if="editingQuery !== element">{{ element.name || tt('format.misc.queryIndex', { index: index + 1 }) }}</span>
+                        <span class="query-name text-body-large ms-2" v-if="editingQuery !== element">{{ element.name || tt('format.misc.queryIndex', { index: formatNumberToLocalizedNumeralsWithoutDigitGrouping(index + 1) }) }}</span>
                         <div class="query-name-edit ms-2" v-if="editingQuery === element">
-                            <v-text-field autofocus type="text" density="compact" variant="underlined"
+                            <v-text-field autofocus type="text" autocomplete="off" density="compact" variant="underlined"
                                           :disabled="loading || disabled"
-                                          :placeholder="tt('format.misc.queryIndex', { index: index + 1 })"
+                                          :placeholder="tt('format.misc.queryIndex', { index: formatNumberToLocalizedNumeralsWithoutDigitGrouping(index + 1) })"
                                           v-text-field-auto-width="{ minWidth: 20, maxWidth: 300, auxSpanId: `query-name-aux-span-${index + 1}-${element.id}` }"
                                           v-model="editingQueryName"
                                           @keyup.esc="cancelUpdateQueryName"
                                           @keyup.enter="updateQueryName(element)" />
                             <span :id="`query-name-aux-span-${index + 1}-${element.id}`" />
                         </div>
-                        <v-btn class="ms-2" density="compact" color="primary" variant="text" size="small"
-                               :icon="true" :disabled="loading || disabled"
+                        <v-btn class="ms-2" density="compact" color="primary" variant="text"
+                               :aria-label="tt('Apply')" :disabled="loading || disabled" :icon="true"
                                @click="updateQueryName(element)"
                                v-if="editingQuery === element">
                             <v-icon :icon="mdiCheck" size="18" />
-                            <v-tooltip activator="parent">{{ tt('Update') }}</v-tooltip>
+                            <v-tooltip activator="parent">{{ tt('Apply') }}</v-tooltip>
                         </v-btn>
-                        <v-btn class="ms-2" density="compact" color="default" variant="text" size="small"
-                               :icon="true" :disabled="loading || disabled"
+                        <v-btn class="ms-1" density="compact" color="default" variant="text"
+                               :aria-label="tt('Cancel')" :disabled="loading || disabled" :icon="true"
                                @click="cancelUpdateQueryName"
                                v-if="editingQuery === element">
                             <v-icon :icon="mdiClose" size="18" />
                             <v-tooltip activator="parent">{{ tt('Cancel') }}</v-tooltip>
                         </v-btn>
-                        <v-btn class="ms-2" density="compact" color="default" variant="text" size="small"
-                               :icon="true" :disabled="loading || disabled || !!editingQuery"
+                        <v-btn class="ms-2" density="compact" color="default" variant="text"
+                               :aria-label="tt('Modify Query Name')" :disabled="loading || disabled || !!editingQuery" :icon="true"
                                @click="editingQueryName = element.name; editingQuery = element"
                                v-if="!editingQuery || editingQuery !== element">
                             <v-icon :icon="mdiPencilOutline" size="18" />
                             <v-tooltip activator="parent">{{ tt('Modify Query Name') }}</v-tooltip>
                         </v-btn>
-                        <v-btn class="ms-2" density="compact" color="default" variant="text" size="small"
-                               :icon="true" :disabled="loading || disabled || !!editingQuery"
+                        <v-btn class="ms-1" density="compact" color="default" variant="text"
+                               :aria-label="tt('Duplicate')" :disabled="loading || disabled || !!editingQuery" :icon="true"
                                @click="duplicateQuery(element)"
                                v-if="!editingQuery || editingQuery !== element">
                             <v-icon :icon="mdiContentCopy" size="18" />
@@ -70,15 +70,15 @@
                                 <span>{{ tt('Editor') }}</span>
                             </template>
                         </v-switch>
-                        <v-btn class="ms-2" density="compact" color="default" variant="text" size="small"
-                               :icon="true" :disabled="loading || disabled || !!editingQuery || queries.length < 1 || (queries.length === 1 && (!element.conditions || element.conditions.length < 1))"
+                        <v-btn class="ms-2" density="compact" color="default" variant="text"
+                               :aria-label="tt('Remove Query')" :disabled="loading || disabled || !!editingQuery || queries.length < 1 || (queries.length === 1 && (!element.conditions || element.conditions.length < 1))" :icon="true"
                                @click="removeQuery(element, index)">
                             <v-icon :icon="mdiClose" size="18" />
                             <v-tooltip activator="parent">{{ tt('Remove Query') }}</v-tooltip>
                         </v-btn>
-                        <span class="ms-2 mb-1">
+                        <span class="ms-1 mb-1">
                             <v-icon :class="!loading && !disabled && !editingQuery && queries.length > 1 ? 'drag-handle' : 'disabled'"
-                                    :icon="mdiDrag"/>
+                                    :aria-label="tt('Drag to Reorder')" :icon="mdiDrag"/>
                             <v-tooltip activator="parent" v-if="!loading && !disabled && !editingQuery && queries.length > 1">{{ tt('Drag to Reorder') }}</v-tooltip>
                         </span>
                     </v-card-title>
@@ -88,17 +88,17 @@
                     <v-card-text>
                         <v-row>
                             <v-col cols="12">
-                                <div class="text-center pt-5 pb-6" v-if="loading">
+                                <div class="text-center py-4" v-if="loading">
                                     <v-skeleton-loader class="skeleton-no-margin ms-3" type="text" :loading="true"></v-skeleton-loader>
                                 </div>
 
-                                <div class="text-center py-4" v-else-if="!loading && !element.conditions || element.conditions.length < 1">
+                                <div class="text-body-medium text-center py-3" v-else-if="!loading && !element.conditions || element.conditions.length < 1">
                                     {{ tt('No conditions defined. All transactions will match.') }}
                                 </div>
 
                                 <div v-else-if="element.conditions && element.conditions.length > 0 && !showExpression[element.id]">
                                     <div :key="conditionIndex" v-for="(conditionWithRelation, conditionIndex) in element.conditions">
-                                        <div class="d-flex overflow-x-auto align-center gap-2 mb-4"
+                                        <div class="d-flex overflow-x-auto align-center gap-2 mb-3"
                                              :style="getConditionStyle(element, conditionIndex)"
                                              v-if="conditionWithRelation.relation !== TransactionExplorerConditionRelation.SubEnd">
                                             <v-select
@@ -164,11 +164,11 @@
                                                     v-model="conditionWithRelation.condition.value"
                                                     v-if="conditionWithRelation.condition.field === TransactionExplorerConditionField.TransactionTimeDayOfWeek.value"
                                                 >
-                                                    <template #item="{ props, item }">
-                                                        <v-list-item :value="item.value" v-bind="props">
+                                                    <template #item="{ props, internalItem }">
+                                                        <v-list-item :value="internalItem.value" v-bind="props">
                                                             <template #title>
                                                                 <v-list-item-title>
-                                                                    <div class="d-flex align-center">{{ item.title }}</div>
+                                                                    <div class="d-flex align-center">{{ internalItem.title }}</div>
                                                                 </v-list-item-title>
                                                             </template>
                                                         </v-list-item>
@@ -186,11 +186,11 @@
                                                     v-model="conditionWithRelation.condition.value"
                                                     v-else-if="conditionWithRelation.condition.field === TransactionExplorerConditionField.TransactionTimeDayOfMonth.value"
                                                 >
-                                                    <template #item="{ props, item }">
-                                                        <v-list-item :value="item.value" v-bind="props">
+                                                    <template #item="{ props, internalItem }">
+                                                        <v-list-item :value="internalItem.value" v-bind="props">
                                                             <template #title>
                                                                 <v-list-item-title>
-                                                                    <div class="d-flex align-center">{{ item.title }}</div>
+                                                                    <div class="d-flex align-center">{{ internalItem.title }}</div>
                                                                 </v-list-item-title>
                                                             </template>
                                                         </v-list-item>
@@ -208,11 +208,11 @@
                                                     v-model="conditionWithRelation.condition.value"
                                                     v-else-if="conditionWithRelation.condition.field === TransactionExplorerConditionField.TransactionTimeMonthOfYear.value"
                                                 >
-                                                    <template #item="{ props, item }">
-                                                        <v-list-item :value="item.value" v-bind="props">
+                                                    <template #item="{ props, internalItem }">
+                                                        <v-list-item :value="internalItem.value" v-bind="props">
                                                             <template #title>
                                                                 <v-list-item-title>
-                                                                    <div class="d-flex align-center">{{ item.title }}</div>
+                                                                    <div class="d-flex align-center">{{ internalItem.title }}</div>
                                                                 </v-list-item-title>
                                                             </template>
                                                         </v-list-item>
@@ -230,11 +230,11 @@
                                                     v-model="conditionWithRelation.condition.value"
                                                     v-else-if="conditionWithRelation.condition.field === TransactionExplorerConditionField.TransactionTimeHourOfDay.value"
                                                 >
-                                                    <template #item="{ props, item }">
-                                                        <v-list-item :value="item.value" v-bind="props">
+                                                    <template #item="{ props, internalItem }">
+                                                        <v-list-item :value="internalItem.value" v-bind="props">
                                                             <template #title>
                                                                 <v-list-item-title>
-                                                                    <div class="d-flex align-center">{{ item.title }}</div>
+                                                                    <div class="d-flex align-center">{{ internalItem.title }}</div>
                                                                 </v-list-item-title>
                                                             </template>
                                                         </v-list-item>
@@ -254,7 +254,7 @@
                                                     />
                                                     <span class="ms-2 me-2"
                                                           v-if="conditionWithRelation.condition.operator === TransactionExplorerConditionOperator.MinuteOffsetBetween.value ||
-                                                                conditionWithRelation.condition.operator === TransactionExplorerConditionOperator.MinuteOffsetNotBetween.value">~</span>
+                                                                conditionWithRelation.condition.operator === TransactionExplorerConditionOperator.MinuteOffsetNotBetween.value">{{ tt('format.misc.rangeSeparator') }}</span>
                                                     <number-input density="compact"
                                                                   :disabled="loading || disabled || !!editingQuery"
                                                                   :min-value="WESTERNMOST_TIMEZONE_UTC_OFFSET"
@@ -281,11 +281,11 @@
                                                     v-model="conditionWithRelation.condition.value"
                                                     v-else-if="conditionWithRelation.condition.field === TransactionExplorerConditionField.TransactionType.value"
                                                 >
-                                                    <template #item="{ props, item }">
-                                                        <v-list-item :value="item.value" v-bind="props">
+                                                    <template #item="{ props, internalItem }">
+                                                        <v-list-item :value="internalItem.value" v-bind="props">
                                                             <template #title>
                                                                 <v-list-item-title>
-                                                                    <div class="d-flex align-center">{{ item.title }}</div>
+                                                                    <div class="d-flex align-center">{{ internalItem.title }}</div>
                                                                 </v-list-item-title>
                                                             </template>
                                                         </v-list-item>
@@ -344,7 +344,7 @@
                                                     />
                                                     <span class="ms-2 me-2"
                                                           v-if="conditionWithRelation.condition.operator === TransactionExplorerConditionOperator.Between.value ||
-                                                                conditionWithRelation.condition.operator === TransactionExplorerConditionOperator.NotBetween.value">~</span>
+                                                                conditionWithRelation.condition.operator === TransactionExplorerConditionOperator.NotBetween.value">{{ tt('format.misc.rangeSeparator') }}</span>
                                                     <amount-input density="compact"
                                                                   :currency="defaultCurrency"
                                                                   :disabled="loading || disabled || !!editingQuery"
@@ -363,7 +363,7 @@
                                                                         conditionWithRelation.condition.operator !== TransactionExplorerConditionOperator.LongitudeBetween.value &&
                                                                         conditionWithRelation.condition.operator !== TransactionExplorerConditionOperator.LongitudeNotBetween.value"
                                                     />
-                                                    <number-input density="compact"
+                                                    <number-input autocomplete="off" density="compact"
                                                                   :disabled="loading || disabled || !!editingQuery"
                                                                   :min-value="TransactionExplorerGeoLocationCondition.MIN_LATITUDE"
                                                                   :max-value="TransactionExplorerGeoLocationCondition.MAX_LATITUDE"
@@ -385,7 +385,7 @@
                                                           v-if="conditionWithRelation.condition.operator === TransactionExplorerConditionOperator.LatitudeBetween.value ||
                                                                 conditionWithRelation.condition.operator === TransactionExplorerConditionOperator.LatitudeNotBetween.value ||
                                                                 conditionWithRelation.condition.operator === TransactionExplorerConditionOperator.LongitudeBetween.value ||
-                                                                conditionWithRelation.condition.operator === TransactionExplorerConditionOperator.LongitudeNotBetween.value">~</span>
+                                                                conditionWithRelation.condition.operator === TransactionExplorerConditionOperator.LongitudeNotBetween.value">{{ tt('format.misc.rangeSeparator') }}</span>
                                                     <number-input density="compact"
                                                                   :disabled="loading || disabled || !!editingQuery"
                                                                   :min-value="TransactionExplorerGeoLocationCondition.MIN_LATITUDE"
@@ -408,6 +408,7 @@
 
                                                 <div class="d-flex w-100" v-else-if="conditionWithRelation.condition.field === TransactionExplorerConditionField.TransactionTag.value">
                                                     <v-text-field
+                                                        autocomplete="off"
                                                         disabled
                                                         persistent-placeholder
                                                         density="compact"
@@ -435,7 +436,7 @@
                                                                          conditionWithRelation.condition.operator === TransactionExplorerConditionOperator.IsEmpty.value || conditionWithRelation.condition.operator === TransactionExplorerConditionOperator.IsNotEmpty.value"
                                                 />
 
-                                                <v-text-field density="compact"
+                                                <v-text-field autocomplete="off" density="compact"
                                                               :disabled="loading || disabled || !!editingQuery"
                                                               :placeholder="tt('None')"
                                                               v-model="conditionWithRelation.condition.value"
@@ -444,19 +445,17 @@
                                                 />
                                             </div>
 
-                                            <v-btn color="default" density="compact"
-                                                   variant="text" size="small"
-                                                   :icon="true"
-                                                   :disabled="loading || disabled || !!editingQuery"
+                                            <v-btn color="default" density="compact" variant="text"
+                                                   :aria-label="tt('Remove Condition')" :disabled="loading || disabled || !!editingQuery" :icon="true"
                                                    @click="removeCondition(element, conditionIndex)">
                                                 <v-icon :icon="mdiClose" size="18" />
                                                 <v-tooltip activator="parent">{{ tt('Remove Condition') }}</v-tooltip>
                                             </v-btn>
                                         </div>
-                                        <div class="d-flex overflow-x-auto align-center gap-2 mb-4"
+                                        <div class="d-flex overflow-x-auto align-center gap-2 mb-3"
                                              :style="getConditionStyle(element, conditionIndex)"
                                              v-if="conditionWithRelation.relation === TransactionExplorerConditionRelation.SubEnd">
-                                            <v-btn class="px-2" density="comfortable" color="primary" variant="text" size="small"
+                                            <v-btn class="px-2" density="comfortable" color="primary" variant="text"
                                                    :prepend-icon="mdiPlus"
                                                    :disabled="loading || disabled || !!editingQuery"
                                                    @click="addSubCondition(element, conditionIndex)">
@@ -472,7 +471,7 @@
                                     </div>
                                 </div>
 
-                                <v-btn class="px-2" density="comfortable" color="primary" variant="text" size="small"
+                                <v-btn class="px-2" density="comfortable" color="primary" variant="text"
                                        :prepend-icon="mdiPlus"
                                        :disabled="loading || disabled || !!editingQuery || showExpression[element.id]"
                                        @click="addCondition(element)">
@@ -486,34 +485,31 @@
         </draggable-list>
     </v-card-text>
 
-    <v-dialog width="800" v-model="showFilterSourceAccountsDialog">
-        <account-filter-settings-card type="custom" :dialog-mode="true"
-                                      :selected-account-ids="isArray(currentCondition?.value) ? currentCondition?.value as string[] : []"
-                                      @settings:change="updateSourceAccount" />
-    </v-dialog>
+    <account-filter-settings-dialog type="custom"
+                                    :selected-account-ids="isArray(currentCondition?.value) ? currentCondition?.value as string[] : []"
+                                    v-model:show="showFilterSourceAccountsDialog"
+                                    @settings:change="updateSourceAccount" />
 
-    <v-dialog width="800" v-model="showFilterDestinationAccountsDialog">
-        <account-filter-settings-card type="custom" :dialog-mode="true"
-                                      :selected-account-ids="isArray(currentCondition?.value) ? currentCondition?.value as string[] : []"
-                                      @settings:change="updateDestinationAccount" />
-    </v-dialog>
+    <account-filter-settings-dialog type="custom"
+                                    :selected-account-ids="isArray(currentCondition?.value) ? currentCondition?.value as string[] : []"
+                                    v-model:show="showFilterDestinationAccountsDialog"
+                                    @settings:change="updateDestinationAccount" />
 
-    <v-dialog width="800" v-model="showFilterTransactionCategoriesDialog">
-        <category-filter-settings-card type="custom" :dialog-mode="true"
-                                       :selected-category-ids="isArray(currentCondition?.value) ? currentCondition?.value as string[] : []"
-                                       @settings:change="updateTransactionCategories" />
-    </v-dialog>
+    <category-filter-settings-dialog type="custom"
+                                     :selected-category-ids="isArray(currentCondition?.value) ? currentCondition?.value as string[] : []"
+                                     v-model:show="showFilterTransactionCategoriesDialog"
+                                     @settings:change="updateTransactionCategories" />
 
     <snack-bar ref="snackbar" />
 </template>
 
 <script setup lang="ts">
-import AccountFilterSettingsCard from '@/views/desktop/common/cards/AccountFilterSettingsCard.vue';
-import CategoryFilterSettingsCard from '@/views/desktop/common/cards/CategoryFilterSettingsCard.vue';
+import AccountFilterSettingsDialog from '@/views/desktop/common/dialogs/AccountFilterSettingsDialog.vue';
+import CategoryFilterSettingsDialog from '@/views/desktop/common/dialogs/CategoryFilterSettingsDialog.vue';
 
 import SnackBar from '@/components/desktop/SnackBar.vue';
 
-import { ref, computed, useTemplateRef } from 'vue';
+import { ref, computed, useTemplateRef, watch } from 'vue';
 
 import { useI18n } from '@/locales/helpers.ts';
 
@@ -580,7 +576,8 @@ const {
     getAllHours,
     getAvailableMonthDays,
     getAllTransactionExplorerConditionFields,
-    getAllTransactionExplorerConditionOperators
+    getAllTransactionExplorerConditionOperators,
+    formatNumberToLocalizedNumeralsWithoutDigitGrouping
 } = useI18n();
 
 const userStore = useUserStore();
@@ -893,6 +890,11 @@ function getExpression(query: TransactionExplorerQuery, queryIndex: number): str
 if (queries.value.length === 0) {
     queries.value.push(TransactionExplorerQuery.create(generateRandomUUID()));
 }
+
+watch(() => queries.value, () => {
+    editingQuery.value = undefined;
+    editingQueryName.value = '';
+});
 </script>
 
 <style>
@@ -901,14 +903,16 @@ if (queries.value.length === 0) {
 }
 
 .query-name-edit {
+    display: flex;
+    align-items: center;
     height: 36px;
+}
 
-    > .v-text-field {
-        .v-field__input {
-            margin-top: -2px;
-            margin-bottom: -3px;
-            padding-top: 0;
-        }
-    }
+.query-name-edit .v-field {
+    font-size: 0.9375rem;
+}
+
+.query-name-edit .v-field__input {
+    padding-top: 0;
 }
 </style>

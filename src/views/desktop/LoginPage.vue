@@ -3,29 +3,20 @@
         <router-link to="/">
             <div class="auth-logo d-flex align-start gap-x-3">
                 <img alt="logo" class="login-page-logo" :src="APPLICATION_LOGO_PATH" />
-                <h1 class="font-weight-medium leading-normal text-2xl">{{ tt('global.app.title') }}</h1>
+                <span class="auth-app-title">{{ tt('global.app.title') }}</span>
             </div>
         </router-link>
         <v-row no-gutters class="auth-wrapper">
             <v-col cols="12" md="8" class="auth-image-background d-none d-md-flex align-center justify-center position-relative">
-                <div class="d-flex auth-img-footer" v-if="!isDarkMode">
-                    <v-img class="img-with-direction" src="img/desktop/background.svg"/>
-                </div>
-                <div class="d-flex auth-img-footer" v-if="isDarkMode">
-                    <v-img class="img-with-direction" src="img/desktop/background-dark.svg"/>
-                </div>
-                <div class="d-flex align-center justify-center w-100 pt-10">
-                    <v-img class="img-with-direction" max-width="600px" src="img/desktop/people1.svg" v-if="!isDarkMode"/>
-                    <v-img class="img-with-direction" max-width="600px" src="img/desktop/people1-dark.svg" v-else-if="isDarkMode"/>
-                </div>
+                <auth-illustration variant="login" />
             </v-col>
             <v-col cols="12" md="4" class="auth-card d-flex flex-column">
                 <div class="d-flex align-center justify-center h-100">
                     <v-card variant="flat" class="w-100 mt-0 px-4 pt-12" max-width="500">
-                        <v-card-text>
-                            <h4 class="text-h4 mb-2">{{ tt('Welcome to ezBookkeeping') }}</h4>
-                            <p class="mb-0" v-if="isInternalAuthEnabled()">{{ tt('Please log in with your ezBookkeeping account') }}</p>
-                            <p class="mt-1 mb-0" v-if="tips">{{ tips }}</p>
+                        <v-card-text class="py-0">
+                            <div class="text-headline-small mb-2">{{ tt('Welcome to ezBookkeeping') }}</div>
+                            <div class="auth-message text-body-large mb-0" v-if="isInternalAuthEnabled()">{{ tt('Please log in with your ezBookkeeping account') }}</div>
+                            <div class="auth-message text-body-large mt-1 mb-0" v-if="tips">{{ tips }}</div>
                         </v-card-text>
 
                         <v-card-text class="pb-0 mb-6">
@@ -79,6 +70,7 @@
                                         />
                                         <v-text-field
                                             type="text"
+                                            autocomplete="off"
                                             :disabled="loggingInByPassword || loggingInByOAuth2 || verifying"
                                             :label="tt('Backup Code')"
                                             :placeholder="tt('Backup Code')"
@@ -90,7 +82,7 @@
                                         />
                                     </v-col>
 
-                                    <v-col cols="12" class="py-0 mt-1 mb-4">
+                                    <v-col cols="12" class="auth-links text-body-large py-0 mt-1 mb-4" v-if="isInternalAuthEnabled()">
                                         <div class="d-flex align-center justify-space-between flex-wrap">
                                             <a href="javascript:void(0);"
                                                :class="{ 'disabled': loggingInByPassword || loggingInByOAuth2 || verifying }"
@@ -117,7 +109,7 @@
                                             <v-progress-circular indeterminate size="22" class="ms-2" v-if="verifying"></v-progress-circular>
                                         </v-btn>
 
-                                        <v-col cols="12" class="d-flex align-center px-0 text-no-wrap" v-if="isInternalAuthEnabled() && isOAuth2Enabled()">
+                                        <v-col cols="12" class="d-flex align-center my-3 px-0 text-body-medium text-no-wrap" v-if="isInternalAuthEnabled() && isOAuth2Enabled()">
                                             <v-divider class="me-3" />
                                             {{ tt('or') }}
                                             <v-divider class="ms-3" />
@@ -130,7 +122,17 @@
                                         </v-btn>
                                     </v-col>
 
-                                    <v-col cols="12" class="text-center text-base" v-if="isInternalAuthEnabled()">
+                                    <v-col cols="12" class="auth-links text-body-large" v-if="!isInternalAuthEnabled()">
+                                        <div class="text-center">
+                                            <a href="javascript:void(0);"
+                                               :class="{ 'disabled': loggingInByPassword || loggingInByOAuth2 || verifying }"
+                                               @click="showMobileQrCode = true">
+                                                <span class="nav-item-title">{{ tt('Use on Mobile Device') }}</span>
+                                            </a>
+                                        </div>
+                                    </v-col>
+
+                                    <v-col cols="12" class="auth-links text-center text-body-large mt-2" v-if="isInternalAuthEnabled()">
                                         <span class="me-1">{{ tt('Don\'t have an account?') }}</span>
                                         <router-link class="text-primary" to="/signup"
                                                      :class="{ 'disabled': !isUserRegistrationEnabled() || loggingInByPassword || loggingInByOAuth2 || verifying }">
@@ -144,22 +146,18 @@
                 </div>
                 <v-spacer/>
                 <div class="d-flex align-center justify-center">
-                    <v-card variant="flat" class="w-100 px-4 pb-4" max-width="500">
+                    <v-card variant="flat" class="w-100 px-4 pb-3" max-width="500">
                         <v-card-text class="pt-0">
-                            <v-row>
-                                <v-col cols="12" class="text-center">
-                                    <language-select-button :disabled="loggingInByPassword || loggingInByOAuth2 || verifying" />
-                                </v-col>
+                            <div class="text-center">
+                                <language-select-button :disabled="loggingInByPassword || loggingInByOAuth2 || verifying" />
+                            </div>
 
-                                <v-col cols="12" class="d-flex align-center pt-0">
-                                    <v-divider />
-                                </v-col>
+                            <v-divider class="mt-2 mb-3" />
 
-                                <v-col cols="12" class="text-center text-sm">
-                                    <span>Powered by </span>
-                                    <a href="https://github.com/mayswind/ezbookkeeping" target="_blank">ezBookkeeping</a>&nbsp;<span>{{ version }}</span>
-                                </v-col>
-                            </v-row>
+                            <div class="auth-powered-by text-center">
+                                <span>Powered by </span>
+                                <a href="https://github.com/mayswind/ezbookkeeping" target="_blank">ezBookkeeping</a>&nbsp;<span>{{ version }}</span>
+                            </div>
                         </v-card-text>
                     </v-card>
                 </div>
@@ -175,16 +173,14 @@
 import { VTextField } from 'vuetify/components/VTextField';
 import SnackBar from '@/components/desktop/SnackBar.vue';
 
-import { ref, computed, useTemplateRef, nextTick } from 'vue';
+import { ref, useTemplateRef, nextTick } from 'vue';
 import { useRouter } from 'vue-router';
-import { useTheme } from 'vuetify';
 
 import { useI18n } from '@/locales/helpers.ts';
 import { useLoginPageBase } from '@/views/base/LoginPageBase.ts';
 
 import { useRootStore } from '@/stores/index.ts';
 
-import { ThemeType } from '@/core/theme.ts';
 import { APPLICATION_LOGO_PATH } from '@/consts/asset.ts';
 import { KnownErrorCode } from '@/consts/api.ts';
 
@@ -205,7 +201,6 @@ import {
 type SnackBarType = InstanceType<typeof SnackBar>;
 
 const router = useRouter();
-const theme = useTheme();
 
 const { tt } = useI18n();
 
@@ -237,8 +232,6 @@ const snackbar = useTemplateRef<SnackBarType>('snackbar');
 
 const show2faInput = ref<boolean>(false);
 const showMobileQrCode = ref<boolean>(false);
-
-const isDarkMode = computed<boolean>(() => theme.global.name.value === ThemeType.Dark);
 
 function login(): void {
     if (!username.value) {

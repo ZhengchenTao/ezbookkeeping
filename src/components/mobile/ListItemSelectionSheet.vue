@@ -5,7 +5,7 @@
         <f7-toolbar class="toolbar-with-swipe-handler">
             <div class="swipe-handler"></div>
             <div class="left">
-                <f7-link sheet-close icon-f7="xmark"></f7-link>
+                <f7-link sheet-close icon-f7="xmark" :aria-label="tt('Close')"></f7-link>
             </div>
         </f7-toolbar>
         <f7-page-content class="margin-top">
@@ -23,7 +23,9 @@
                         <f7-icon class="list-item-checked-icon" f7="checkmark_alt" :style="{ 'color': isSelected(item, index) ? '' : 'transparent' }"></f7-icon>
                     </template>
                     <template #media v-if="iconField">
-                        <ItemIcon :icon-type="iconType" :icon-id="(item as Record<string, unknown>)[iconField]" :color="colorField ? (item as Record<string, unknown>)[colorField] : undefined"></ItemIcon>
+                        <ItemIcon :icon-type="getIconType(iconType, iconTypeField ? (item as Record<string, unknown>)[iconTypeField] : undefined)"
+                                  :icon-id="(item as Record<string, unknown>)[iconField]"
+                                  :color="colorField ? (item as Record<string, unknown>)[colorField] : undefined"></ItemIcon>
                     </template>
                 </f7-list-item>
             </f7-list>
@@ -36,20 +38,22 @@ import { ref, computed } from 'vue';
 
 import { useI18n } from '@/locales/helpers.ts';
 
+import { getIconType } from '@/lib/icon.ts';
 import { scrollToSelectedItem } from '@/lib/ui/common.ts';
 import { type Framework7Dom } from '@/lib/ui/mobile.ts';
 
 const props = defineProps<{
     modelValue: unknown;
-    valueType: string; // item or index
+    valueType: 'item' | 'index'; // item or index
     keyField?: string; // for value type == item
     valueField?: string; // for value type == item
     titleField: string;
     titleI18n?: boolean;
     afterField?: string;
     afterI18n?: boolean;
-    iconField?: string;
     iconType?: string;
+    iconTypeField?: string;
+    iconField?: string;
     colorField?: string;
     hiddenField?: string;
     items: unknown[];
@@ -61,7 +65,7 @@ const emit = defineEmits<{
     (e: 'update:show', value: boolean): void;
 }>();
 
-const { ti } = useI18n();
+const { tt, ti } = useI18n();
 
 const currentValue = ref<unknown>(props.modelValue);
 
@@ -87,7 +91,7 @@ function isSelected(item: unknown, index: number): boolean {
     }
 }
 
-function getItemValue(item: unknown, index: number, fieldName: string | undefined, valueType: string): unknown {
+function getItemValue(item: unknown, index: number, fieldName: string | undefined, valueType: 'item' | 'index'): unknown {
     if (valueType === 'index') {
         return index;
     } else if (fieldName) {

@@ -7,6 +7,7 @@ import (
 	"github.com/mayswind/ezbookkeeping/pkg/core"
 	"github.com/mayswind/ezbookkeeping/pkg/datastore"
 	"github.com/mayswind/ezbookkeeping/pkg/mail"
+	"github.com/mayswind/ezbookkeeping/pkg/models"
 	"github.com/mayswind/ezbookkeeping/pkg/settings"
 	"github.com/mayswind/ezbookkeeping/pkg/storage"
 	"github.com/mayswind/ezbookkeeping/pkg/utils"
@@ -99,7 +100,7 @@ func (s *ServiceUsingStorage) ExistsAvatar(ctx core.Context, uid int64, fileExte
 }
 
 // ReadAvatar returns the user avatar from the current avatar object storage
-func (s *ServiceUsingStorage) ReadAvatar(ctx core.Context, uid int64, fileExtension string) (storage.ObjectInStorage, error) {
+func (s *ServiceUsingStorage) ReadAvatar(ctx core.Context, uid int64, fileExtension string) (storage.ObjectInStorage, bool, error) {
 	return s.container.ReadAvatar(ctx, s.getUserAvatarPath(uid, fileExtension))
 }
 
@@ -113,13 +114,33 @@ func (s *ServiceUsingStorage) DeleteAvatar(ctx core.Context, uid int64, fileExte
 	return s.container.DeleteAvatar(ctx, s.getUserAvatarPath(uid, fileExtension))
 }
 
+// ExistsUserCustomIcon returns whether the user custom icon exists from the current user custom icon object storage
+func (s *ServiceUsingStorage) ExistsUserCustomIcon(ctx core.Context, uid int64, iconId int64) (bool, error) {
+	return s.container.ExistsUserCustomIcon(ctx, s.getUserCustomIconPath(uid, iconId))
+}
+
+// ReadUserCustomIcon returns the user custom icon from the current user custom icon object storage
+func (s *ServiceUsingStorage) ReadUserCustomIcon(ctx core.Context, uid int64, iconId int64) (storage.ObjectInStorage, bool, error) {
+	return s.container.ReadUserCustomIcon(ctx, s.getUserCustomIconPath(uid, iconId))
+}
+
+// SaveUserCustomIcon returns whether save the user custom icon into the current user custom icon object storage successfully
+func (s *ServiceUsingStorage) SaveUserCustomIcon(ctx core.Context, uid int64, iconId int64, object storage.ObjectInStorage) error {
+	return s.container.SaveUserCustomIcon(ctx, s.getUserCustomIconPath(uid, iconId), object)
+}
+
+// DeleteUserCustomIcon returns whether delete the user custom icon from the current user custom icon object storage successfully
+func (s *ServiceUsingStorage) DeleteUserCustomIcon(ctx core.Context, uid int64, iconId int64) error {
+	return s.container.DeleteUserCustomIcon(ctx, s.getUserCustomIconPath(uid, iconId))
+}
+
 // ExistsTransactionPicture returns whether the transaction picture exists from the current transaction picture object storage
 func (s *ServiceUsingStorage) ExistsTransactionPicture(ctx core.Context, uid int64, pictureId int64, fileExtension string) (bool, error) {
 	return s.container.ExistsTransactionPicture(ctx, s.getTransactionPicturePath(uid, pictureId, fileExtension))
 }
 
 // ReadTransactionPicture returns the transaction picture from the current transaction picture object storage
-func (s *ServiceUsingStorage) ReadTransactionPicture(ctx core.Context, uid int64, pictureId int64, fileExtension string) (storage.ObjectInStorage, error) {
+func (s *ServiceUsingStorage) ReadTransactionPicture(ctx core.Context, uid int64, pictureId int64, fileExtension string) (storage.ObjectInStorage, bool, error) {
 	return s.container.ReadTransactionPicture(ctx, s.getTransactionPicturePath(uid, pictureId, fileExtension))
 }
 
@@ -139,4 +160,8 @@ func (s *ServiceUsingStorage) getUserAvatarPath(uid int64, fileExtension string)
 
 func (s *ServiceUsingStorage) getTransactionPicturePath(uid int64, pictureId int64, fileExtension string) string {
 	return filepath.Join(utils.Int64ToString(uid), fmt.Sprintf("%d.%s", pictureId, fileExtension))
+}
+
+func (s *ServiceUsingStorage) getUserCustomIconPath(uid int64, iconId int64) string {
+	return filepath.Join(utils.Int64ToString(uid), fmt.Sprintf("%d.%s", iconId, models.UserCustomIconFileExtension))
 }

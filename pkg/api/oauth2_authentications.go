@@ -1,7 +1,7 @@
 package api
 
 import (
-	"encoding/json"
+	"encoding/json/v2"
 	"errors"
 	"fmt"
 	"net/url"
@@ -80,6 +80,11 @@ func (a *OAuth2AuthenticationApi) LoginHandler(c *core.WebContext) (string, *err
 
 		if err != nil {
 			log.Errorf(c, "[oauth2_authentications.LoginHandler] failed to parse token, because %s", err.Error())
+			return a.redirectToFailedCallbackPage(c, errs.ErrInvalidToken)
+		}
+
+		if claims.Type != core.USER_TOKEN_TYPE_NORMAL {
+			log.Errorf(c, "[oauth2_authentications.LoginHandler] token type \"%d\" is not allowed to login via oauth 2.0", claims.Type)
 			return a.redirectToFailedCallbackPage(c, errs.ErrInvalidToken)
 		}
 

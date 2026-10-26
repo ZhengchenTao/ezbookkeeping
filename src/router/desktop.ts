@@ -3,7 +3,6 @@ import { type NavigationGuardReturn, createRouter, createWebHashHistory } from '
 import { TemplateType } from '@/core/template.ts';
 import { isUserLogined, isUserUnlocked } from '@/lib/userstate.ts';
 
-import MainLayout from '@/views/desktop/MainLayout.vue';
 import LoginPage from '@/views/desktop/LoginPage.vue';
 import SignUpPage from '@/views/desktop/SignupPage.vue';
 import VerifyEmailPage from '@/views/desktop/VerifyEmailPage.vue';
@@ -28,11 +27,23 @@ import TransactionTagListPage from '@/views/desktop/tags/ListPage.vue';
 
 import TransactionTemplateListPage from '@/views/desktop/templates/ListPage.vue';
 
-import UserSettingsPage from '@/views/desktop/user/UserSettingsPage.vue';
-import AppSettingsPage from '@/views/desktop/app/AppSettingsPage.vue';
+import UserCustomIconListPage from '@/views/desktop/customicons/ListPage.vue';
+
+import OverviewLayoutEditorPage from '@/views/desktop/overview/LayoutEditorPage.vue';
+
+import SettingsPageLayout from '@/views/desktop/settings/SettingsPageLayout.vue';
+import UserBasicSettingPage from '@/views/desktop/users/UserBasicSettingPage.vue';
+import UserSecuritySettingPage from '@/views/desktop/users/UserSecuritySettingPage.vue';
+import TwoFactorAuthPage from '@/views/desktop/users/TwoFactorAuthPage.vue';
+import DataManagementPage from '@/views/desktop/users/DataManagementPage.vue';
+import PreferencesSettingsPage from '@/views/desktop/settings/PreferencesSettingsPage.vue';
+import ApplicationLockPage from '@/views/desktop/settings/ApplicationLockPage.vue';
+import StatisticsSettingPage from '@/views/desktop/settings/StatisticsSettingPage.vue';
+import ApplicationCloudSyncSettingsPage from '@/views/desktop/settings/ApplicationCloudSyncSettingsPage.vue';
+import BrowserCacheSettingPage from '@/views/desktop/settings/BrowserCacheSettingPage.vue';
+import DeveloperToolsPage from '@/views/desktop/settings/DeveloperToolsPage.vue';
 
 import ExchangeRatesListPage from '@/views/desktop/exchangerates/ListPage.vue';
-import AboutPage from '@/views/desktop/AboutPage.vue';
 
 function checkLogin(): NavigationGuardReturn {
     if (!isUserLogined()) {
@@ -93,70 +104,70 @@ const router = createRouter({
     routes: [
         {
             path: '/',
-            component: MainLayout,
+            component: HomePage,
+            beforeEnter: checkLogin
+        },
+        {
+            path: '/transaction/list',
+            component: TransactionListPage,
+            beforeEnter: checkLogin,
+            props: route => ({
+                initPageType: route.query['pageType'],
+                initDateType: route.query['dateType'],
+                initMaxTime: route.query['maxTime'],
+                initMinTime: route.query['minTime'],
+                initType: route.query['type'],
+                initCategoryIds: route.query['categoryIds'],
+                initAccountIds: route.query['accountIds'],
+                initTagFilter: route.query['tagFilter'],
+                initAmountFilter: route.query['amountFilter'],
+                initKeyword: route.query['keyword'],
+                initMatchMode: route.query['matchMode']
+            })
+        },
+        {
+            path: '/statistics/transaction',
+            component: StatisticsTransactionPage,
+            beforeEnter: checkLogin,
+            props: route => ({
+                initAnalysisType: route.query['analysisType'],
+                initChartDataType: route.query['chartDataType'],
+                initChartType: route.query['chartType'],
+                initChartDateType: route.query['chartDateType'],
+                initStartTime: route.query['startTime'],
+                initEndTime: route.query['endTime'],
+                initFilterAccountIds: route.query['filterAccountIds'],
+                initFilterCategoryIds: route.query['filterCategoryIds'],
+                initTagFilter: route.query['tagFilter'],
+                initKeyword: route.query['keyword'],
+                initMatchMode: route.query['matchMode'],
+                initSortingType: route.query['sortingType'],
+                initTrendDateAggregationType: route.query['trendDateAggregationType'],
+                initAssetTrendsDateAggregationType: route.query['assetTrendsDateAggregationType']
+            })
+        },
+        {
+            path: '/insights/explorer',
+            component: InsightsExplorerPage,
+            beforeEnter: checkLogin,
+            props: route => ({
+                initId: route.query['id'],
+                initActiveTab: route.query['activeTab'],
+                initDateRangeType: route.query['dateRangeType'],
+                initStartTime: route.query['startTime'],
+                initEndTime: route.query['endTime']
+            })
+        },
+        {
+            path: '/account/list',
+            component: AccountListPage,
+            beforeEnter: checkLogin
+        },
+        {
+            path: '/',
+            component: SettingsPageLayout,
             beforeEnter: checkLogin,
             children: [
-                {
-                    path: '',
-                    component: HomePage,
-                    beforeEnter: checkLogin
-                },
-                {
-                    path: '/transaction/list',
-                    component: TransactionListPage,
-                    beforeEnter: checkLogin,
-                    props: route => ({
-                        initPageType: route.query['pageType'],
-                        initDateType: route.query['dateType'],
-                        initMaxTime: route.query['maxTime'],
-                        initMinTime: route.query['minTime'],
-                        initType: route.query['type'],
-                        initCategoryIds: route.query['categoryIds'],
-                        initAccountIds: route.query['accountIds'],
-                        initTagFilter: route.query['tagFilter'],
-                        initAmountFilter: route.query['amountFilter'],
-                        initKeyword: route.query['keyword'],
-                        initMatchMode: route.query['matchMode']
-                    })
-                },
-                {
-                    path: '/statistics/transaction',
-                    component: StatisticsTransactionPage,
-                    beforeEnter: checkLogin,
-                    props: route => ({
-                        initAnalysisType: route.query['analysisType'],
-                        initChartDataType: route.query['chartDataType'],
-                        initChartType: route.query['chartType'],
-                        initChartDateType: route.query['chartDateType'],
-                        initStartTime: route.query['startTime'],
-                        initEndTime: route.query['endTime'],
-                        initFilterAccountIds: route.query['filterAccountIds'],
-                        initFilterCategoryIds: route.query['filterCategoryIds'],
-                        initTagFilter: route.query['tagFilter'],
-                        initKeyword: route.query['keyword'],
-                        initMatchMode: route.query['matchMode'],
-                        initSortingType: route.query['sortingType'],
-                        initTrendDateAggregationType: route.query['trendDateAggregationType'],
-                        initAssetTrendsDateAggregationType: route.query['assetTrendsDateAggregationType']
-                    })
-                },
-                {
-                    path: '/insights/explorer',
-                    component: InsightsExplorerPage,
-                    beforeEnter: checkLogin,
-                    props: route => ({
-                        initId: route.query['id'],
-                        initActiveTab: route.query['activeTab'],
-                        initDateRangeType: route.query['dateRangeType'],
-                        initStartTime: route.query['startTime'],
-                        initEndTime: route.query['endTime']
-                    })
-                },
-                {
-                    path: '/account/list',
-                    component: AccountListPage,
-                    beforeEnter: checkLogin
-                },
                 {
                     path: '/category/list',
                     component: TransactionCategoryListPage,
@@ -184,32 +195,71 @@ const router = createRouter({
                     }
                 },
                 {
-                    path: '/exchange_rates',
-                    component: ExchangeRatesListPage,
+                    path: '/custom_icon/list',
+                    component: UserCustomIconListPage,
                     beforeEnter: checkLogin
                 },
                 {
-                    path: '/user/settings',
-                    component: UserSettingsPage,
-                    beforeEnter: checkLogin,
-                    props: route => ({
-                        initTab: route.query['tab']
-                    })
+                    path: '/settings/user/basic',
+                    component: UserBasicSettingPage,
+                    beforeEnter: checkLogin
                 },
                 {
-                    path: '/app/settings',
-                    component: AppSettingsPage,
-                    beforeEnter: checkLogin,
-                    props: route => ({
-                        initTab: route.query['tab']
-                    })
+                    path: '/settings/user/security',
+                    component: UserSecuritySettingPage,
+                    beforeEnter: checkLogin
                 },
                 {
-                    path: '/about',
-                    component: AboutPage,
+                    path: '/settings/user/two_factor',
+                    component: TwoFactorAuthPage,
+                    beforeEnter: checkLogin
+                },
+                {
+                    path: '/settings/user/data_management',
+                    component: DataManagementPage,
+                    beforeEnter: checkLogin
+                },
+                {
+                    path: '/settings/preferences',
+                    component: PreferencesSettingsPage,
+                    beforeEnter: checkLogin
+                },
+                {
+                    path: '/settings/application_lock',
+                    component: ApplicationLockPage,
+                    beforeEnter: checkLogin
+                },
+                {
+                    path: '/settings/statistics',
+                    component: StatisticsSettingPage,
+                    beforeEnter: checkLogin
+                },
+                {
+                    path: '/settings/cloud_sync',
+                    component: ApplicationCloudSyncSettingsPage,
+                    beforeEnter: checkLogin
+                },
+                {
+                    path: '/settings/browser_cache',
+                    component: BrowserCacheSettingPage,
+                    beforeEnter: checkLogin
+                },
+                {
+                    path: '/settings/developer_tools',
+                    component: DeveloperToolsPage,
+                    beforeEnter: checkLogin
+                },
+                {
+                    path: '/exchange_rate',
+                    component: ExchangeRatesListPage,
                     beforeEnter: checkLogin
                 }
             ]
+        },
+        {
+            path: '/overview/edit',
+            component: OverviewLayoutEditorPage,
+            beforeEnter: checkLogin
         },
         {
             path: '/login',

@@ -3,6 +3,9 @@ export const BASE_QRCODE_PATH: string = '/qrcode';
 export const BASE_PROXY_URL_PATH: string = '/proxy';
 export const BASE_AMAP_API_PROXY_URL_PATH: string = '/_AMapService';
 
+export const BASE_API_V1_URL_PATH: string = BASE_API_URL_PATH + '/v1';
+export const PARSE_TRANSACTION_API_URL_PATH: string = BASE_API_V1_URL_PATH + '/transactions/parse_import.json';
+
 export const DEFAULT_API_TIMEOUT: number = 10000; // 10s
 export const DEFAULT_UPLOAD_API_TIMEOUT: number = 30000; // 30s
 export const DEFAULT_EXPORT_API_TIMEOUT: number = 180000; // 180s
@@ -19,7 +22,9 @@ export enum KnownErrorCode {
     ApiNotFound = 100001,
     ValidatorError = 200000,
     NothingWillBeUpdated = 200004,
+    RepeatedRequest = 200019,
     UserEmailNotVerified = 201020,
+    UserLastReconciledTimeNotEnabled = 201035,
     TwoFactorAuthorizationPasscodeEmpty = 203005,
     TransactionCannotCreateInThisTime = 205017,
     TransactionCannotModifyInThisTime = 205018,
@@ -235,6 +240,14 @@ export const PARAMETERIZED_ERRORS: ParameterizedError[] = [
         }]
     },
     {
+        localeKey: 'parameter invalid transaction amount',
+        regex: /^parameter "(\w+)" is invalid transaction amount$/,
+        parameters: [{
+            field: 'parameter',
+            localized: true
+        }]
+    },
+    {
         localeKey: 'parameter invalid tag filter',
         regex: /^parameter "(\w+)" is invalid tag filter$/,
         parameters: [{
@@ -243,3 +256,10 @@ export const PARAMETERIZED_ERRORS: ParameterizedError[] = [
         }]
     }
 ];
+
+export const SUPPORTED_PARSE_TRANSACTION_RECORD_ID_TYPES: Record<string, string> = {
+    'line': 'format.misc.lineIndex',
+    'record': 'format.misc.recordIndex',
+    'sheet': 'format.misc.sheetIndex',
+    "row": 'format.misc.rowIndex'
+};

@@ -1,7 +1,8 @@
 package mcp
 
 import (
-	"encoding/json"
+	"encoding/json/v2"
+	"math/big"
 	"reflect"
 	"time"
 
@@ -24,7 +25,7 @@ type MCPAddTransactionRequest struct {
 	Time                   string   `json:"time" jsonschema:"format=date-time" jsonschema_description:"Transaction time in RFC 3339 format (e.g. 2023-01-01T12:00:00Z)"`
 	SecondaryCategoryName  string   `json:"category_name" jsonschema_description:"Secondary category name for the transaction"`
 	AccountName            string   `json:"account_name" jsonschema_description:"Account name for the transaction"`
-	Amount                 string   `json:"amount" jsonschema_description:"Transaction amount"`
+	Amount                 string   `json:"amount" jsonschema_description:"Transaction amount (e.g. for an expense transaction, 12.34 represents an expense of 12.34)"`
 	DestinationAccountName string   `json:"destination_account_name,omitempty" jsonschema_description:"Destination account name for transfer transactions (optional)"`
 	DestinationAmount      string   `json:"destination_amount,omitempty" jsonschema_description:"Destination amount for transfer transactions (optional)"`
 	Tags                   []string `json:"tags,omitempty" jsonschema_description:"List of tags associated with the transaction (optional, maximum 10 tags allowed)"`
@@ -35,7 +36,7 @@ type MCPAddTransactionRequest struct {
 // MCPAddTransactionResponse represents the response structure for add transaction
 type MCPAddTransactionResponse struct {
 	Success                   bool   `json:"success" jsonschema_description:"Indicates whether this operation is successful"`
-	DryRun                    bool   `json:"dry_run,omitempty" jsonschema_description:"Indicates whether this operation is a dry run (transaction not saved actually)"`
+	DryRun                    bool   `json:"dry_run,omitzero" jsonschema_description:"Indicates whether this operation is a dry run (transaction not saved actually)"`
 	AccountBalance            string `json:"account_balance,omitempty" jsonschema_description:"Account balance (or outstanding balance for debt accounts) after the transaction"`
 	DestinationAccountBalance string `json:"destination_account_balance,omitempty" jsonschema_description:"Destination account balance (or outstanding balance for debt accounts) after the transaction (only for transfer transactions)"`
 }
@@ -94,7 +95,7 @@ func (h *mcpAddTransactionToolHandler) Handle(c *core.WebContext, callToolReq *M
 	allAccounts, err := services.GetAccountService().GetAllAccountsByUid(c, uid)
 
 	if err != nil {
-		log.Warnf(c, "[add_transaction.Handle] get account error, because %s", err.Error())
+		log.Warnf(c, "[add_transaction_tool_handler.Handle] get account error, because %s", err.Error())
 		return nil, nil, err
 	}
 
@@ -102,7 +103,7 @@ func (h *mcpAddTransactionToolHandler) Handle(c *core.WebContext, callToolReq *M
 	sourceAccount, exists := accountsMap[addTransactionRequest.AccountName]
 
 	if !exists {
-		log.Warnf(c, "[add_transaction.Handle] source account \"%s\" not found for user \"uid:%d\"", addTransactionRequest.AccountName, uid)
+		log.Warnf(c, "[add_transaction_tool_handler.Handle] source account \"%s\" not found for user \"uid:%d\"", addTransactionRequest.AccountName, uid)
 		return nil, nil, errs.ErrSourceAccountNotFound
 	}
 
@@ -113,7 +114,7 @@ func (h *mcpAddTransactionToolHandler) Handle(c *core.WebContext, callToolReq *M
 		destinationAccount, exists = accountsMap[addTransactionRequest.DestinationAccountName]
 
 		if !exists {
-			log.Warnf(c, "[add_transaction.Handle] destination account \"%s\" not found for user \"uid:%d\"", addTransactionRequest.DestinationAccountName, uid)
+			log.Warnf(c, "[add_transaction_tool_handler.Handle] destination account \"%s\" not found for user \"uid:%d\"", addTransactionRequest.DestinationAccountName, uid)
 			return nil, nil, errs.ErrDestinationAccountNotFound
 		}
 
@@ -123,7 +124,7 @@ func (h *mcpAddTransactionToolHandler) Handle(c *core.WebContext, callToolReq *M
 	allCategories, err := services.GetTransactionCategoryService().GetAllCategoriesByUid(c, uid, 0, -1)
 
 	if err != nil {
-		log.Warnf(c, "[add_transaction.Handle] get transaction category error, because %s", err.Error())
+		log.Warnf(c, "[add_transaction_tool_handler.Handle] get transaction category error, because %s", err.Error())
 		return nil, nil, err
 	}
 
@@ -151,7 +152,7 @@ func (h *mcpAddTransactionToolHandler) Handle(c *core.WebContext, callToolReq *M
 	}
 
 	if transactionCategory == nil {
-		log.Warnf(c, "[add_transaction.Handle] secondary category \"%s\" not found for user \"uid:%d\"", addTransactionRequest.SecondaryCategoryName, uid)
+		log.Warnf(c, "[add_transaction_tool_handler.Handle] secondary category \"%s\" not found for user \"uid:%d\"", addTransactionRequest.SecondaryCategoryName, uid)
 		return nil, nil, errs.ErrTransactionCategoryNotFound
 	}
 
@@ -161,7 +162,7 @@ func (h *mcpAddTransactionToolHandler) Handle(c *core.WebContext, callToolReq *M
 		allTags, err := services.GetTransactionTagService().GetAllTagsByUid(c, uid)
 
 		if err != nil {
-			log.Warnf(c, "[add_transaction.Handle] get transaction tag ids error, because %s", err.Error())
+			log.Warnf(c, "[add_transaction_tool_handler.Handle] get transaction tag ids error, because %s", err.Error())
 			return nil, nil, err
 		}
 
@@ -172,12 +173,12 @@ func (h *mcpAddTransactionToolHandler) Handle(c *core.WebContext, callToolReq *M
 			if tag, exists := tagMaps[tagName]; exists {
 				tagIds = append(tagIds, tag.TagId)
 			} else {
-				log.Warnf(c, "[add_transaction.Handle] transaction tag \"%s\" not found for user \"uid:%d\"", tagName, uid)
+				log.Warnf(c, "[add_transaction_tool_handler.Handle] transaction tag \"%s\" not found for user \"uid:%d\"", tagName, uid)
 			}
 		}
 	}
 
-	transaction, err := h.createNewTransactionModel(uid, &addTransactionRequest, transactionCategory.CategoryId, sourceAccount.AccountId, destinationAccountId, c.ClientIP())
+	transaction, err := h.createNewTransactionModel(c, uid, &addTransactionRequest, transactionCategory.CategoryId, sourceAccount.AccountId, destinationAccountId, c.ClientIP())
 
 	if err != nil {
 		return nil, nil, err
@@ -193,11 +194,11 @@ func (h *mcpAddTransactionToolHandler) Handle(c *core.WebContext, callToolReq *M
 		err = services.GetTransactionService().CreateTransaction(c, transaction, tagIds, nil)
 
 		if err != nil {
-			log.Errorf(c, "[add_transaction.Handle] failed to create transaction \"id:%d\" for user \"uid:%d\", because %s", transaction.TransactionId, uid, err.Error())
+			log.Errorf(c, "[add_transaction_tool_handler.Handle] failed to create transaction \"id:%d\" for user \"uid:%d\", because %s", transaction.TransactionId, uid, err.Error())
 			return nil, nil, err
 		}
 
-		log.Infof(c, "[add_transaction.Handle] user \"uid:%d\" has created a new transaction \"id:%d\" successfully", uid, transaction.TransactionId)
+		log.Infof(c, "[add_transaction_tool_handler.Handle] user \"uid:%d\" has created a new transaction \"id:%d\" successfully", uid, transaction.TransactionId)
 
 		accountIds := []int64{sourceAccount.AccountId}
 
@@ -208,7 +209,7 @@ func (h *mcpAddTransactionToolHandler) Handle(c *core.WebContext, callToolReq *M
 		newAccounts, err := services.GetAccountService().GetAccountsByAccountIds(c, uid, accountIds)
 
 		if err != nil {
-			log.Warnf(c, "[add_transaction.Handle] failed to get latest accounts info after transaction created, because %s", err.Error())
+			log.Warnf(c, "[add_transaction_tool_handler.Handle] failed to get latest accounts info after transaction created, because %s", err.Error())
 		}
 
 		structuredResponse, response, err := h.createNewMCPAddTransactionResponse(c, transaction, newAccounts, false)
@@ -223,14 +224,32 @@ func (h *mcpAddTransactionToolHandler) Handle(c *core.WebContext, callToolReq *M
 		newAccounts[sourceAccount.AccountId] = sourceAccount
 
 		if transaction.Type == models.TRANSACTION_DB_TYPE_EXPENSE || transaction.Type == models.TRANSACTION_DB_TYPE_TRANSFER_OUT {
-			sourceAccount.Balance -= transaction.Amount
+			newBalance, err := h.getAccountBalanceAfterUpdate(sourceAccount.Balance, -transaction.Amount)
+
+			if err != nil {
+				return nil, nil, err
+			}
+
+			sourceAccount.Balance = newBalance
 		} else if transaction.Type == models.TRANSACTION_DB_TYPE_INCOME {
-			sourceAccount.Balance += transaction.Amount
+			newBalance, err := h.getAccountBalanceAfterUpdate(sourceAccount.Balance, transaction.Amount)
+
+			if err != nil {
+				return nil, nil, err
+			}
+
+			sourceAccount.Balance = newBalance
 		}
 
 		if transaction.Type == models.TRANSACTION_DB_TYPE_TRANSFER_OUT && destinationAccount != nil {
 			newAccounts[destinationAccount.AccountId] = destinationAccount
-			destinationAccount.Balance += transaction.RelatedAccountAmount
+			newBalance, err := h.getAccountBalanceAfterUpdate(destinationAccount.Balance, transaction.RelatedAccountAmount)
+
+			if err != nil {
+				return nil, nil, err
+			}
+
+			destinationAccount.Balance = newBalance
 		}
 
 		structuredResponse, response, err := h.createNewMCPAddTransactionResponse(c, transaction, newAccounts, true)
@@ -243,7 +262,17 @@ func (h *mcpAddTransactionToolHandler) Handle(c *core.WebContext, callToolReq *M
 	}
 }
 
-func (h *mcpAddTransactionToolHandler) createNewTransactionModel(uid int64, addTransactionRequest *MCPAddTransactionRequest, categoryId int64, sourceAccountId int64, destinationAccountId int64, clientIp string) (*models.Transaction, error) {
+func (h *mcpAddTransactionToolHandler) getAccountBalanceAfterUpdate(balance int64, delta int64) (int64, error) {
+	newBalance, ok := utils.AddInt64(balance, delta)
+
+	if !ok {
+		return 0, errs.ErrAccountBalanceOverflow
+	}
+
+	return newBalance, nil
+}
+
+func (h *mcpAddTransactionToolHandler) createNewTransactionModel(c *core.WebContext, uid int64, addTransactionRequest *MCPAddTransactionRequest, categoryId int64, sourceAccountId int64, destinationAccountId int64, clientIp string) (*models.Transaction, error) {
 	var transactionDbType models.TransactionDbType
 
 	if addTransactionRequest.Type == transactionTypeExpense {
@@ -259,13 +288,20 @@ func (h *mcpAddTransactionToolHandler) createNewTransactionModel(uid int64, addT
 	transactionTime, err := utils.ParseFromLongDateTimeWithTimezoneRFC3339Format(addTransactionRequest.Time)
 
 	if err != nil {
-		return nil, err
+		log.Warnf(c, "[add_transaction_tool_handler.createNewTransactionModel] parse transaction time \"%s\" error, because %s", addTransactionRequest.Time, err.Error())
+		return nil, errs.ErrTransactionTimeInvalid
 	}
 
 	amount, err := utils.ParseAmount(addTransactionRequest.Amount)
 
 	if err != nil {
-		return nil, err
+		log.Warnf(c, "[add_transaction_tool_handler.createNewTransactionModel] parse transaction amount \"%s\" error, because %s", addTransactionRequest.Amount, err.Error())
+		return nil, errs.ErrAmountInvalid
+	}
+
+	if amount < models.MinimumTransactionAmount || amount > models.MaximumTransactionAmount {
+		log.Warnf(c, "[add_transaction_tool_handler.createNewTransactionModel] transaction amount \"%s\" is out of range", addTransactionRequest.Amount)
+		return nil, errs.ErrAmountInvalid
 	}
 
 	transaction := &models.Transaction{
@@ -287,7 +323,13 @@ func (h *mcpAddTransactionToolHandler) createNewTransactionModel(uid int64, addT
 		destinationAmount, err := utils.ParseAmount(addTransactionRequest.DestinationAmount)
 
 		if err != nil {
-			return nil, err
+			log.Warnf(c, "[add_transaction_tool_handler.createNewTransactionModel] parse transaction destination amount \"%s\" error, because %s", addTransactionRequest.DestinationAmount, err.Error())
+			return nil, errs.ErrAmountInvalid
+		}
+
+		if destinationAmount < models.MinimumTransactionAmount || destinationAmount > models.MaximumTransactionAmount {
+			log.Warnf(c, "[add_transaction_tool_handler.createNewTransactionModel] transaction destination amount \"%s\" is out of range", addTransactionRequest.DestinationAmount)
+			return nil, errs.ErrAmountInvalid
 		}
 
 		transaction.RelatedAccountAmount = destinationAmount
@@ -297,16 +339,21 @@ func (h *mcpAddTransactionToolHandler) createNewTransactionModel(uid int64, addT
 }
 
 func (h *mcpAddTransactionToolHandler) createNewMCPAddTransactionResponse(c *core.WebContext, transaction *models.Transaction, accountsMap map[int64]*models.Account, dryRun bool) (any, []*MCPTextContent, error) {
+	var sourceAccount *models.Account
 	var sourceAccountInfo *models.AccountInfoResponse
+
+	var destinationAccount *models.Account
 	var destinationAccountInfo *models.AccountInfoResponse
 
-	if sourceAccount, exists := accountsMap[transaction.AccountId]; exists {
-		sourceAccountInfo = sourceAccount.ToAccountInfoResponse()
+	if account, exists := accountsMap[transaction.AccountId]; exists {
+		sourceAccount = account
+		sourceAccountInfo = account.ToAccountInfoResponse()
 	}
 
 	if transaction.Type == models.TRANSACTION_DB_TYPE_TRANSFER_OUT {
-		if destinationAccount, exists := accountsMap[transaction.RelatedAccountId]; exists {
-			destinationAccountInfo = destinationAccount.ToAccountInfoResponse()
+		if account, exists := accountsMap[transaction.RelatedAccountId]; exists {
+			destinationAccount = account
+			destinationAccountInfo = account.ToAccountInfoResponse()
 		}
 	}
 
@@ -315,19 +362,19 @@ func (h *mcpAddTransactionToolHandler) createNewMCPAddTransactionResponse(c *cor
 		DryRun:  dryRun,
 	}
 
-	if sourceAccountInfo != nil {
+	if sourceAccount != nil && sourceAccountInfo != nil {
 		if sourceAccountInfo.IsAsset {
-			response.AccountBalance = utils.FormatAmount(sourceAccountInfo.Balance)
+			response.AccountBalance = utils.FormatAmount(sourceAccount.Balance)
 		} else if sourceAccountInfo.IsLiability {
-			response.AccountBalance = utils.FormatAmount(-sourceAccountInfo.Balance)
+			response.AccountBalance = utils.FormatBigIntAmount(new(big.Int).Neg(big.NewInt(sourceAccount.Balance)))
 		}
 	}
 
-	if transaction.Type == models.TRANSACTION_DB_TYPE_TRANSFER_OUT && destinationAccountInfo != nil {
+	if transaction.Type == models.TRANSACTION_DB_TYPE_TRANSFER_OUT && destinationAccount != nil && destinationAccountInfo != nil {
 		if destinationAccountInfo.IsAsset {
-			response.DestinationAccountBalance = utils.FormatAmount(destinationAccountInfo.Balance)
+			response.DestinationAccountBalance = utils.FormatAmount(destinationAccount.Balance)
 		} else if destinationAccountInfo.IsLiability {
-			response.DestinationAccountBalance = utils.FormatAmount(-destinationAccountInfo.Balance)
+			response.DestinationAccountBalance = utils.FormatBigIntAmount(new(big.Int).Neg(big.NewInt(destinationAccount.Balance)))
 		}
 	}
 

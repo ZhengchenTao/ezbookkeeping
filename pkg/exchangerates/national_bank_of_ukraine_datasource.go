@@ -1,7 +1,7 @@
 package exchangerates
 
 import (
-	"encoding/json"
+	"encoding/json/v2"
 	"math"
 	"net/http"
 	"time"
@@ -14,12 +14,16 @@ import (
 	"github.com/mayswind/ezbookkeeping/pkg/validators"
 )
 
+// API Documentation:
+// https://bank.gov.ua/admin_uploads/article/Instr_API_KURS_VAL_Full_eng.pdf
+
 const nationalBankOfUkraineExchangeRateUrl = "https://bank.gov.ua/NBU_Exchange/exchange?json"
 const nationalBankOfUkraineExchangeRateReferenceUrl = "https://bank.gov.ua/en/markets/exchangerates"
 const nationalBankOfUkraineDataSource = "Національний банк України"
 const nationalBankOfUkraineBaseCurrency = "UAH"
 
 const nationalBankOfUkraineUpdateDateFormat = "02.01.2006"
+const nationalBankOfUkraineDateTimezone = "Europe/Kiev"
 
 // NationalBankOfUkraineDataSource defines the structure of exchange rates data source of National Bank of Ukraine
 type NationalBankOfUkraineDataSource struct {
@@ -39,6 +43,18 @@ type NaionalBankOfUkraineExchangeRate struct {
 
 // ToLatestExchangeRateResponse returns a view-object according to original data from National Bank of Ukraine
 func (e *NationalBankOfUkraineExchangeRates) ToLatestExchangeRateResponse(c core.Context) *models.LatestExchangeRateResponse {
+	if len(*e) < 1 {
+		log.Errorf(c, "[national_bank_of_ukraine_datasource.ToLatestExchangeRateResponse] exchange rates is empty")
+		return nil
+	}
+
+	timezone, err := time.LoadLocation(nationalBankOfUkraineDateTimezone)
+
+	if err != nil {
+		log.Errorf(c, "[national_bank_of_ukraine_datasource.ToLatestExchangeRateResponse] failed to get timezone, timezone name is %s", nationalBankOfUkraineDateTimezone)
+		return nil
+	}
+
 	exchangeRates := make(models.LatestExchangeRateSlice, 0, len(*e))
 	latestUpdateTime := int64(0)
 
@@ -47,7 +63,7 @@ func (e *NationalBankOfUkraineExchangeRates) ToLatestExchangeRateResponse(c core
 			continue
 		}
 
-		updateTime, err := time.Parse(nationalBankOfUkraineUpdateDateFormat, exchangeRate.Date)
+		updateTime, err := time.ParseInLocation(nationalBankOfUkraineUpdateDateFormat, exchangeRate.Date, timezone)
 
 		if err != nil {
 			log.Errorf(c, "[national_bank_of_ukraine_datasource.ToLatestExchangeRateResponse] failed to parse update date, datetime is %s", exchangeRate.Date)
@@ -115,20 +131,16 @@ func (e *NationalBankOfUkraineDataSource) BuildRequests() ([]*http.Request, erro
 
 // Parse returns the common response entity according to the National Bank of Ukraine data source raw response
 func (e *NationalBankOfUkraineDataSource) Parse(c core.Context, content []byte) (*models.LatestExchangeRateResponse, error) {
-	var nationalBankOfUkraineData NationalBankOfUkraineExchangeRates
-	err := json.Unmarshal(content, &nationalBankOfUkraineData)
+	nationalBankOfUkraineData := &NationalBankOfUkraineExchangeRates{}
+	err := json.Unmarshal(content, nationalBankOfUkraineData)
 
 	if err != nil {
 		log.Errorf(c, "[national_bank_of_ukraine_datasource.Parse] failed to parse JSON data, content: %s, error: %s", string(content), err.Error())
 		return nil, errs.ErrFailedToRequestRemoteApi
 	}
 
-	if len(nationalBankOfUkraineData) == 0 {
-		log.Errorf(c, "[national_bank_of_ukraine_datasource.Parse] exchange rate list is empty")
-		return nil, errs.ErrFailedToRequestRemoteApi
-	}
-
 	latestExchangeRateResponse := nationalBankOfUkraineData.ToLatestExchangeRateResponse(c)
+
 	if latestExchangeRateResponse == nil {
 		log.Errorf(c, "[national_bank_of_ukraine_datasource.Parse] failed to parse latest exchange rate data, content: %s", string(content))
 		return nil, errs.ErrFailedToRequestRemoteApi

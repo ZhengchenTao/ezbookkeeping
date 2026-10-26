@@ -1,11 +1,47 @@
 package models
 
 import (
+	"math"
 	"sort"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 )
+
+func TestAccountToAccountInfoResponseBalance(t *testing.T) {
+	account := &Account{Balance: math.MaxInt64}
+	response := account.ToAccountInfoResponse()
+	assert.Equal(t, "9223372036854775807", response.Balance)
+
+	account.Balance = math.MinInt64
+	response = account.ToAccountInfoResponse()
+	assert.Equal(t, "-9223372036854775808", response.Balance)
+}
+
+func TestAccountExtendFromDBMigratesLegacyCreditLimit(t *testing.T) {
+	var accountExtend AccountExtend
+	err := accountExtend.FromDB([]byte(`{"creditLimit":12345}`))
+	assert.NoError(t, err)
+	if assert.NotNil(t, accountExtend.CreditCardLimit) {
+		assert.Equal(t, int64(12345), *accountExtend.CreditCardLimit)
+	}
+	assert.Nil(t, accountExtend.LegacyCreditLimit)
+
+	data, err := accountExtend.ToDB()
+	assert.NoError(t, err)
+	assert.Contains(t, string(data), `"creditCardLimit":"12345"`)
+	assert.NotContains(t, string(data), `"creditLimit"`)
+}
+
+func TestAccountExtendFromDBPrefersCurrentCreditCardLimit(t *testing.T) {
+	var accountExtend AccountExtend
+	err := accountExtend.FromDB([]byte(`{"creditLimit":12345,"creditCardLimit":"67890"}`))
+	assert.NoError(t, err)
+	if assert.NotNil(t, accountExtend.CreditCardLimit) {
+		assert.Equal(t, int64(67890), *accountExtend.CreditCardLimit)
+	}
+	assert.Nil(t, accountExtend.LegacyCreditLimit)
+}
 
 func TestAccountInfoResponseSliceLess(t *testing.T) {
 	var accountRespSlice AccountInfoResponseSlice

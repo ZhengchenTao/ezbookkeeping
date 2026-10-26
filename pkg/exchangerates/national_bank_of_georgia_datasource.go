@@ -1,7 +1,7 @@
 package exchangerates
 
 import (
-	"encoding/json"
+	"encoding/json/v2"
 	"math"
 	"net/http"
 	"time"
@@ -13,6 +13,9 @@ import (
 	"github.com/mayswind/ezbookkeeping/pkg/utils"
 	"github.com/mayswind/ezbookkeeping/pkg/validators"
 )
+
+// API Documentation:
+// https://nbg.gov.ge/en/monetary-policy/currency
 
 const nationalBankOfGeorgiaExchangeRateUrl = "https://nbg.gov.ge/gw/api/ct/monetarypolicy/currencies/en/json"
 const nationalBankOfGeorgiaExchangeRateReferenceUrl = "https://nbg.gov.ge/en/monetary-policy/currency"
@@ -134,7 +137,7 @@ func (e *NationalBankOfGeorgiaDataSource) Parse(c core.Context, content []byte) 
 	}
 
 	if nationalBankOfGeorgiaData == nil || len(*nationalBankOfGeorgiaData) < 1 {
-		log.Errorf(c, "[national_bank_of_georgia_datasource.ToLatestExchangeRateResponse] all exchange rates is empty")
+		log.Errorf(c, "[national_bank_of_georgia_datasource.Parse] all exchange rates is empty")
 		return nil, errs.ErrFailedToRequestRemoteApi
 	}
 

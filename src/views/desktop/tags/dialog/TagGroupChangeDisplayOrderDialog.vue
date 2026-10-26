@@ -1,28 +1,26 @@
 <template>
     <v-dialog width="800" :persistent="displayOrderModified" v-model="showState">
-        <v-card class="pa-sm-1 pa-md-2">
-            <template #title>
-                <div class="d-flex align-center justify-center">
-                    <div class="d-flex align-center">
-                        <h4 class="text-h4">{{ tt('Change Group Display Order') }}</h4>
-                        <v-btn class="ms-3" color="primary" variant="tonal"
-                               :disabled="loading || updating" @click="saveDisplayOrder"
-                               v-if="displayOrderModified">{{ tt('Save Display Order') }}</v-btn>
-                        <v-btn density="compact" color="default" variant="text" size="24"
-                               class="ms-2" :icon="true" :disabled="loading || updating"
-                               :loading="loading" @click="reload">
-                            <template #loader>
-                                <v-progress-circular indeterminate size="20"/>
-                            </template>
-                            <v-icon :icon="mdiRefresh" size="24" />
-                            <v-tooltip activator="parent">{{ tt('Refresh') }}</v-tooltip>
-                        </v-btn>
-                    </div>
-                    <v-spacer/>
-                </div>
+        <one-column-dialog-layout content-class="pa-0" :disabled="loading || updating"
+                                  :title="tt('Change Group Display Order')" :cancel-button-title="tt('Close')"
+                                  @cancel="close">
+            <template #after-title>
+                <v-btn density="compact" color="default" variant="text" class="ms-2"
+                       :aria-label="tt('Refresh')" :icon="true" :disabled="loading || updating"
+                       :loading="loading" @click="reload">
+                    <template #loader>
+                        <v-progress-circular indeterminate size="20"/>
+                    </template>
+                    <v-icon :icon="mdiRefresh" size="22" />
+                    <v-tooltip activator="parent">{{ tt('Refresh') }}</v-tooltip>
+                </v-btn>
+                <v-btn density="compact" color="primary" variant="text" class="ms-1" :icon="true"
+                       :aria-label="tt('Save Display Order')" :disabled="loading || updating || !displayOrderModified" @click="saveDisplayOrder">
+                    <v-icon :icon="mdiCheck" size="22" />
+                    <v-tooltip activator="parent">{{ tt('Save Display Order') }}</v-tooltip>
+                </v-btn>
             </template>
 
-            <v-card-text class="d-flex flex-column flex-md-row flex-grow-1 overflow-y-auto">
+            <template #content>
                 <v-table hover density="comfortable" class="w-100 table-striped">
                     <tbody v-if="loading && (!allTagGroups || allTagGroups.length < 1)">
                     <tr :key="itemIdx" v-for="itemIdx in [ 1, 2, 3, 4, 5, 6 ]">
@@ -56,7 +54,7 @@
 
                                         <span class="ms-2">
                                             <v-icon :class="!loading && !updating && allTagGroups && allTagGroups.length > 0 ? 'drag-handle' : 'disabled'"
-                                                    :icon="mdiDrag"/>
+                                                    :aria-label="tt('Drag to Reorder')" :icon="mdiDrag"/>
                                             <v-tooltip activator="parent" v-if="!loading && !updating && allTagGroups && allTagGroups.length > 0">{{ tt('Drag to Reorder') }}</v-tooltip>
                                         </span>
                                     </div>
@@ -65,15 +63,8 @@
                         </template>
                     </draggable-list>
                 </v-table>
-            </v-card-text>
-
-            <v-card-text class="overflow-y-visible">
-                <div class="w-100 d-flex justify-center flex-wrap mt-sm-1 mt-md-2 gap-4">
-                    <v-btn color="secondary" variant="tonal"
-                           :disabled="loading || updating" @click="close">{{ tt('Close') }}</v-btn>
-                </div>
-            </v-card-text>
-        </v-card>
+            </template>
+        </one-column-dialog-layout>
     </v-dialog>
 
     <snack-bar ref="snackbar" />
@@ -92,6 +83,7 @@ import { type TransactionTagGroup } from '@/models/transaction_tag_group.ts';
 
 import {
     mdiRefresh,
+    mdiCheck,
     mdiDrag
 } from '@mdi/js';
 

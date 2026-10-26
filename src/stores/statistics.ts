@@ -8,9 +8,13 @@ import { useTransactionCategoriesStore } from './transactionCategory.ts';
 import { useExchangeRatesStore } from './exchangeRates.ts';
 
 import { entries, values } from '@/core/base.ts';
+import { KeywordMatchMode } from '@/core/text.ts';
+import type { BigDecimal } from '@/core/numeral.ts';
 import { type DateTime, type TextualYearMonth, type TimeRangeAndDateType, DateRangeScene, DateRange } from '@/core/datetime.ts';
 import { TimezoneTypeForStatistics } from '@/core/timezone.ts';
-import { KeywordMatchMode } from '@/core/text.ts';
+import type { ColorValue } from '@/core/color.ts';
+import { IconType } from '@/core/icon.ts';
+import type { CategoricalChartSourceDataItem, TrendsChartSourceDataItem } from '@/core/chart.ts';
 import { CategoryType } from '@/core/category.ts';
 import { TransactionRelatedAccountType } from '@/core/transaction.ts';
 import {
@@ -64,6 +68,14 @@ import {
     objectFieldToArrayItem
 } from '@/lib/common.ts';
 import {
+    BIG_DECIMAL_ZERO,
+    parseBigDecimal,
+    isBigDecimal
+} from '@/lib/numeral.ts';
+import {
+    max
+} from '@/lib/math.ts';
+import {
     getYearMonthDayDateTime,
     getGregorianCalendarYearAndMonthFromUnixTime,
     getDayDifference,
@@ -76,44 +88,49 @@ import logger from '@/lib/logger.ts';
 import services from '@/lib/services.ts';
 
 interface WritableTransactionCategoricalAnalysisData {
-    totalAmount: number;
-    totalNonNegativeAmount: number;
+    value: BigDecimal;
+    totalNonNegativeAmount: BigDecimal;
     items: Record<string, WritableTransactionCategoricalAnalysisDataItem>;
 }
 
-interface WritableTransactionCategoricalAnalysisDataItem extends Record<string, unknown> {
+interface WritableTransactionCategoricalAnalysisDataItem extends Record<string, unknown>, CategoricalChartSourceDataItem {
     name: string;
     type: TransactionStatisticDataItemType;
     id: string;
     icon: string;
-    color: string;
+    iconType: IconType;
+    color: ColorValue;
     hidden: boolean;
     displayOrders: number[];
-    totalAmount: number;
+    value: BigDecimal;
+    originalValue?: BigDecimal;
+    originalCurrency?: string;
     percent?: number;
 }
 
-interface WritableTransactionTrendsAnalysisDataItem extends Record<string, unknown>, TransactionTrendsAnalysisDataItem {
+interface WritableTransactionTrendsAnalysisDataItem extends Record<string, unknown>, TrendsChartSourceDataItem, TransactionTrendsAnalysisDataItem {
     name: string;
     type: TransactionStatisticDataItemType;
     id: string;
     icon: string;
-    color: string;
+    iconType: IconType;
+    color: ColorValue;
     hidden: boolean;
     displayOrders: number[];
-    totalAmount: number;
+    value: BigDecimal;
     items: TransactionTrendsAnalysisDataAmount[];
 }
 
-interface WritableTransactionAssetTrendsAnalysisDataItem extends Record<string, unknown>, TransactionAssetTrendsAnalysisDataItem {
+interface WritableTransactionAssetTrendsAnalysisDataItem extends Record<string, unknown>, TrendsChartSourceDataItem, TransactionAssetTrendsAnalysisDataItem {
     name: string;
     type: TransactionStatisticDataItemType;
     id: string;
     icon: string;
-    color: string;
+    iconType: IconType;
+    color: ColorValue;
     hidden: boolean;
     displayOrders: number[];
-    totalAmount: number;
+    value: BigDecimal;
     items: TransactionAssetTrendsAnalysisDataAmount[];
 }
 
@@ -256,8 +273,8 @@ export const useStatisticsStore = defineStore('statistics', () => {
         const allOpeningBalanceDataItems: TransactionCategoricalOverviewAnalysisDataItem[] = [];
         const allNetCashFlowDataItems: TransactionCategoricalOverviewAnalysisDataItem[] = [];
 
-        let totalIncome: number = 0;
-        let totalExpense: number = 0;
+        let totalIncome: BigDecimal = BIG_DECIMAL_ZERO;
+        let totalExpense: BigDecimal = BIG_DECIMAL_ZERO;
 
         for (const item of transactionCategoryStatisticsDataWithCategoryAndAccountInfo.value.items) {
             if (!item.primaryAccount || !item.account || !item.primaryCategory || !item.category) {
@@ -268,7 +285,7 @@ export const useStatisticsStore = defineStore('statistics', () => {
                 continue;
             }
 
-            if (!isNumber(item.amountInDefaultCurrency)) {
+            if (!isBigDecimal(item.amountInDefaultCurrency)) {
                 continue;
             }
 
@@ -281,9 +298,9 @@ export const useStatisticsStore = defineStore('statistics', () => {
             }
 
             if (item.category.type === CategoryType.Income) {
-                totalIncome += item.amountInDefaultCurrency;
+                totalIncome = totalIncome.add(item.amountInDefaultCurrency);
             } else if (item.category.type === CategoryType.Expense) {
-                totalExpense += item.amountInDefaultCurrency;
+                totalExpense = totalExpense.add(item.amountInDefaultCurrency);
             }
 
             const primaryAccountCategoryDisplayOrder = settingsStore.accountCategoryDisplayOrders[item.primaryAccount.category] || Number.MAX_SAFE_INTEGER;
@@ -343,19 +360,19 @@ export const useStatisticsStore = defineStore('statistics', () => {
                     allIncomeBySecondaryCategoryDataItems.push(secondaryCategoryDataItem);
                 }
 
-                primaryCategoryDataItem.totalAmount += item.amountInDefaultCurrency;
-                primaryCategoryDataItem.totalNonNegativeAmount += item.amountInDefaultCurrency > 0 ? item.amountInDefaultCurrency : 0;
+                primaryCategoryDataItem.value = primaryCategoryDataItem.value.add(item.amountInDefaultCurrency);
+                primaryCategoryDataItem.totalNonNegativeAmount = primaryCategoryDataItem.totalNonNegativeAmount.add(max(item.amountInDefaultCurrency, BIG_DECIMAL_ZERO));
                 primaryCategoryDataItem.includeInPercent = true;
                 primaryCategoryDataItem.outflows.push({ amount: item.amountInDefaultCurrency, relatedItem: secondaryCategoryDataItem });
 
-                secondaryCategoryDataItem.totalAmount += item.amountInDefaultCurrency;
-                secondaryCategoryDataItem.totalNonNegativeAmount += item.amountInDefaultCurrency > 0 ? item.amountInDefaultCurrency : 0;
+                secondaryCategoryDataItem.value = secondaryCategoryDataItem.value.add(item.amountInDefaultCurrency);
+                secondaryCategoryDataItem.totalNonNegativeAmount = secondaryCategoryDataItem.totalNonNegativeAmount.add(max(item.amountInDefaultCurrency, BIG_DECIMAL_ZERO));
                 secondaryCategoryDataItem.includeInPercent = true;
                 secondaryCategoryDataItem.inflows.push({ amount: item.amountInDefaultCurrency, relatedItem: primaryCategoryDataItem });
                 secondaryCategoryDataItem.outflows.push({ amount: item.amountInDefaultCurrency, relatedItem: incomeByAccountItem });
 
-                incomeByAccountItem.totalAmount += item.amountInDefaultCurrency;
-                incomeByAccountItem.totalNonNegativeAmount += item.amountInDefaultCurrency > 0 ? item.amountInDefaultCurrency : 0;
+                incomeByAccountItem.value = incomeByAccountItem.value.add(item.amountInDefaultCurrency);
+                incomeByAccountItem.totalNonNegativeAmount = incomeByAccountItem.totalNonNegativeAmount.add(max(item.amountInDefaultCurrency, BIG_DECIMAL_ZERO));
                 incomeByAccountItem.includeInPercent = true;
                 incomeByAccountItem.inflows.push({ amount: item.amountInDefaultCurrency, relatedItem: secondaryCategoryDataItem });
             } else if (item.category.type === CategoryType.Expense) {
@@ -387,19 +404,19 @@ export const useStatisticsStore = defineStore('statistics', () => {
                     allExpenseBySecondaryCategoryDataItems.push(secondaryCategoryDataItem);
                 }
 
-                expenseByAccountItem.totalAmount += item.amountInDefaultCurrency;
-                expenseByAccountItem.totalNonNegativeAmount += item.amountInDefaultCurrency > 0 ? item.amountInDefaultCurrency : 0;
+                expenseByAccountItem.value = expenseByAccountItem.value.add(item.amountInDefaultCurrency);
+                expenseByAccountItem.totalNonNegativeAmount = expenseByAccountItem.totalNonNegativeAmount.add(max(item.amountInDefaultCurrency, BIG_DECIMAL_ZERO));
                 expenseByAccountItem.includeInPercent = true;
                 expenseByAccountItem.outflows.push({ amount: item.amountInDefaultCurrency, relatedItem: secondaryCategoryDataItem });
 
-                secondaryCategoryDataItem.totalAmount += item.amountInDefaultCurrency;
-                secondaryCategoryDataItem.totalNonNegativeAmount += item.amountInDefaultCurrency > 0 ? item.amountInDefaultCurrency : 0
+                secondaryCategoryDataItem.value = secondaryCategoryDataItem.value.add(item.amountInDefaultCurrency);
+                secondaryCategoryDataItem.totalNonNegativeAmount = secondaryCategoryDataItem.totalNonNegativeAmount.add(max(item.amountInDefaultCurrency, BIG_DECIMAL_ZERO));
                 secondaryCategoryDataItem.includeInPercent = true;
                 secondaryCategoryDataItem.inflows.push({ amount: item.amountInDefaultCurrency, relatedItem: expenseByAccountItem });
                 secondaryCategoryDataItem.outflows.push({ amount: item.amountInDefaultCurrency, relatedItem: primaryCategoryDataItem });
 
-                primaryCategoryDataItem.totalAmount += item.amountInDefaultCurrency;
-                primaryCategoryDataItem.totalNonNegativeAmount += item.amountInDefaultCurrency > 0 ? item.amountInDefaultCurrency : 0;
+                primaryCategoryDataItem.value = primaryCategoryDataItem.value.add(item.amountInDefaultCurrency);
+                primaryCategoryDataItem.totalNonNegativeAmount = primaryCategoryDataItem.totalNonNegativeAmount.add(max(item.amountInDefaultCurrency, BIG_DECIMAL_ZERO));
                 primaryCategoryDataItem.includeInPercent = true;
                 primaryCategoryDataItem.inflows.push({ amount: item.amountInDefaultCurrency, relatedItem: secondaryCategoryDataItem });
             } else if (item.category.type === CategoryType.Transfer && item.relatedPrimaryAccount && item.relatedAccount) {
@@ -434,19 +451,19 @@ export const useStatisticsStore = defineStore('statistics', () => {
             const incomeByAccountKey = `${TransactionCategoricalOverviewAnalysisDataItemType.IncomeByAccount}:${item.id}`;
             const incomeByAccountItem: TransactionCategoricalOverviewAnalysisDataItem | undefined = allDataItemsMap[incomeByAccountKey];
 
-            let accountTotalInflowsAmount: number = 0;
-            let accountTotalIncomeAmount: number = 0;
-            let accountTotalTransferAmount: number = 0;
-            let accountTotalOutflowsAmount: number = 0;
+            let accountTotalInflowsAmount: BigDecimal = BIG_DECIMAL_ZERO;
+            let accountTotalIncomeAmount: BigDecimal = BIG_DECIMAL_ZERO;
+            let accountTotalTransferAmount: BigDecimal = BIG_DECIMAL_ZERO;
+            let accountTotalOutflowsAmount: BigDecimal = BIG_DECIMAL_ZERO;
 
             if (incomeByAccountItem) {
                 for (const inflow of incomeByAccountItem.inflows) {
-                    accountTotalInflowsAmount += inflow.amount;
-                    accountTotalIncomeAmount += inflow.amount;
+                    accountTotalInflowsAmount = accountTotalInflowsAmount.add(inflow.amount);
+                    accountTotalIncomeAmount = accountTotalIncomeAmount.add(inflow.amount);
                 }
 
                 for (const outflow of incomeByAccountItem.outflows) {
-                    accountTotalTransferAmount += outflow.amount;
+                    accountTotalTransferAmount = accountTotalTransferAmount.add(outflow.amount);
                 }
             }
 
@@ -455,29 +472,29 @@ export const useStatisticsStore = defineStore('statistics', () => {
                     continue;
                 }
 
-                accountTotalInflowsAmount += inflow.amount;
+                accountTotalInflowsAmount = accountTotalInflowsAmount.add(inflow.amount);
             }
 
             for (const outflow of item.outflows) {
-                accountTotalOutflowsAmount += outflow.amount;
+                accountTotalOutflowsAmount = accountTotalOutflowsAmount.add(outflow.amount);
             }
 
-            const accountBalance: number = accountTotalIncomeAmount - accountTotalTransferAmount - accountTotalOutflowsAmount;
-            const accountNetCashFlow: number = accountTotalInflowsAmount - accountTotalTransferAmount - accountTotalOutflowsAmount;
+            const accountBalance: BigDecimal = accountTotalIncomeAmount.subtract(accountTotalTransferAmount).subtract(accountTotalOutflowsAmount);
+            const accountNetCashFlow: BigDecimal = accountTotalInflowsAmount.subtract(accountTotalTransferAmount).subtract(accountTotalOutflowsAmount);
 
             if (incomeByAccountItem && accountsStore.allAccountsMap[item.id]?.isAsset) {
-                if (accountBalance > 0) { // has positive balance, transfer the amount from income account to expense account
-                    incomeByAccountItem.outflows.push({ amount: accountBalance + accountTotalOutflowsAmount, relatedItem: item });
-                    item.inflows.push({ amount: accountBalance + accountTotalOutflowsAmount, relatedItem: incomeByAccountItem });
-                } else if (accountNetCashFlow < 0) { // has negative net cash flow, add the difference to income account
-                    incomeByAccountItem.totalAmount += -accountNetCashFlow;
-                    incomeByAccountItem.totalNonNegativeAmount += -accountNetCashFlow > 0 ? -accountNetCashFlow : 0;
-                    incomeByAccountItem.outflows.push({ amount: -accountNetCashFlow, relatedItem: item });
-                    item.inflows.push({ amount: -accountNetCashFlow, relatedItem: incomeByAccountItem });
+                if (accountBalance.isPositive()) { // has positive balance, transfer the amount from income account to expense account
+                    incomeByAccountItem.outflows.push({ amount: accountBalance.add(accountTotalOutflowsAmount), relatedItem: item });
+                    item.inflows.push({ amount: accountBalance.add(accountTotalOutflowsAmount), relatedItem: incomeByAccountItem });
+                } else if (accountNetCashFlow.isNegative()) { // has negative net cash flow, add the difference to income account
+                    incomeByAccountItem.value = incomeByAccountItem.value.add(accountNetCashFlow.negate());
+                    incomeByAccountItem.totalNonNegativeAmount = incomeByAccountItem.totalNonNegativeAmount.add(max(accountNetCashFlow.negate(), BIG_DECIMAL_ZERO));
+                    incomeByAccountItem.outflows.push({ amount: accountNetCashFlow.negate(), relatedItem: item });
+                    item.inflows.push({ amount: accountNetCashFlow.negate(), relatedItem: incomeByAccountItem });
                 }
             }
 
-            if (accountNetCashFlow > 0) {
+            if (accountNetCashFlow.isPositive()) {
                 let netCashFlowItem: TransactionCategoricalOverviewAnalysisDataItem | undefined = allDataItemsMap[TransactionCategoricalOverviewAnalysisDataItemType.NetCashFlow];
 
                 if (!netCashFlowItem) {
@@ -493,8 +510,8 @@ export const useStatisticsStore = defineStore('statistics', () => {
 
                 item.outflows.push({ amount: accountNetCashFlow, relatedItem: netCashFlowItem });
 
-                netCashFlowItem.totalAmount += accountNetCashFlow;
-                netCashFlowItem.totalNonNegativeAmount += accountNetCashFlow > 0 ? accountNetCashFlow : 0;
+                netCashFlowItem.value = netCashFlowItem.value.add(accountNetCashFlow);
+                netCashFlowItem.totalNonNegativeAmount = netCashFlowItem.totalNonNegativeAmount.add(max(accountNetCashFlow, BIG_DECIMAL_ZERO));
                 netCashFlowItem.inflows.push({ amount: accountNetCashFlow, relatedItem: item });
             }
         }
@@ -523,8 +540,8 @@ export const useStatisticsStore = defineStore('statistics', () => {
         }
 
         const allDataItems: Record<string, WritableTransactionCategoricalAnalysisDataItem> = {};
-        let totalAmount = 0;
-        let totalNonNegativeAmount = 0;
+        let totalAmount: BigDecimal = BIG_DECIMAL_ZERO;
+        let totalNonNegativeAmount: BigDecimal = BIG_DECIMAL_ZERO;
 
         for (const account of accountsStore.allPlainAccounts) {
             if (transactionStatisticsFilter.value.chartDataType === ChartDataType.AccountTotalAssets.type) {
@@ -549,20 +566,20 @@ export const useStatisticsStore = defineStore('statistics', () => {
 
             const primaryAccountCategoryDisplayOrder = settingsStore.accountCategoryDisplayOrders[primaryAccount.category] || Number.MAX_SAFE_INTEGER;
 
-            let amount = account.balance;
+            let amount: BigDecimal = parseBigDecimal(account.balance);
 
             if (account.currency !== userStore.currentUserDefaultCurrency) {
                 const finalAmount = exchangeRatesStore.getExchangedAmount(amount, account.currency, userStore.currentUserDefaultCurrency);
 
-                if (!isNumber(finalAmount)) {
+                if (!finalAmount) {
                     continue;
                 }
 
-                amount = Math.trunc(finalAmount);
+                amount = finalAmount.truncate();
             }
 
             if (account.isLiability) {
-                amount = -amount;
+                amount = amount.negate();
             }
 
             const data: WritableTransactionCategoricalAnalysisDataItem = {
@@ -570,23 +587,115 @@ export const useStatisticsStore = defineStore('statistics', () => {
                 type: 'account',
                 id: account.id,
                 icon: account.icon || DEFAULT_ACCOUNT_ICON.icon,
+                iconType: account.iconType,
                 color: account.color || DEFAULT_ACCOUNT_COLOR,
                 hidden: primaryAccount.hidden || account.hidden,
                 displayOrders: [primaryAccountCategoryDisplayOrder, primaryAccount.displayOrder, account.displayOrder],
-                totalAmount: amount
+                value: amount
             };
 
-            totalAmount += amount;
+            totalAmount = totalAmount.add(amount);
 
-            if (amount > 0) {
-                totalNonNegativeAmount += amount;
+            if (amount.isPositive()) {
+                totalNonNegativeAmount = totalNonNegativeAmount.add(amount);
             }
 
             allDataItems[account.id] = data;
         }
 
         return {
-            totalAmount: totalAmount,
+            value: totalAmount,
+            totalNonNegativeAmount: totalNonNegativeAmount,
+            items: allDataItems
+        };
+    });
+
+    const currencyTotalAmountAnalysisData = computed<WritableTransactionCategoricalAnalysisData | null>(() => {
+        if (!accountsStore.allPlainAccounts) {
+            return null;
+        }
+
+        const allDataItems: Record<string, WritableTransactionCategoricalAnalysisDataItem> = {};
+        let totalAmount: BigDecimal = BIG_DECIMAL_ZERO;
+        let totalNonNegativeAmount: BigDecimal = BIG_DECIMAL_ZERO;
+
+        for (const account of accountsStore.allPlainAccounts) {
+            if (transactionStatisticsFilter.value.chartDataType === ChartDataType.TotalAssetsByCurrency.type) {
+                if (!account.isAsset) {
+                    continue;
+                }
+            } else if (transactionStatisticsFilter.value.chartDataType === ChartDataType.TotalLiabilitiesByCurrency.type) {
+                if (!account.isLiability) {
+                    continue;
+                }
+            }
+
+            if (account.hidden) {
+                continue;
+            }
+
+            if (transactionStatisticsFilter.value.filterAccountIds && transactionStatisticsFilter.value.filterAccountIds[account.id]) {
+                continue;
+            }
+
+            let primaryAccount = accountsStore.allAccountsMap[account.parentId];
+
+            if (!primaryAccount) {
+                primaryAccount = account;
+            }
+
+            let originalAmount: BigDecimal = parseBigDecimal(account.balance);
+            let amount: BigDecimal = originalAmount;
+
+            if (account.currency !== userStore.currentUserDefaultCurrency) {
+                const finalAmount = exchangeRatesStore.getExchangedAmount(amount, account.currency, userStore.currentUserDefaultCurrency);
+
+                if (!finalAmount) {
+                    continue;
+                }
+
+                amount = finalAmount.truncate();
+            }
+
+            if (account.isLiability) {
+                originalAmount = originalAmount.negate();
+                amount = amount.negate();
+            }
+
+            let data = allDataItems[account.currency];
+
+            if (data) {
+                data.value = data.value.add(amount);
+                data.originalValue = data.originalValue?.add(originalAmount) || originalAmount;
+            } else {
+                data = {
+                    name: account.currency,
+                    type: 'total',
+                    id: account.currency,
+                    icon: DEFAULT_ACCOUNT_ICON.icon,
+                    iconType: IconType.System,
+                    color: DEFAULT_ACCOUNT_COLOR,
+                    hidden: false,
+                    displayOrders: [],
+                    value: amount,
+                    originalValue: originalAmount,
+                    originalCurrency: account.currency
+                };
+            }
+
+            totalAmount = totalAmount.add(amount);
+
+            allDataItems[account.currency] = data;
+        }
+
+        for (const dataItem of values(allDataItems)) {
+            if (dataItem.value.isPositive()) {
+                totalNonNegativeAmount = totalNonNegativeAmount.add(dataItem.value);
+            }
+        }
+
+        return {
+            value: totalAmount,
             totalNonNegativeAmount: totalNonNegativeAmount,
             items: allDataItems
         };
@@ -607,16 +716,19 @@ export const useStatisticsStore = defineStore('statistics', () => {
         } else if (transactionStatisticsFilter.value.chartDataType === ChartDataType.AccountTotalAssets.type ||
             transactionStatisticsFilter.value.chartDataType === ChartDataType.AccountTotalLiabilities.type) {
             combinedData = accountTotalAmountAnalysisData.value;
+        } else if (transactionStatisticsFilter.value.chartDataType === ChartDataType.TotalAssetsByCurrency.type ||
+            transactionStatisticsFilter.value.chartDataType === ChartDataType.TotalLiabilitiesByCurrency.type) {
+            combinedData = currencyTotalAmountAnalysisData.value;
         }
 
         const allStatisticsItems: TransactionCategoricalAnalysisDataItem[] = [];
 
         if (combinedData && combinedData.items) {
-            let maxTotalAmount = 0;
+            let maxTotalAmount: BigDecimal = BIG_DECIMAL_ZERO;
 
             for (const dataItem of values(combinedData.items)) {
-                if (dataItem.totalAmount > maxTotalAmount) {
-                    maxTotalAmount = dataItem.totalAmount;
+                if (dataItem.value.greaterThan(maxTotalAmount)) {
+                    maxTotalAmount = dataItem.value;
                 }
             }
 
@@ -625,8 +737,8 @@ export const useStatisticsStore = defineStore('statistics', () => {
 
                 if (transactionStatisticsFilter.value.chartDataType === ChartDataType.OutflowsByAccount.type ||
                     transactionStatisticsFilter.value.chartDataType === ChartDataType.InflowsByAccount.type) {
-                    if (maxTotalAmount > 0) {
-                        percent = dataItem.totalAmount * 100 / maxTotalAmount;
+                    if (maxTotalAmount.isPositive()) {
+                        percent = dataItem.value.divide(maxTotalAmount).multiply(100).toDoubleNumber();
                     } else {
                         percent = 0;
                     }
@@ -635,8 +747,8 @@ export const useStatisticsStore = defineStore('statistics', () => {
                         percent = 0;
                     }
                 } else {
-                    if (dataItem.totalAmount > 0) {
-                        percent = dataItem.totalAmount * 100 / combinedData.totalNonNegativeAmount;
+                    if (dataItem.value.isPositive()) {
+                        percent = dataItem.value.divide(combinedData.totalNonNegativeAmount).multiply(100).toDoubleNumber();
                     } else {
                         percent = 0;
                     }
@@ -651,11 +763,14 @@ export const useStatisticsStore = defineStore('statistics', () => {
                     type: dataItem.type,
                     id: dataItem.id,
                     icon: dataItem.icon,
+                    iconType: dataItem.iconType,
                     color: dataItem.color,
                     hidden: dataItem.hidden,
                     displayOrders: dataItem.displayOrders,
-                    totalAmount: dataItem.totalAmount,
-                    percent: percent
+                    value: dataItem.value,
+                    percent: percent,
+                    originalValue: dataItem.originalValue,
+                    originalCurrency: dataItem.originalCurrency
                 };
 
                 allStatisticsItems.push(statisticDataItem);
@@ -665,7 +780,7 @@ export const useStatisticsStore = defineStore('statistics', () => {
         sortCategoryTotalAmountItems(allStatisticsItems, transactionStatisticsFilter.value);
 
         const statisticData: TransactionCategoricalAnalysisData = {
-            totalAmount: combinedData?.totalAmount || 0,
+            value: combinedData?.value || BIG_DECIMAL_ZERO,
             items: allStatisticsItems
         };
 
@@ -714,10 +829,11 @@ export const useStatisticsStore = defineStore('statistics', () => {
                         type: item.type,
                         id: item.id,
                         icon: item.icon,
+                        iconType: item.iconType,
                         color: item.color,
                         hidden: item.hidden,
                         displayOrders: item.displayOrders,
-                        totalAmount: 0,
+                        value: BIG_DECIMAL_ZERO,
                         items: []
                     };
                 }
@@ -725,10 +841,10 @@ export const useStatisticsStore = defineStore('statistics', () => {
                 combinedData.items.push({
                     year: trendItem.year,
                     month1base: trendItem.month,
-                    totalAmount: item.totalAmount
+                    value: item.value
                 });
 
-                combinedData.totalAmount += item.totalAmount;
+                combinedData.value = combinedData.value.add(item.value);
                 combinedDataMap[id] = combinedData;
             }
         }
@@ -852,7 +968,7 @@ export const useStatisticsStore = defineStore('statistics', () => {
         const combinedDataMap: Record<string, WritableTransactionAssetTrendsAnalysisDataItem> = {};
 
         for (const dailyData of assetTrendsDataWithAccountInfo.value) {
-            let dailyTotalAmount: number = 0;
+            let dailyTotalAmount: BigDecimal = BIG_DECIMAL_ZERO;
 
             for (const item of dailyData.items) {
                 if (!item.primaryAccount || !item.account) {
@@ -863,7 +979,7 @@ export const useStatisticsStore = defineStore('statistics', () => {
                     continue;
                 }
 
-                if (!isNumber(item.amountInDefaultCurrency)) {
+                if (!isBigDecimal(item.amountInDefaultCurrency)) {
                     continue;
                 }
 
@@ -884,7 +1000,7 @@ export const useStatisticsStore = defineStore('statistics', () => {
                 let amount = item.amountInDefaultCurrency;
 
                 if (item.account.isLiability) {
-                    amount = -amount;
+                    amount = amount.negate();
                 }
 
                 if (transactionStatisticsFilter.value.chartDataType === ChartDataType.AccountTotalAssets.type ||
@@ -892,7 +1008,7 @@ export const useStatisticsStore = defineStore('statistics', () => {
                     let data = combinedDataMap[item.account.id];
 
                     if (data) {
-                        data.totalAmount += amount;
+                        data.value = data.value.add(amount);
                     } else {
                         const primaryAccountCategoryDisplayOrder = settingsStore.accountCategoryDisplayOrders[item.primaryAccount.category] || Number.MAX_SAFE_INTEGER;
 
@@ -901,10 +1017,11 @@ export const useStatisticsStore = defineStore('statistics', () => {
                             type: 'account',
                             id: item.account.id,
                             icon: item.account.icon || DEFAULT_ACCOUNT_ICON.icon,
+                            iconType: item.account.iconType,
                             color: item.account.color || DEFAULT_ACCOUNT_COLOR,
                             hidden: item.primaryAccount.hidden || item.account.hidden,
                             displayOrders: [primaryAccountCategoryDisplayOrder, item.primaryAccount.displayOrder, item.account.displayOrder],
-                            totalAmount: amount,
+                            value: amount,
                             items: []
                         };
                     }
@@ -913,16 +1030,16 @@ export const useStatisticsStore = defineStore('statistics', () => {
                         year: dailyData.year,
                         month: dailyData.month,
                         day: dailyData.day,
-                        totalAmount: amount
+                        value: amount
                     };
                     data.items.push(amountItem);
                     combinedDataMap[item.account.id] = data;
                 }
 
                 if (item.account.isAsset) {
-                    dailyTotalAmount += amount;
+                    dailyTotalAmount = dailyTotalAmount.add(amount);
                 } else if (item.account.isLiability) {
-                    dailyTotalAmount -= amount;
+                    dailyTotalAmount = dailyTotalAmount.subtract(amount);
                 }
             }
 
@@ -930,17 +1047,18 @@ export const useStatisticsStore = defineStore('statistics', () => {
                 let data = combinedDataMap['total'];
 
                 if (data) {
-                    data.totalAmount += dailyTotalAmount;
+                    data.value = data.value.add(dailyTotalAmount);
                 } else {
                     data = {
                         name: ChartDataType.NetWorth.name,
                         type: 'total',
                         id: 'total',
                         icon: '',
+                        iconType: IconType.System,
                         color: '',
                         hidden: false,
                         displayOrders: [1],
-                        totalAmount: dailyTotalAmount,
+                        value: dailyTotalAmount,
                         items: []
                     };
                 }
@@ -949,7 +1067,7 @@ export const useStatisticsStore = defineStore('statistics', () => {
                     year: dailyData.year,
                     month: dailyData.month,
                     day: dailyData.day,
-                    totalAmount: dailyTotalAmount
+                    value: dailyTotalAmount
                 };
                 data.items.push(amountItem);
                 combinedDataMap['total'] = data;
@@ -980,27 +1098,27 @@ export const useStatisticsStore = defineStore('statistics', () => {
             hidden: hidden,
             inflows: [],
             outflows: [],
-            totalAmount: 0,
-            totalNonNegativeAmount: 0
+            value: BIG_DECIMAL_ZERO,
+            totalNonNegativeAmount: BIG_DECIMAL_ZERO
         };
 
         return dataItem;
     }
 
     function sortCategoricalOverviewAnalysisDataItems(items: TransactionCategoricalOverviewAnalysisDataItem[], transactionStatisticsFilter: TransactionStatisticsFilter): void {
-        let totalNonNegativeAmount: number = 0;
+        let totalNonNegativeAmount: BigDecimal = BIG_DECIMAL_ZERO;
 
         for (const item of items) {
-            totalNonNegativeAmount += item.totalNonNegativeAmount;
+            totalNonNegativeAmount = totalNonNegativeAmount.add(item.totalNonNegativeAmount);
         }
 
-        if (totalNonNegativeAmount > 0) {
+        if (totalNonNegativeAmount.isPositive()) {
             for (const item of items) {
                 if (!item.includeInPercent) {
                     continue;
                 }
 
-                item.percent = item.totalAmount * 100 / totalNonNegativeAmount;
+                item.percent = item.value.divide(totalNonNegativeAmount).multiply(100).toDoubleNumber();
             }
         }
 
@@ -1052,13 +1170,13 @@ export const useStatisticsStore = defineStore('statistics', () => {
             }
 
             if (item.account && item.account.currency !== defaultCurrency) {
-                const amount = exchangeRatesStore.getExchangedAmount(item.amount, item.account.currency, defaultCurrency);
+                const amount = exchangeRatesStore.getExchangedAmount(parseBigDecimal(item.amount), item.account.currency, defaultCurrency);
 
-                if (isNumber(amount)) {
-                    item.amountInDefaultCurrency = Math.trunc(amount);
+                if (amount) {
+                    item.amountInDefaultCurrency = amount.truncate();
                 }
             } else if (item.account && item.account.currency === defaultCurrency) {
-                item.amountInDefaultCurrency = item.amount;
+                item.amountInDefaultCurrency = parseBigDecimal(item.amount);
             } else {
                 item.amountInDefaultCurrency = null;
             }
@@ -1071,8 +1189,8 @@ export const useStatisticsStore = defineStore('statistics', () => {
 
     function getCategoryTotalAmountItems(items: TransactionStatisticResponseItemWithInfo[], transactionStatisticsFilter: TransactionStatisticsFilter): WritableTransactionCategoricalAnalysisData {
         const allDataItems: Record<string, WritableTransactionCategoricalAnalysisDataItem> = {};
-        let totalAmount = 0;
-        let totalNonNegativeAmount = 0;
+        let totalAmount = BIG_DECIMAL_ZERO;
+        let totalNonNegativeAmount = BIG_DECIMAL_ZERO;
 
         for (const item of items) {
             if (!item.primaryAccount || !item.account || !item.primaryCategory || !item.category) {
@@ -1133,11 +1251,11 @@ export const useStatisticsStore = defineStore('statistics', () => {
                 transactionStatisticsFilter.chartDataType === ChartDataType.ExpenseByAccount.type ||
                 transactionStatisticsFilter.chartDataType === ChartDataType.InflowsByAccount.type ||
                 transactionStatisticsFilter.chartDataType === ChartDataType.IncomeByAccount.type) {
-                if (isNumber(item.amountInDefaultCurrency)) {
+                if (isBigDecimal(item.amountInDefaultCurrency)) {
                     let data = allDataItems[item.account.id];
 
                     if (data) {
-                        data.totalAmount += item.amountInDefaultCurrency;
+                        data.value = data.value.add(item.amountInDefaultCurrency);
                     } else {
                         const primaryAccountCategoryDisplayOrder = settingsStore.accountCategoryDisplayOrders[item.primaryAccount.category] || Number.MAX_SAFE_INTEGER;
 
@@ -1146,10 +1264,11 @@ export const useStatisticsStore = defineStore('statistics', () => {
                             type: 'account',
                             id: item.account.id,
                             icon: item.account.icon || DEFAULT_ACCOUNT_ICON.icon,
+                            iconType: item.account.iconType,
                             color: item.account.color || DEFAULT_ACCOUNT_COLOR,
                             hidden: item.primaryAccount.hidden || item.account.hidden,
                             displayOrders: [primaryAccountCategoryDisplayOrder, item.primaryAccount.displayOrder, item.account.displayOrder],
-                            totalAmount: item.amountInDefaultCurrency
+                            value: item.amountInDefaultCurrency
                         };
                     }
 
@@ -1164,10 +1283,10 @@ export const useStatisticsStore = defineStore('statistics', () => {
                     }
 
                     if (includeInTotal) {
-                        totalAmount += item.amountInDefaultCurrency;
+                        totalAmount = totalAmount.add(item.amountInDefaultCurrency);
 
-                        if (item.amountInDefaultCurrency > 0) {
-                            totalNonNegativeAmount += item.amountInDefaultCurrency;
+                        if (item.amountInDefaultCurrency.isPositive()) {
+                            totalNonNegativeAmount = totalNonNegativeAmount.add(item.amountInDefaultCurrency);
                         }
                     }
 
@@ -1175,56 +1294,58 @@ export const useStatisticsStore = defineStore('statistics', () => {
                 }
             } else if (transactionStatisticsFilter.chartDataType === ChartDataType.ExpenseByPrimaryCategory.type ||
                 transactionStatisticsFilter.chartDataType === ChartDataType.IncomeByPrimaryCategory.type) {
-                if (isNumber(item.amountInDefaultCurrency)) {
+                if (isBigDecimal(item.amountInDefaultCurrency)) {
                     let data = allDataItems[item.primaryCategory.id];
 
                     if (data) {
-                        data.totalAmount += item.amountInDefaultCurrency;
+                        data.value = data.value.add(item.amountInDefaultCurrency);
                     } else {
                         data = {
                             name: item.primaryCategory.name,
                             type: 'category',
                             id: item.primaryCategory.id,
                             icon: item.primaryCategory.icon || DEFAULT_CATEGORY_ICON.icon,
+                            iconType: item.primaryCategory.iconType,
                             color: item.primaryCategory.color || DEFAULT_CATEGORY_COLOR,
                             hidden: item.primaryCategory.hidden,
                             displayOrders: [item.primaryCategory.type, item.primaryCategory.displayOrder],
-                            totalAmount: item.amountInDefaultCurrency
+                            value: item.amountInDefaultCurrency
                         };
                     }
 
-                    totalAmount += item.amountInDefaultCurrency;
+                    totalAmount = totalAmount.add(item.amountInDefaultCurrency);
 
-                    if (item.amountInDefaultCurrency > 0) {
-                        totalNonNegativeAmount += item.amountInDefaultCurrency;
+                    if (item.amountInDefaultCurrency.isPositive()) {
+                        totalNonNegativeAmount = totalNonNegativeAmount.add(item.amountInDefaultCurrency);
                     }
 
                     allDataItems[item.primaryCategory.id] = data;
                 }
             } else if (transactionStatisticsFilter.chartDataType === ChartDataType.ExpenseBySecondaryCategory.type ||
                 transactionStatisticsFilter.chartDataType === ChartDataType.IncomeBySecondaryCategory.type) {
-                if (isNumber(item.amountInDefaultCurrency)) {
+                if (isBigDecimal(item.amountInDefaultCurrency)) {
                     let data = allDataItems[item.category.id];
 
                     if (data) {
-                        data.totalAmount += item.amountInDefaultCurrency;
+                        data.value = data.value.add(item.amountInDefaultCurrency);
                     } else {
                         data = {
                             name: item.category.name,
                             type: 'category',
                             id: item.category.id,
                             icon: item.category.icon || DEFAULT_CATEGORY_ICON.icon,
+                            iconType: item.category.iconType,
                             color: item.category.color || DEFAULT_CATEGORY_COLOR,
                             hidden: item.primaryCategory.hidden || item.category.hidden,
                             displayOrders: [item.primaryCategory.type, item.primaryCategory.displayOrder, item.category.displayOrder],
-                            totalAmount: item.amountInDefaultCurrency
+                            value: item.amountInDefaultCurrency
                         };
                     }
 
-                    totalAmount += item.amountInDefaultCurrency;
+                    totalAmount = totalAmount.add(item.amountInDefaultCurrency);
 
-                    if (item.amountInDefaultCurrency > 0) {
-                        totalNonNegativeAmount += item.amountInDefaultCurrency;
+                    if (item.amountInDefaultCurrency.isPositive()) {
+                        totalNonNegativeAmount = totalNonNegativeAmount.add(item.amountInDefaultCurrency);
                     }
 
                     allDataItems[item.category.id] = data;
@@ -1235,17 +1356,17 @@ export const useStatisticsStore = defineStore('statistics', () => {
                 transactionStatisticsFilter.chartDataType === ChartDataType.TotalIncome.type ||
                 transactionStatisticsFilter.chartDataType === ChartDataType.NetCashFlow.type ||
                 transactionStatisticsFilter.chartDataType === ChartDataType.NetIncome.type) {
-                if (isNumber(item.amountInDefaultCurrency)) {
+                if (isBigDecimal(item.amountInDefaultCurrency)) {
                     let data = allDataItems['total'];
                     let amount = item.amountInDefaultCurrency;
                     let includeInTotal: boolean = true;
 
                     if (transactionStatisticsFilter.chartDataType === ChartDataType.NetCashFlow.type &&
                         (item.category.type === CategoryType.Expense || (item.category.type === CategoryType.Transfer && item.relatedAccountType === TransactionRelatedAccountType.TransferTo))) {
-                        amount = -amount;
+                        amount = amount.negate();
                     } else if (transactionStatisticsFilter.chartDataType === ChartDataType.NetIncome.type &&
                         item.category.type === CategoryType.Expense) {
-                        amount = -amount;
+                        amount = amount.negate();
                     }
 
                     // total outflows / inflows do not include transfer transactions between unfiltered accounts
@@ -1279,20 +1400,21 @@ export const useStatisticsStore = defineStore('statistics', () => {
                             type: 'total',
                             id: 'total',
                             icon: '',
+                            iconType: IconType.System,
                             color: '',
                             hidden: false,
                             displayOrders: [1],
-                            totalAmount: 0
+                            value: BIG_DECIMAL_ZERO
                         };
                     }
 
                     if (includeInTotal) {
-                        data.totalAmount += amount;
+                        data.value = data.value.add(amount);
 
-                        totalAmount += amount;
+                        totalAmount = totalAmount.add(amount);
 
-                        if (item.amountInDefaultCurrency > 0) {
-                            totalNonNegativeAmount += amount;
+                        if (item.amountInDefaultCurrency.isPositive()) {
+                            totalNonNegativeAmount = totalNonNegativeAmount.add(amount);
                         }
                     }
 
@@ -1302,7 +1424,7 @@ export const useStatisticsStore = defineStore('statistics', () => {
         }
 
         return {
-            totalAmount: totalAmount,
+            value: totalAmount,
             totalNonNegativeAmount: totalNonNegativeAmount,
             items: allDataItems
         };
@@ -1780,6 +1902,26 @@ export const useStatisticsStore = defineStore('statistics', () => {
             if ((analysisType === StatisticsAnalysisType.CategoricalAnalysis || analysisType === StatisticsAnalysisType.TrendAnalysis) && !isObjectEmpty(transactionStatisticsFilter.value.filterCategoryIds)) {
                 querys.push('categoryIds=' + getFinalCategoryIdsByFilteredCategoryIds(transactionCategoriesStore.allTransactionCategoriesMap, transactionStatisticsFilter.value.filterCategoryIds));
             }
+        } else if (itemId && (transactionStatisticsFilter.value.chartDataType === ChartDataType.TotalAssetsByCurrency.type ||
+            transactionStatisticsFilter.value.chartDataType === ChartDataType.TotalLiabilitiesByCurrency.type)
+        ) {
+            const accountIds: string[] = [];
+
+            for (const account of accountsStore.allPlainAccounts) {
+                if (account.currency !== itemId || (transactionStatisticsFilter.value.filterAccountIds && transactionStatisticsFilter.value.filterAccountIds[account.id])) {
+                    continue;
+                }
+
+                if (transactionStatisticsFilter.value.chartDataType === ChartDataType.TotalAssetsByCurrency.type && !account.isAsset) {
+                    continue;
+                } else if (transactionStatisticsFilter.value.chartDataType === ChartDataType.TotalLiabilitiesByCurrency.type && !account.isLiability) {
+                    continue;
+                }
+
+                accountIds.push(account.id);
+            }
+
+            querys.push('accountIds=' + accountIds.join(','));
         } else if (itemId && (transactionStatisticsFilter.value.chartDataType === ChartDataType.IncomeByPrimaryCategory.type ||
             transactionStatisticsFilter.value.chartDataType === ChartDataType.IncomeBySecondaryCategory.type ||
             transactionStatisticsFilter.value.chartDataType === ChartDataType.ExpenseByPrimaryCategory.type ||
@@ -1813,7 +1955,9 @@ export const useStatisticsStore = defineStore('statistics', () => {
 
         if (analysisType === StatisticsAnalysisType.CategoricalAnalysis
             && transactionStatisticsFilter.value.chartDataType !== ChartDataType.AccountTotalAssets.type
-            && transactionStatisticsFilter.value.chartDataType !== ChartDataType.AccountTotalLiabilities.type) {
+            && transactionStatisticsFilter.value.chartDataType !== ChartDataType.AccountTotalLiabilities.type
+            && transactionStatisticsFilter.value.chartDataType !== ChartDataType.TotalAssetsByCurrency.type
+            && transactionStatisticsFilter.value.chartDataType !== ChartDataType.TotalLiabilitiesByCurrency.type) {
             querys.push('dateType=' + transactionStatisticsFilter.value.categoricalChartDateType);
 
             if (transactionStatisticsFilter.value.categoricalChartDateType === DateRange.Custom.type) {

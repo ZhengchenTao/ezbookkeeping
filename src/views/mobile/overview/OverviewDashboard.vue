@@ -1,0 +1,50 @@
+<template>
+    <div class="mobile-overview-dashboard">
+        <div class="mobile-overview-dashboard-item" :key="widget.id" v-for="widget in layout.widgets">
+            <overview-widget :widget="widget" :loading="loading" @navigate="onNavigate" />
+        </div>
+
+        <f7-block class="text-align-center text-color-gray padding-vertical" v-if="!layout.widgets.length">
+            {{ tt('No widgets') }}
+        </f7-block>
+    </div>
+</template>
+
+<script setup lang="ts">
+import OverviewWidget from './OverviewWidget.vue';
+
+import { useI18n } from '@/locales/helpers.ts';
+
+import { type MobileOverviewLayout, MobileOverviewWidgetNavigationType } from '@/core/overview_layout.ts';
+
+defineProps<{
+    layout: MobileOverviewLayout;
+    loading: boolean;
+}>();
+
+const emit = defineEmits<{
+    (e: 'navigate', type: MobileOverviewWidgetNavigationType, path?: string): void;
+}>();
+
+const { tt } = useI18n();
+
+function onNavigate(type: MobileOverviewWidgetNavigationType, path?: string): void {
+    emit('navigate', type, path);
+}
+</script>
+
+<style>
+.mobile-overview-dashboard-item:empty {
+    display: none;
+}
+
+.mobile-overview-dashboard-item:not(:empty) ~ .mobile-overview-dashboard-item:not(:empty) {
+    margin-block-start: 16px;
+}
+
+.mobile-overview-dashboard-item > .card,
+.mobile-overview-dashboard-item > .list {
+    margin-block-start: 0 !important;
+    margin-block-end: 0 !important;
+}
+</style>

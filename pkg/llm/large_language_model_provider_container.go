@@ -17,6 +17,7 @@ import (
 type LargeLanguageModelProviderContainer struct {
 	textRecognitionCurrentProvider         provider.LargeLanguageModelProvider
 	receiptImageRecognitionCurrentProvider provider.LargeLanguageModelProvider
+	codingAssistantCurrentProvider         provider.LargeLanguageModelProvider
 }
 
 // Initialize a large language model provider container singleton instance
@@ -44,6 +45,14 @@ func InitializeLargeLanguageModelProvider(config *settings.Config) error {
 		}
 	}
 
+	if config.CodingAssistantLLMConfig != nil {
+		Container.codingAssistantCurrentProvider, err = initializeLargeLanguageModelProvider(config.CodingAssistantLLMConfig, config.EnableDebugLog)
+
+		if err != nil {
+			return err
+		}
+	}
+
 	return nil
 }
 
@@ -52,6 +61,8 @@ func initializeLargeLanguageModelProvider(llmConfig *settings.LLMConfig, enableR
 		return openai.NewOpenAILargeLanguageModelProvider(llmConfig, enableResponseLog), nil
 	} else if llmConfig.LLMProvider == settings.OpenAICompatibleLLMProvider {
 		return openai.NewOpenAICompatibleLargeLanguageModelProvider(llmConfig, enableResponseLog), nil
+	} else if llmConfig.LLMProvider == settings.OpenAIResponsesCompatibleLLMProvider {
+		return openai.NewOpenAIResponsesCompatibleLargeLanguageModelProvider(llmConfig, enableResponseLog), nil
 	} else if llmConfig.LLMProvider == settings.AnthropicLLMProvider {
 		return anthropic.NewAnthropicLargeLanguageModelProvider(llmConfig, enableResponseLog), nil
 	} else if llmConfig.LLMProvider == settings.AnthropicCompatibleLLMProvider {
@@ -87,4 +98,13 @@ func (l *LargeLanguageModelProviderContainer) GetJsonResponseByReceiptImageRecog
 	}
 
 	return l.receiptImageRecognitionCurrentProvider.GetJsonResponse(c, uid, currentConfig.ReceiptImageRecognitionLLMConfig, request)
+}
+
+// GetJsonResponseByCodingAssistantModel returns the json response from the coding assistant model
+func (l *LargeLanguageModelProviderContainer) GetJsonResponseByCodingAssistantModel(c core.Context, uid int64, currentConfig *settings.Config, request *data.LargeLanguageModelRequest) (*data.LargeLanguageModelTextualResponse, error) {
+	if currentConfig.CodingAssistantLLMConfig == nil || l.codingAssistantCurrentProvider == nil {
+		return nil, errs.ErrInvalidLLMProvider
+	}
+
+	return l.codingAssistantCurrentProvider.GetJsonResponse(c, uid, currentConfig.CodingAssistantLLMConfig, request)
 }

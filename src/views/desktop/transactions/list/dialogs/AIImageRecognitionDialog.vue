@@ -1,11 +1,21 @@
 <template>
     <v-dialog width="800" :persistent="loading || recognizing || !!imageFile" v-model="showState" @paste="onPaste">
-        <v-card class="pa-sm-1 pa-md-2">
-            <template #title>
-                <h4 class="text-h4">{{ tt('AI Image Recognition') }}</h4>
+        <one-column-dialog-layout content-class="pa-0" content-style="height: 500px"
+                                  :disabled="loading || recognizing" :loading="loading || recognizing"
+                                  :title="tt('AI Image Recognition')"
+                                  :cancel-button-title="tt('Cancel')"
+                                  @cancel="cancel">
+            <template #toolbar>
+                <v-btn class="mx-2" density="comfortable" variant="outlined"
+                       :disabled="loading || recognizing || !imageFile" @click="recognize"
+                       v-if="!recognizing">{{ tt('Recognize') }}
+                </v-btn>
+                <v-btn class="mx-2" density="comfortable" variant="outlined"
+                       :disabled="loading"
+                       @click="cancelRecognize" v-if="recognizing && cancelRecognizingUuid">{{ tt('Cancel Recognition') }}</v-btn>
             </template>
 
-            <v-card-text class="d-flex flex-column flex-md-row flex-grow-1 overflow-y-auto" style="height: 480px">
+            <template #content>
                 <div class="w-100 h-100 border position-relative"
                      @dragenter.prevent="onDragEnter"
                      @dragover.prevent
@@ -14,35 +24,23 @@
                     <div class="d-flex w-100 h-100 justify-center align-center justify-content-center text-center px-4"
                          :class="{ 'dropzone': true, 'dropzone-dark': isDarkMode, 'dropzone-blurry-bg': loading || isDragOver || recognizing, 'dropzone-dragover': isDragOver }">
                         <div class="d-inline-flex flex-column" v-if="!loading && !imageFile && !isDragOver">
-                            <h3 class="pa-2">{{ tt('You can drag and drop, paste or click to select a receipt or transaction image') }}</h3>
-                            <span class="pa-2">{{ tt('Uploaded image and personal data will be sent to the large language model, please be aware of potential privacy risks.') }}</span>
+                            <span class="text-title-medium font-weight-bold pa-2">{{ tt('You can drag and drop, paste or click to select a receipt or transaction image') }}</span>
+                            <span class="text-body-large pa-2">{{ tt('Uploaded image and personal data will be sent to the large language model, please be aware of potential privacy risks.') }}</span>
                         </div>
-                        <h3 class="pa-2" v-else-if="!loading && isDragOver">{{ tt('Release to load image') }}</h3>
-                        <h3 class="pa-2" v-else-if="loading">{{ tt('Loading image...') }}</h3>
-                        <h3 class="pa-2" v-else-if="recognizing">{{ tt('AI can make mistakes. Check important info.') }}</h3>
+                        <span class="text-title-medium font-weight-bold pa-2" v-else-if="!loading && isDragOver">{{ tt('Release to load image') }}</span>
+                        <span class="text-title-medium font-weight-bold pa-2" v-else-if="loading">{{ tt('Loading image...') }}</span>
+                        <span class="text-title-medium font-weight-bold pa-2" v-else-if="recognizing">{{ tt('AI can make mistakes. Check important info.') }}</span>
                     </div>
                     <v-img :class="{ 'cursor-pointer': !loading && !recognizing && !isDragOver, 'h-100': true }"
                            :src="imageSrc" @click="showOpenImageDialog">
                         <template #placeholder>
-                            <div :class="{ 'w-100 h-100': true, 'bg-grey-200': !isDarkMode, 'bg-grey-100': isDarkMode }"></div>
+                            <div :class="{ 'w-100 h-100': true, 'bg-grey-200': !isDarkMode, 'bg-grey-50': isDarkMode }"></div>
                         </template>
                     </v-img>
                 </div>
-            </v-card-text>
+            </template>
 
-            <v-card-text>
-                <div class="w-100 d-flex justify-center flex-wrap mt-sm-1 mt-md-2 gap-4">
-                    <v-btn :disabled="loading || recognizing || !imageFile" @click="recognize">
-                        {{ tt('Recognize') }}
-                        <v-progress-circular indeterminate size="22" class="ms-2" v-if="recognizing"></v-progress-circular>
-                    </v-btn>
-                    <v-btn color="secondary" variant="tonal" :disabled="loading"
-                           @click="cancelRecognize" v-if="recognizing && cancelRecognizingUuid">{{ tt('Cancel Recognition') }}</v-btn>
-                    <v-btn color="secondary" variant="tonal" :disabled="loading || recognizing"
-                           @click="cancel" v-if="!recognizing || !cancelRecognizingUuid">{{ tt('Cancel') }}</v-btn>
-                </div>
-            </v-card-text>
-        </v-card>
+        </one-column-dialog-layout>
     </v-dialog>
 
     <snack-bar ref="snackbar" />
@@ -259,37 +257,3 @@ defineExpose({
     open
 });
 </script>
-
-<style>
-.dropzone {
-    position: absolute;
-    top: 0;
-    left: 0;
-    width: 100%;
-    pointer-events: none;
-    border-radius: 8px;
-    z-index: 10;
-
-    h3, span {
-        color: rgb(var(--v-theme-on-grey-200)) !important;
-        text-shadow: -1px -1px 0 #fff, 1px -1px 0 #fff, -1px 1px 0 #fff, 1px 1px 0 #fff;
-    }
-
-    &.dropzone-dark {
-        h3, span {
-            color: rgb(var(--v-theme-on-grey-100)) !important;
-            text-shadow: -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000;
-        }
-    }
-}
-
-.dropzone-blurry-bg {
-    /* stylelint-disable property-no-vendor-prefix */
-    -webkit-backdrop-filter: blur(6px);
-    backdrop-filter: blur(6px);
-}
-
-.dropzone-dragover {
-    border: 6px dashed rgba(var(--v-border-color),var(--v-border-opacity));
-}
-</style>

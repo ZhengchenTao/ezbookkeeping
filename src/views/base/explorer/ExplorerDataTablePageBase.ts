@@ -8,14 +8,18 @@ import { useExplorersStore } from '@/stores/explorer.ts';
 import { useExchangeRatesStore } from '@/stores/exchangeRates.ts';
 
 import { type NameValue, type NameNumeralValue, itemAndIndex } from '@/core/base.ts';
-import type { NumeralSystem } from '@/core/numeral.ts';
+import type { BigDecimal, NumeralSystem } from '@/core/numeral.ts';
 import { TransactionType } from '@/core/transaction.ts';
+
 import { DISPLAY_HIDDEN_AMOUNT } from '@/consts/numeral.ts';
+import { DEFAULT_PAGE_COUNTS } from '@/consts/page.ts';
 
 import type { TransactionInsightDataItem } from '@/models/transaction.ts';
 import type { InsightsExplorer } from '@/models/explorer.ts';
 
-import { isNumber } from '@/lib/common.ts';
+import {
+    parseBigDecimal
+} from '@/lib/numeral.ts';
 import {
     getUtcOffsetByUtcOffsetMinutes,
     getTimezoneOffsetMinutes,
@@ -28,7 +32,8 @@ export function useExplorerDataTablePageBase() {
         getCurrentNumeralSystemType,
         formatDateTimeToLongDateTime,
         formatAmountToLocalizedNumeralsWithCurrency,
-        formatNumberToLocalizedNumerals
+        formatNumberToLocalizedNumeralsWithoutDigitGrouping,
+        getTablePageOptions
     } = useI18n();
 
     const settingsStore = useSettingsStore();
@@ -61,7 +66,7 @@ export function useExplorerDataTablePageBase() {
                 });
             } else {
                 sources.push({
-                    name: tt('format.misc.queryIndex', { index: index + 1 }),
+                    name: tt('format.misc.queryIndex', { index: formatNumberToLocalizedNumeralsWithoutDigitGrouping(index + 1) }),
                     value: query.id
                 });
             }
@@ -70,18 +75,7 @@ export function useExplorerDataTablePageBase() {
         return sources;
     });
 
-    const allPageCounts = computed<NameNumeralValue[]>(() => {
-        const pageCounts: NameNumeralValue[] = [];
-        const availableCountPerPage: number[] = [ 5, 10, 15, 20, 25, 30, 50 ];
-
-        for (const count of availableCountPerPage) {
-            pageCounts.push({ value: count, name: formatNumberToLocalizedNumerals(count) });
-        }
-
-        pageCounts.push({ value: -1, name: tt('All') });
-
-        return pageCounts;
-    });
+    const allPageCounts = computed<NameNumeralValue[]>(() => getTablePageOptions(DEFAULT_PAGE_COUNTS, undefined, true, true));
 
     const skeletonData = computed<number[]>(() => {
         const data: number[] = [];
@@ -120,7 +114,7 @@ export function useExplorerDataTablePageBase() {
         return headers;
     });
 
-    function formatAmount(amount: number, hideAmount: boolean, currencyCode: string, inDefaultCurrency?: boolean): string {
+    function formatAmount(amount: BigDecimal, hideAmount: boolean, currencyCode: string, inDefaultCurrency?: boolean): string {
         if (hideAmount) {
             return formatAmountToLocalizedNumeralsWithCurrency(DISPLAY_HIDDEN_AMOUNT, currencyCode);
         }
@@ -129,7 +123,7 @@ export function useExplorerDataTablePageBase() {
             return formatAmountToLocalizedNumeralsWithCurrency(amount, currencyCode);
         } else {
             const exchangedAmount = exchangeRatesStore.getExchangedAmount(amount, currencyCode, defaultCurrency.value);
-            return isNumber(exchangedAmount) ? formatAmountToLocalizedNumeralsWithCurrency(Math.trunc(exchangedAmount), defaultCurrency.value) : formatAmountToLocalizedNumeralsWithCurrency(amount, currencyCode);
+            return exchangedAmount ? formatAmountToLocalizedNumeralsWithCurrency(exchangedAmount.truncate(), defaultCurrency.value) : formatAmountToLocalizedNumeralsWithCurrency(amount, currencyCode);
         }
     }
 
@@ -182,11 +176,11 @@ export function useExplorerDataTablePageBase() {
     }
 
     function getDisplaySourceAmount(transaction: TransactionInsightDataItem, inDefaultCurrency?: boolean): string {
-        return formatAmount(transaction.sourceAmount, transaction.hideAmount, transaction.sourceAccount?.currency ?? defaultCurrency.value, inDefaultCurrency);
+        return formatAmount(parseBigDecimal(transaction.sourceAmount), transaction.hideAmount, transaction.sourceAccount?.currency ?? defaultCurrency.value, inDefaultCurrency);
     }
 
     function getDisplayDestinationAmount(transaction: TransactionInsightDataItem, inDefaultCurrency?: boolean): string {
-        return formatAmount(transaction.destinationAmount, transaction.hideAmount, transaction.destinationAccount?.currency ?? defaultCurrency.value, inDefaultCurrency);
+        return formatAmount(parseBigDecimal(transaction.destinationAmount), transaction.hideAmount, transaction.destinationAccount?.currency ?? defaultCurrency.value, inDefaultCurrency);
     }
 
     return {

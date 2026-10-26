@@ -1,8 +1,10 @@
+import { reactive } from 'vue';
 import { useI18n as useVueI18n } from 'vue-i18n';
 import moment from 'moment-timezone';
 
 import {
     type NameValue,
+    type NameNumeralValue,
     type TypeAndName,
     type TypeAndNameWithAlternativeName,
     type TypeAndDisplayName,
@@ -35,6 +37,20 @@ import {
     TextDirection,
     KeywordMatchMode
 } from '@/core/text.ts';
+
+import {
+    type BigDecimal,
+    type HiddenAmount,
+    type NumberFormatOptions,
+    type BigDecimalWithSuffix,
+    type NumeralSymbolType,
+    type LocalizedNumeralSymbolType,
+    type LocalizedDigitGroupingType,
+    NumeralSystem,
+    DecimalSeparator,
+    DigitGroupingSymbol,
+    DigitGroupingType
+} from '@/core/numeral.ts';
 
 import {
     type ChineseCalendarLocaleData,
@@ -80,19 +96,6 @@ import {
 } from '@/core/timezone.ts';
 
 import {
-    type HiddenAmount,
-    type NumberFormatOptions,
-    type NumberWithSuffix,
-    type NumeralSymbolType,
-    type LocalizedNumeralSymbolType,
-    type LocalizedDigitGroupingType,
-    NumeralSystem,
-    DecimalSeparator,
-    DigitGroupingSymbol,
-    DigitGroupingType
-} from '@/core/numeral.ts';
-
-import {
     type LocalizedCurrencyInfo,
     type CurrencyPrependAndAppendText,
     CurrencyDisplayType,
@@ -107,6 +110,8 @@ import {
 } from '@/core/fiscalyear.ts';
 
 import {
+    type Coordinate,
+    type CoordinateFormatOptions,
     CoordinateDisplayType
 } from '@/core/coordinate.ts';
 
@@ -115,13 +120,22 @@ import {
 } from '@/core/color.ts';
 
 import {
+    IconType
+} from '@/core/icon.ts';
+
+import {
     ImageUploadQualityType
 } from '@/core/image.ts';
 
 import {
+    ChartValueType
+} from '@/core/chart.ts';
+
+import {
     type LocalizedAccountCategory,
     AccountType,
-    AccountCategory
+    AccountCategory,
+    CreditCardAmountDisplayType
 } from '@/core/account.ts';
 
 import {
@@ -143,6 +157,10 @@ import {
 } from '@/core/import_transaction.ts';
 
 import {
+    ImportTransactionReplaceRuleConditionField
+} from '@/core/rule.ts';
+
+import {
     ScheduledTemplateFrequencyType
 } from '@/core/template.ts';
 
@@ -161,7 +179,8 @@ import {
     TransactionExplorerConditionOperator,
     TransactionExplorerDataDimension,
     TransactionExplorerValueMetric,
-    TransactionExplorerChartType
+    TransactionExplorerChartType,
+    TransactionExplorerCustomChartDisplayLayout
 } from '@/core/explorer.ts';
 
 import {
@@ -177,9 +196,9 @@ import type { ErrorResponse } from '@/core/api.ts';
 
 import { AMOUNT_FACTOR, DISPLAY_HIDDEN_AMOUNT, INCOMPLETE_AMOUNT_SUFFIX } from '@/consts/numeral.ts';
 import { UTC_TIMEZONE, ALL_TIMEZONES } from '@/consts/timezone.ts';
-import { ALL_CURRENCIES } from '@/consts/currency.ts';
+import { ALL_CURRENCIES, ACCOUNT_CURRENCY_NOT_SET_VALUE } from '@/consts/currency.ts';
 import { DEFAULT_EXPENSE_CATEGORIES, DEFAULT_INCOME_CATEGORIES, DEFAULT_TRANSFER_CATEGORIES } from '@/consts/category.ts';
-import { KnownErrorCode, SPECIFIED_API_NOT_FOUND_ERRORS, PARAMETERIZED_ERRORS } from '@/consts/api.ts';
+import { PARSE_TRANSACTION_API_URL_PATH, KnownErrorCode, SPECIFIED_API_NOT_FOUND_ERRORS, PARAMETERIZED_ERRORS, SUPPORTED_PARSE_TRANSACTION_RECORD_ID_TYPES } from '@/consts/api.ts';
 import { OAUTH2_PROVIDER_DISPLAY_NAME } from '@/consts/oauth2.ts';
 import { DEFAULT_DOCUMENT_LANGUAGE_FOR_IMPORT_FILE, SUPPORTED_DOCUMENT_LANGUAGES_FOR_IMPORT_FILE, SUPPORTED_IMPORT_FILE_CATEGORY_AND_TYPES } from '@/consts/file.ts';
 
@@ -194,6 +213,7 @@ import type { LatestExchangeRateResponse, LocalizedLatestExchangeRate } from '@/
 import {
     isDefined,
     isObject,
+    isArray,
     isString,
     isNumber,
     isBoolean
@@ -234,11 +254,15 @@ import {
 } from '@/lib/calendar/chinese_calendar.ts';
 
 import {
+    BIG_DECIMAL_ZERO,
+    parseBigDecimal,
+    isBigDecimal,
     appendDigitGroupingSymbolAndDecimalSeparator,
     parseAmount,
     formatAmount,
     formatHiddenAmount,
     formatNumber,
+    formatBigDecimal,
     formatPercent,
     formatExchangeRateAmount,
     getAdaptiveDisplayAmountRate
@@ -251,14 +275,22 @@ import {
 } from '@/lib/currency.ts';
 
 import {
+    formatCoordinate
+} from '@/lib/coordinate.ts';
+
+import {
     getCategorizedAccountsMap,
     getAllFilteredAccountsBalance
 } from '@/lib/account.ts';
 
 import {
     getSessionCurrentLanguageKey,
-    setSessionCurrentLanguageKey
+    setSessionCurrentLanguageKey,
+    getSessionLanguagePreview,
+    setSessionLanguagePreview
 } from '@/lib/settings.ts';
+
+import { isLanguagePreviewEnabled } from '@/lib/server_settings.ts';
 
 import services from '@/lib/services.ts';
 import logger from '@/lib/logger.ts';
@@ -266,6 +298,11 @@ import logger from '@/lib/logger.ts';
 import { useSettingsStore } from '@/stores/setting.ts';
 import { useUserStore } from '@/stores/user.ts';
 import { useExchangeRatesStore } from '@/stores/exchangeRates.ts';
+
+
+interface PreviewLanguageMessages {
+    [key: string]: string | PreviewLanguageMessages;
+}
 
 export interface LocalizedErrorParameter {
     readonly key: string;
@@ -276,6 +313,32 @@ export interface LocalizedErrorParameter {
 export interface LocalizedError {
     readonly message: string;
     readonly parameters?: LocalizedErrorParameter[];
+}
+
+const allLanguageActualRtlSetting = reactive<Record<string, boolean>>({});
+const previewedLanguages = reactive<Record<string, boolean>>({});
+
+function parsePreviewMessages(json: string): PreviewLanguageMessages {
+    const value: unknown = JSON.parse(json.replace(/^\uFEFF/, ''));
+
+    function validate(value: unknown, path: string): asserts value is PreviewLanguageMessages {
+        if (!value || !isObject(value) || isArray(value)) {
+            throw new Error(`${path} must be a JSON object containing strings or nested objects.`);
+        }
+
+        for (const [key, message] of entries(value)) {
+            if (key === '__proto__' || key === 'constructor' || key === 'prototype') {
+                throw new Error(`Unsupported message key: ${path}.${key}`);
+            }
+
+            if (!isString(message)) {
+                validate(message, `${path}.${key}`);
+            }
+        }
+    }
+
+    validate(value, 'Language configuration');
+    return value;
 }
 
 export function getI18nOptions(): object {
@@ -289,6 +352,22 @@ export function getI18nOptions(): object {
 
             for (const [languageKey, languageInfo] of entries(ALL_LANGUAGES)) {
                 messages[languageKey] = languageInfo.content;
+
+                if (!isLanguagePreviewEnabled()) {
+                    continue;
+                }
+
+                const preview = getSessionLanguagePreview(languageKey);
+
+                if (preview && preview.data && preview.textDirection) {
+                    try {
+                        messages[languageKey] = parsePreviewMessages(preview.data);
+                        allLanguageActualRtlSetting[languageKey] = preview.textDirection === TextDirection.RTL;
+                        previewedLanguages[languageKey] = true;
+                    } catch (ex) {
+                        logger.warn(`failed to restore language preview for ${languageKey}`, ex);
+                    }
+                }
             }
 
             return messages;
@@ -297,19 +376,17 @@ export function getI18nOptions(): object {
 }
 
 export function getRtlLocales(): Record<string, boolean> {
-    const rtlLocales: Record<string, boolean> = {};
-
     for (const [languageKey, languageInfo] of entries(ALL_LANGUAGES)) {
-        if (languageInfo.textDirection === 'rtl') {
-            rtlLocales[languageKey] = true;
+        if (!isDefined(allLanguageActualRtlSetting[languageKey])) {
+            allLanguageActualRtlSetting[languageKey] = languageInfo.textDirection === 'rtl';
         }
     }
 
-    return rtlLocales;
+    return allLanguageActualRtlSetting;
 }
 
 export function useI18n() {
-    const { t, locale } = useVueI18n();
+    const { t, locale, getLocaleMessage, setLocaleMessage } = useVueI18n();
 
     const settingsStore = useSettingsStore();
     const userStore = useUserStore();
@@ -480,6 +557,61 @@ export function useI18n() {
         return localizedParameters;
     }
 
+    function getLocalizedErrorForParseImportTransactionsAPI(translatedMessage: string, recordId: string | undefined, originalData: unknown | undefined): string {
+        if (!isDefined(recordId) && !isDefined(originalData)) {
+            return translatedMessage;
+        }
+
+        const localizedRecordIds: string[] = [];
+
+        if (isString(recordId)) {
+            for (const recordIdItem of recordId.split('-')) {
+                const parts = recordIdItem.split(':');
+
+                if (parts.length !== 2) {
+                    localizedRecordIds.length = 0;
+                    break;
+                }
+
+                const recordIdType = parts[0]!;
+                const recordIdIndex = parts[1]!;
+                const recordIdTypeI18nKey = SUPPORTED_PARSE_TRANSACTION_RECORD_ID_TYPES[recordIdType];
+
+                if (!recordIdTypeI18nKey || !recordIdIndex) {
+                    localizedRecordIds.length = 0;
+                    break;
+                }
+
+                localizedRecordIds.push(t(recordIdTypeI18nKey, {
+                    index: recordIdIndex
+                }));
+            }
+        }
+
+        const textualOriginalData: string | undefined = isString(originalData) ? (originalData.length > 0 ? originalData : undefined) : (isDefined(originalData) ? JSON.stringify(originalData) : undefined);
+        const textualRecordId: string | undefined = localizedRecordIds.length > 0 ? localizedRecordIds.join(t('format.misc.multiIndexJoinSeparator')) : undefined;
+
+        if (isDefined(textualRecordId) && isDefined(textualOriginalData)) {
+            return t('format.misc.importTransactionParseErrorWithRecordIdAndData', {
+                error: translatedMessage,
+                recordId: textualRecordId,
+                data: textualOriginalData
+            });
+        } else if (isDefined(textualRecordId)) {
+            return t('format.misc.importTransactionParseErrorWithRecordId', {
+                error: translatedMessage,
+                recordId: textualRecordId
+            });
+        } else if (isDefined(textualOriginalData)) {
+            return t('format.misc.importTransactionParseErrorWithData', {
+                error: translatedMessage,
+                data: textualOriginalData
+            });
+        } else {
+            return translatedMessage;
+        }
+    }
+
     function getDateTimeLocaleData(): DateTimeLocaleData {
         return moment.localeData();
     }
@@ -518,7 +650,8 @@ export function useI18n() {
         const defaultCurrency = userStore.currentUserDefaultCurrency;
 
         const ret = [];
-        const defaultSampleValue = getFormattedAmountWithCurrency(12345, defaultCurrency, defaultCurrencyDisplayType, numeralSystem, decimalSeparator);
+        const sampleBigDecimalValue: BigDecimal = parseBigDecimal(12345);
+        const defaultSampleValue = getFormattedAmountWithCurrency(sampleBigDecimalValue, defaultCurrency, defaultCurrencyDisplayType, numeralSystem, decimalSeparator);
 
         ret.push({
             type: CurrencyDisplayType.LanguageDefaultType,
@@ -528,7 +661,7 @@ export function useI18n() {
         const allCurrencyDisplayTypes = CurrencyDisplayType.values();
 
         for (const type of allCurrencyDisplayTypes) {
-            const sampleValue = getFormattedAmountWithCurrency(12345, defaultCurrency, type, numeralSystem, decimalSeparator);
+            const sampleValue = getFormattedAmountWithCurrency(sampleBigDecimalValue, defaultCurrency, type, numeralSystem, decimalSeparator);
             const displayName = `${t(type.name)} (${sampleValue})`
 
             ret.push({
@@ -572,7 +705,7 @@ export function useI18n() {
                 ret.push({
                     type: qualityType.type,
                     displayName: t(`format.volume.${qualityType.name}`, {
-                        size: qualityType.estimatedKiB ? appendDigitGroupingSymbolAndDecimalSeparator(qualityType.estimatedKiB.toString(), getNumberFormatOptions({})) : '-',
+                        size: qualityType.estimatedKiB ? getFormattedNumber(qualityType.estimatedKiB) : '-',
                     })
                 });
             } else {
@@ -931,7 +1064,15 @@ export function useI18n() {
             return '';
         }
 
-        return t(finalMessage, parameters);
+        const translatedMessage = t(finalMessage, parameters);
+
+        if (isObject(message) && isObject(message.error) && isString(message.error.path) && isObject(message.error.context)) {
+            if (message.error.path.endsWith(PARSE_TRANSACTION_API_URL_PATH)) {
+                return getLocalizedErrorForParseImportTransactionsAPI(translatedMessage, message.error.context.recordId, message.error.context.originalData);
+            }
+        }
+
+        return translatedMessage;
     }
 
     function joinMultiText(textArray: string[]): string {
@@ -942,6 +1083,23 @@ export function useI18n() {
         const separator = t('format.misc.multiTextJoinSeparator');
 
         return textArray.join(separator);
+    }
+
+    function formatRange(start: string, end: string): string {
+        return t('format.misc.startEndRange', { start: start, end: end });
+    }
+
+    function formatTypeAndNames(...typeAndName: TypeAndName[]): TypeAndDisplayName[] {
+        const ret: TypeAndDisplayName[] = [];
+
+        for (const item of typeAndName) {
+            ret.push({
+                type: item.type,
+                displayName: t(item.name)
+            });
+        }
+
+        return ret;
     }
 
     function getServerMultiLanguageConfigContent(multiLanguageConfig: Record<string, string>): string {
@@ -985,6 +1143,10 @@ export function useI18n() {
         } else {
             return TextDirection.LTR;
         }
+    }
+
+    function getCurrentLanguageMessagesJson(): string {
+        return JSON.stringify(getLocaleMessage(locale.value), null, 4);
     }
 
     function getDefaultCurrency(): string {
@@ -1034,7 +1196,7 @@ export function useI18n() {
         }];
     }
 
-    function getAllCurrencies(): LocalizedCurrencyInfo[] {
+    function getAllCurrencies(withNotSet?: boolean): LocalizedCurrencyInfo[] {
         const allCurrencies: LocalizedCurrencyInfo[] = [];
 
         for (const currencyCode of keys(ALL_CURRENCIES)) {
@@ -1049,6 +1211,13 @@ export function useI18n() {
         allCurrencies.sort(function (c1, c2) {
             return c1.displayName.localeCompare(c2.displayName);
         })
+
+        if (withNotSet) {
+            allCurrencies.splice(0, 0, {
+                currencyCode: ACCOUNT_CURRENCY_NOT_SET_VALUE,
+                displayName: t('Not set')
+            });
+        }
 
         return allCurrencies;
     }
@@ -1490,6 +1659,7 @@ export function useI18n() {
                     name: t('category.' + category.name, {}, { locale: locale }),
                     type: categoryType,
                     icon: category.categoryIconId,
+                    iconType: IconType.System,
                     color: category.color,
                     subCategories: []
                 };
@@ -1499,6 +1669,7 @@ export function useI18n() {
                         name: t('category.' + subCategory.name, {}, { locale: locale }),
                         type: categoryType,
                         icon: subCategory.categoryIconId,
+                        iconType: IconType.System,
                         color: subCategory.color
                     };
 
@@ -1673,7 +1844,13 @@ export function useI18n() {
     }
 
     function getLanguageInfo(languageKey: string): LanguageInfo | undefined {
-        return ALL_LANGUAGES[languageKey];
+        const languageInfo = ALL_LANGUAGES[languageKey];
+
+        if (languageInfo && previewedLanguages[languageKey]) {
+            return { ...languageInfo, textDirection: allLanguageActualRtlSetting[languageKey] ? 'rtl' : 'ltr' };
+        }
+
+        return languageInfo;
     }
 
     function getMonthShortName(monthName: string): string {
@@ -1927,6 +2104,10 @@ export function useI18n() {
             return '';
         }
 
+        if (currencyCode === ACCOUNT_CURRENCY_NOT_SET_VALUE) {
+            return t('Not set');
+        }
+
         return t(`currency.name.${currencyCode}`);
     }
 
@@ -2051,7 +2232,7 @@ export function useI18n() {
             const displayStartTime = formatUnixTime(startTime, format, gregorianLikeDateTimeFormatOptions);
             const displayEndTime = formatUnixTime(endTime, format, gregorianLikeDateTimeFormatOptions);
 
-            return displayStartTime !== displayEndTime ? `${displayStartTime} ~ ${displayEndTime}` : displayStartTime;
+            return displayStartTime !== displayEndTime ? formatRange(displayStartTime, displayEndTime) : displayStartTime;
         }
 
         if (isDateRangeMatchFullMonths(startTime, endTime)) {
@@ -2059,7 +2240,7 @@ export function useI18n() {
             const displayStartTime = formatUnixTime(startTime, format, gregorianLikeDateTimeFormatOptions);
             const displayEndTime = formatUnixTime(endTime, format, gregorianLikeDateTimeFormatOptions);
 
-            return displayStartTime !== displayEndTime ? `${displayStartTime} ~ ${displayEndTime}` : displayStartTime;
+            return displayStartTime !== displayEndTime ? formatRange(displayStartTime, displayEndTime) : displayStartTime;
         }
 
         const startTimeYear = parseDateTimeFromUnixTime(startTime).getLocalizedCalendarYear(gregorianLikeDateTimeFormatOptions);
@@ -2073,10 +2254,10 @@ export function useI18n() {
             return displayStartTime;
         } else if (startTimeYear === endTimeYear) {
             const displayShortEndTime = formatUnixTime(endTime, getLocalizedShortMonthDayFormat(), gregorianLikeDateTimeFormatOptions);
-            return `${displayStartTime} ~ ${displayShortEndTime}`;
+            return formatRange(displayStartTime, displayShortEndTime);
         }
 
-        return `${displayStartTime} ~ ${displayEndTime}`;
+        return formatRange(displayStartTime, displayEndTime);
     }
 
     function getTimezoneDifferenceDisplayText(unixTime: number, utcOffset: number): string {
@@ -2182,12 +2363,12 @@ export function useI18n() {
         return parseAmount(value, numberFormatOptions);
     }
 
-    function getFormattedAmount(value: number, numeralSystem?: NumeralSystem, digitGrouping?: DigitGroupingType, currencyCode?: string): string {
+    function getFormattedAmount(value: BigDecimal, numeralSystem?: NumeralSystem, digitGrouping?: DigitGroupingType, currencyCode?: string): string {
         const numberFormatOptions = getNumberFormatOptions({ numeralSystem, digitGrouping, currencyCode });
         return formatAmount(value, numberFormatOptions);
     }
 
-    function getFormattedAmountWithCurrency(value: number | HiddenAmount | NumberWithSuffix, currencyCode?: string | false, currencyDisplayType?: CurrencyDisplayType, numeralSystem?: NumeralSystem, decimalSeparator?: string): string {
+    function getFormattedAmountWithCurrency(value: BigDecimal | HiddenAmount | BigDecimalWithSuffix, currencyCode?: string | false, currencyDisplayType?: CurrencyDisplayType, numeralSystem?: NumeralSystem, decimalSeparator?: string): string {
         let finalCurrencyCode = '';
 
         if (!isBoolean(currencyCode) && !currencyCode) {
@@ -2208,7 +2389,7 @@ export function useI18n() {
 
         let suffix = '';
 
-        if (isObject(value) && isNumber(value.value) && isString(value.suffix)) {
+        if (isObject(value) && 'suffix' in value && value.value && isString(value.suffix)) {
             suffix = value.suffix;
             value = value.value;
         }
@@ -2216,8 +2397,8 @@ export function useI18n() {
         const numberFormatOptions = getNumberFormatOptions({ numeralSystem, decimalSeparator, currencyCode: finalCurrencyCode });
         const currencyName = getCurrencyName(finalCurrencyCode);
 
-        if (isNumber(value)) {
-            const isPlural: boolean = value !== AMOUNT_FACTOR && value !== -AMOUNT_FACTOR;
+        if (isBigDecimal(value)) {
+            const isPlural: boolean = value.notEquals(AMOUNT_FACTOR) && value.notEquals(-AMOUNT_FACTOR);
             const textualValue = formatAmount(value, numberFormatOptions);
 
             if (!finalCurrencyCode) {
@@ -2252,9 +2433,24 @@ export function useI18n() {
         return formatNumber(value, numberFormatOptions, precision);
     }
 
+    function getFormattedBigDecimal(value: BigDecimal, numeralSystem?: NumeralSystem, digitGrouping?: DigitGroupingType, precision?: number): string {
+        const numberFormatOptions = getNumberFormatOptions({ numeralSystem, digitGrouping: digitGrouping });
+        return formatBigDecimal(value, numberFormatOptions, precision);
+    }
+
     function getFormattedPercentValue(value: number, precision: number, lowPrecisionValue: string, numeralSystem?: NumeralSystem): string {
         const numberFormatOptions = getNumberFormatOptions({ numeralSystem });
         return formatPercent(value, precision, lowPrecisionValue, numberFormatOptions);
+    }
+
+    function getFormattedChartValue(value: BigDecimal, valueType: ChartValueType, currencyCode?: string) {
+        if (valueType === ChartValueType.Amount) {
+            return getFormattedAmountWithCurrency(value, currencyCode);
+        } else if (valueType === ChartValueType.Percent) {
+            return getFormattedPercentValue(value.toDoubleNumber(), 2, '<0.01');
+        } else {
+            return getFormattedBigDecimal(value, undefined, undefined, 4);
+        }
     }
 
     function getFormattedVolume(value: number, precision?: number, unit?: 'KiB' | 'MiB'): string {
@@ -2282,7 +2478,7 @@ export function useI18n() {
         return formatNumber(value, numberFormatOptions, precision) + ' ' + displayUnit;
     }
 
-    function getFormattedExchangeRateAmount(value: number, numeralSystem?: NumeralSystem): string {
+    function getFormattedExchangeRateAmount(value: BigDecimal, numeralSystem?: NumeralSystem): string {
         const numberFormatOptions = getNumberFormatOptions({ numeralSystem });
         return formatExchangeRateAmount(value, numberFormatOptions);
     }
@@ -2319,9 +2515,9 @@ export function useI18n() {
                     let accountWithDisplaceBalance: AccountWithDisplayBalance;
 
                     if (showAccountBalance && account.isAsset) {
-                        accountWithDisplaceBalance = AccountWithDisplayBalance.fromAccount(account, getFormattedAmountWithCurrency(account.balance, account.currency));
+                        accountWithDisplaceBalance = AccountWithDisplayBalance.fromAccount(account, getFormattedAmountWithCurrency(parseBigDecimal(account.balance), account.currency));
                     } else if (showAccountBalance && account.isLiability) {
-                        accountWithDisplaceBalance = AccountWithDisplayBalance.fromAccount(account, getFormattedAmountWithCurrency(-account.balance, account.currency));
+                        accountWithDisplaceBalance = AccountWithDisplayBalance.fromAccount(account, getFormattedAmountWithCurrency(parseBigDecimal(account.balance).negate(), account.currency));
                     } else {
                         accountWithDisplaceBalance = AccountWithDisplayBalance.fromAccount(account, DISPLAY_HIDDEN_AMOUNT);
                     }
@@ -2335,28 +2531,28 @@ export function useI18n() {
             if (showAccountBalance) {
                 const accountsBalance = getAllFilteredAccountsBalance(categorizedAccounts, customAccountCategoryOrder,
                         account => account.category === accountCategory.category);
-                let totalBalance = 0;
+                let totalBalance: BigDecimal = BIG_DECIMAL_ZERO;
                 let hasUnCalculatedAmount = false;
 
                 for (const accountBalance of accountsBalance) {
                     if (accountBalance.currency === defaultCurrency) {
                         if (accountBalance.isAsset) {
-                            totalBalance += accountBalance.balance;
+                            totalBalance = totalBalance.add(accountBalance.balance);
                         } else if (accountBalance.isLiability) {
-                            totalBalance -= accountBalance.balance;
+                            totalBalance = totalBalance.subtract(accountBalance.balance);
                         }
                     } else {
                         const balance = exchangeRatesStore.getExchangedAmount(accountBalance.balance, accountBalance.currency, defaultCurrency);
 
-                        if (!isNumber(balance)) {
+                        if (!balance) {
                             hasUnCalculatedAmount = true;
                             continue;
                         }
 
                         if (accountBalance.isAsset) {
-                            totalBalance += Math.trunc(balance);
+                            totalBalance = totalBalance.add(balance.truncate());
                         } else if (accountBalance.isLiability) {
-                            totalBalance -= Math.trunc(balance);
+                            totalBalance = totalBalance.subtract(balance.truncate());
                         }
                     }
                 }
@@ -2375,6 +2571,55 @@ export function useI18n() {
         }
 
         return ret;
+    }
+
+    function getTablePageOptions(availableCountPerPage: number[], totalCount: number | undefined, includeAll: boolean, alwaysAllCount: boolean): NameNumeralValue[] {
+        const numeralSystem = getCurrentNumeralSystemType();
+        const pageOptions: NameNumeralValue[] = [];
+
+        if (!alwaysAllCount && (!totalCount || totalCount < 1)) {
+            if (includeAll) {
+                pageOptions.push({value: -1, name: t('All')});
+            }
+
+            return pageOptions;
+        }
+
+        if (!totalCount) {
+            totalCount = 0;
+        }
+
+        for (const count of availableCountPerPage) {
+            if (!alwaysAllCount && (totalCount < count)) {
+                break;
+            }
+
+            pageOptions.push({ value: count, name: numeralSystem.formatNumber(count) });
+        }
+
+        if (includeAll) {
+            pageOptions.push({value: -1, name: t('All')});
+        }
+
+        return pageOptions;
+    }
+
+    function getFormattedCoordinate(value: Coordinate, coordinateDisplayType?: CoordinateDisplayType): string {
+        if (!coordinateDisplayType) {
+            coordinateDisplayType = CoordinateDisplayType.valueOf(userStore.currentUserCoordinateDisplayType) ?? CoordinateDisplayType.Default;
+        }
+
+        const numberFormatOptions = getNumberFormatOptions({
+            digitGrouping: DigitGroupingType.None,
+            numeralSystem: NumeralSystem.WesternArabicNumerals
+        });
+
+        const options: CoordinateFormatOptions = {
+            coordinateDisplayType: coordinateDisplayType,
+            numberFormatOptions: numberFormatOptions
+        };
+
+        return formatCoordinate(value, options);
     }
 
     function getLocalizedFileEncodingName(encoding: string): string {
@@ -2501,6 +2746,36 @@ export function useI18n() {
         return localeDefaultSettings;
     }
 
+    function hasPreviewedConfiguration(languageKey: string): boolean {
+        return !!previewedLanguages[languageKey];
+    }
+
+    function previewLanguage(json: string, textDirection: TextDirection): void {
+        const messages: PreviewLanguageMessages = parsePreviewMessages(json);
+        setSessionLanguagePreview(locale.value, {
+            data: json,
+            textDirection: textDirection
+        });
+        setLocaleMessage(locale.value, messages);
+        allLanguageActualRtlSetting[locale.value] = textDirection === TextDirection.RTL;
+        previewedLanguages[locale.value] = true;
+        settingsStore.updateLocalizedDefaultSettings(setLanguage(locale.value, true));
+    }
+
+    function restoreLanguagePreview(): void {
+        const languageInfo = ALL_LANGUAGES[locale.value];
+
+        if (!languageInfo) {
+            return;
+        }
+
+        setSessionLanguagePreview(locale.value, null);
+        setLocaleMessage(locale.value, JSON.parse(JSON.stringify(languageInfo.content)));
+        allLanguageActualRtlSetting[locale.value] = languageInfo.textDirection === 'rtl';
+        delete previewedLanguages[locale.value];
+        settingsStore.updateLocalizedDefaultSettings(setLanguage(locale.value, true));
+    }
+
     function setTimeZone(timezone: string): void {
         if (timezone) {
             moment.tz.setDefault(timezone);
@@ -2540,12 +2815,15 @@ export function useI18n() {
         ti: translateIf,
         te: translateError,
         joinMultiText,
+        formatRange,
+        formatTypeAndNames,
         getServerMultiLanguageConfigContent,
         // get current language info
         getCurrentLanguageTag,
         getCurrentLanguageInfo,
         getCurrentLanguageDisplayName,
         getCurrentLanguageTextDirection,
+        getCurrentLanguageMessagesJson,
         // get localization default type
         getDefaultCurrency,
         getDefaultFirstDayOfWeek,
@@ -2587,6 +2865,7 @@ export function useI18n() {
         getAllIncomeAmountColors: () => getAllExpenseIncomeAmountColors(CategoryType.Income),
         getAllAccountCategories,
         getAllAccountTypes: () => getLocalizedDisplayNameAndType(AccountType.values()),
+        getAllCreditCardAmountDisplayTypes: () => getLocalizedDisplayNameAndType(CreditCardAmountDisplayType.values()),
         getAllCategoricalChartTypes: (withDesktopOnlyChart?: boolean) => getLocalizedDisplayNameAndType(CategoricalChartType.values(!!withDesktopOnlyChart)),
         getAllTrendChartTypes: () => getLocalizedDisplayNameAndType(TrendChartType.values()),
         getAllAccountBalanceTrendChartTypes: () => getLocalizedDisplayNameAndType(AccountBalanceTrendChartType.values()),
@@ -2599,6 +2878,7 @@ export function useI18n() {
         getAllTransactionQuickAddButtonActionTypes: () => getLocalizedDisplayNameAndType(TransactionQuickAddButtonActionType.values()),
         getAllTransactionScheduledFrequencyTypes: () => getLocalizedDisplayNameAndType(ScheduledTemplateFrequencyType.values()),
         getAllImportTransactionColumnTypes: () => getLocalizedDisplayNameAndType(ImportTransactionColumnType.values()),
+        getAllImportTransactionReplaceRuleConditionFields: () => getLocalizedNameValue(ImportTransactionReplaceRuleConditionField.values()),
         getAllTransactionDefaultCategories,
         getAllDisplayExchangeRates,
         getAllSupportedImportFileCagtegoryAndTypes,
@@ -2607,6 +2887,7 @@ export function useI18n() {
         getAllTransactionExplorerDataDimensions: (operators?: TransactionExplorerDataDimension[]) => getLocalizedNameValue(operators ?? TransactionExplorerDataDimension.values()),
         getAllTransactionExplorerValueMetrics: (operators?: TransactionExplorerValueMetric[]) => getLocalizedNameValue(operators ?? TransactionExplorerValueMetric.values()),
         getAllTransactionExplorerChartTypes: (operators?: TransactionExplorerChartType[]) => getLocalizedNameValue(operators ?? TransactionExplorerChartType.values()),
+        getAllTransactionExplorerCustomChartDisplayLayouts: () => getLocalizedDisplayNameAndType(TransactionExplorerCustomChartDisplayLayout.values()),
         // get localized info
         getLanguageInfo,
         getEnableDisableOption: (value: boolean) => t(value ? 'Enabled' : 'Disabled'),
@@ -2687,30 +2968,39 @@ export function useI18n() {
         // format amount/number functions
         parseAmountFromLocalizedNumerals: (value: string) => getParsedAmountNumber(value),
         parseAmountFromWesternArabicNumerals: (value: string) => getParsedAmountNumber(value, NumeralSystem.WesternArabicNumerals),
-        formatAmountToLocalizedNumerals: (value: number, currencyCode?: string) => getFormattedAmount(value, undefined, undefined, currencyCode),
-        formatAmountToWesternArabicNumerals: (value: number, currencyCode?: string) => getFormattedAmount(value, NumeralSystem.WesternArabicNumerals, undefined, currencyCode),
-        formatAmountToLocalizedNumeralsWithoutDigitGrouping: (value: number, currencyCode?: string) => getFormattedAmount(value, undefined, DigitGroupingType.None, currencyCode),
-        formatAmountToWesternArabicNumeralsWithoutDigitGrouping: (value: number, currencyCode?: string) => getFormattedAmount(value, NumeralSystem.WesternArabicNumerals, DigitGroupingType.None, currencyCode),
-        formatAmountToLocalizedNumeralsWithCurrency: (value: number | HiddenAmount | NumberWithSuffix, currencyCode?: string | false, currencyDisplayType?: CurrencyDisplayType) => getFormattedAmountWithCurrency(value, currencyCode, currencyDisplayType),
-        formatAmountToWesternArabicNumeralsWithCurrency: (value: number | HiddenAmount | NumberWithSuffix, currencyCode?: string | false, currencyDisplayType?: CurrencyDisplayType) => getFormattedAmountWithCurrency(value, currencyCode, currencyDisplayType, NumeralSystem.WesternArabicNumerals),
+        formatAmountToLocalizedNumerals: (value: BigDecimal, currencyCode?: string) => getFormattedAmount(value, undefined, undefined, currencyCode),
+        formatAmountToWesternArabicNumerals: (value: BigDecimal, currencyCode?: string) => getFormattedAmount(value, NumeralSystem.WesternArabicNumerals, undefined, currencyCode),
+        formatAmountToLocalizedNumeralsWithoutDigitGrouping: (value: BigDecimal, currencyCode?: string) => getFormattedAmount(value, undefined, DigitGroupingType.None, currencyCode),
+        formatAmountToWesternArabicNumeralsWithoutDigitGrouping: (value: BigDecimal, currencyCode?: string) => getFormattedAmount(value, NumeralSystem.WesternArabicNumerals, DigitGroupingType.None, currencyCode),
+        formatAmountToLocalizedNumeralsWithCurrency: (value: BigDecimal | HiddenAmount | BigDecimalWithSuffix, currencyCode?: string | false, currencyDisplayType?: CurrencyDisplayType) => getFormattedAmountWithCurrency(value, currencyCode, currencyDisplayType),
+        formatAmountToWesternArabicNumeralsWithCurrency: (value: BigDecimal | HiddenAmount | BigDecimalWithSuffix, currencyCode?: string | false, currencyDisplayType?: CurrencyDisplayType) => getFormattedAmountWithCurrency(value, currencyCode, currencyDisplayType, NumeralSystem.WesternArabicNumerals),
+        formatBigDecimalToLocalizedNumerals: (value: BigDecimal, precision?: number) => getFormattedBigDecimal(value, undefined, undefined, precision),
+        formatBigDecimalToLocalizedNumeralsWithoutDigitGrouping: (value: BigDecimal, precision?: number) => getFormattedBigDecimal(value, undefined, DigitGroupingType.None, precision),
+        formatBigDecimalToWesternArabicNumerals: (value: BigDecimal, precision?: number) => getFormattedBigDecimal(value, NumeralSystem.WesternArabicNumerals, undefined, precision),
+        formatBigDecimalToWesternArabicNumeralsWithoutDigitGrouping: (value: BigDecimal, precision?: number) => getFormattedBigDecimal(value, NumeralSystem.WesternArabicNumerals, DigitGroupingType.None, precision),
         formatNumberToLocalizedNumerals: (value: number, precision?: number) => getFormattedNumber(value, undefined, undefined, precision),
         formatNumberToLocalizedNumeralsWithoutDigitGrouping: (value: number, precision?: number) => getFormattedNumber(value, undefined, DigitGroupingType.None, precision),
-        formatNumberToWesternArabicNumerals: (value: number, precision?: number) => getFormattedNumber(value, NumeralSystem.WesternArabicNumerals, undefined, precision),
         formatNumberToWesternArabicNumeralsWithoutDigitGrouping: (value: number, precision?: number) => getFormattedNumber(value, NumeralSystem.WesternArabicNumerals, DigitGroupingType.None, precision),
         formatPercentToLocalizedNumerals: (value: number, precision: number, lowPrecisionValue: string) => getFormattedPercentValue(value, precision, lowPrecisionValue),
         formatPercentToWesternArabicNumerals: (value: number, precision: number, lowPrecisionValue: string) => getFormattedPercentValue(value, precision, lowPrecisionValue, NumeralSystem.WesternArabicNumerals),
+        formatChartValueToLocalizedNumerals: getFormattedChartValue,
         formatVolumeToLocalizedNumerals: getFormattedVolume,
-        formatExchangeRateAmountToWesternArabicNumerals: (value: number) => getFormattedExchangeRateAmount(value, NumeralSystem.WesternArabicNumerals),
+        formatExchangeRateAmountToWesternArabicNumerals: (value: BigDecimal) => getFormattedExchangeRateAmount(value, NumeralSystem.WesternArabicNumerals),
         appendDigitGroupingSymbolAndDecimalSeparator: (value: string) => appendDigitGroupingSymbolAndDecimalSeparator(value, getNumberFormatOptions({})),
         getAdaptiveAmountRate,
         getAmountPrependAndAppendText,
         getCategorizedAccountsWithDisplayBalance,
+        getTablePageOptions,
         // other format functions
+        formatCoordinate: (value: Coordinate) => getFormattedCoordinate(value),
         getLocalizedFileEncodingName,
         getLocalizedOAuth2ProviderName,
         getLocalizedOAuth2LoginText,
         // localization setting functions
         setLanguage,
+        hasPreviewedConfiguration,
+        previewLanguage,
+        restoreLanguagePreview,
         setTimeZone,
         initLocale
     };

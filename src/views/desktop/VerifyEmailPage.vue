@@ -3,32 +3,23 @@
         <router-link to="/">
             <div class="auth-logo d-flex align-start gap-x-3">
                 <img alt="logo" class="login-page-logo" :src="APPLICATION_LOGO_PATH" />
-                <h1 class="font-weight-medium leading-normal text-2xl">{{ tt('global.app.title') }}</h1>
+                <span class="auth-app-title">{{ tt('global.app.title') }}</span>
             </div>
         </router-link>
         <v-row no-gutters class="auth-wrapper">
             <v-col cols="12" md="8" class="auth-image-background d-none d-md-flex align-center justify-center position-relative">
-                <div class="d-flex auth-img-footer" v-if="!isDarkMode">
-                    <v-img class="img-with-direction" src="img/desktop/background.svg"/>
-                </div>
-                <div class="d-flex auth-img-footer" v-if="isDarkMode">
-                    <v-img class="img-with-direction" src="img/desktop/background-dark.svg"/>
-                </div>
-                <div class="d-flex align-center justify-center w-100 pt-10">
-                    <v-img class="img-with-direction" max-width="320px" src="img/desktop/people2.svg" v-if="!isDarkMode"/>
-                    <v-img class="img-with-direction" max-width="320px" src="img/desktop/people2-dark.svg" v-else-if="isDarkMode"/>
-                </div>
+                <auth-illustration variant="signup" />
             </v-col>
             <v-col cols="12" md="4" class="auth-card d-flex flex-column">
                 <div class="d-flex align-center justify-center h-100">
                     <v-card variant="flat" class="w-100 mt-0 px-4 pt-12" max-width="500">
-                        <v-card-text>
-                            <h4 class="text-h4 mb-2">{{ tt('Verify your email') }}</h4>
-                            <p class="mb-0" v-if="token && loading">{{ tt('Verifying...') }}</p>
-                            <p class="mb-0" v-if="token && verified">{{ tt('Email address is verified') }}</p>
-                            <p class="mb-0" v-if="token && !verified && errorMessage">{{ errorMessage }}</p>
-                            <p class="mb-0" v-if="!token && !email">{{ tt('Parameter Invalid') }}</p>
-                            <p class="mb-0" v-if="!token && email">{{ tt(hasValidEmailVerifyToken ? 'format.misc.accountActivationAndResendValidationEmailTip' : 'format.misc.resendValidationEmailTip', { email: email }) }}</p>
+                        <v-card-text class="py-0">
+                            <div class="text-headline-small mb-2">{{ tt('Verify your email') }}</div>
+                            <div class="auth-message text-body-large mb-0" v-if="token && loading">{{ tt('Verifying...') }}</div>
+                            <div class="auth-message text-body-large mb-0" v-if="token && verified">{{ tt('Email address is verified') }}</div>
+                            <div class="auth-message text-body-large mb-0" v-if="token && !verified && errorMessage">{{ errorMessage }}</div>
+                            <div class="auth-message text-body-large mb-0" v-if="!token && !email">{{ tt('Parameter Invalid') }}</div>
+                            <div class="auth-message text-body-large mb-0" v-if="!token && email">{{ tt(hasValidEmailVerifyToken ? 'format.misc.accountActivationAndResendValidationEmailTip' : 'format.misc.resendValidationEmailTip', { email: email }) }}</div>
                         </v-card-text>
 
                         <v-card-text class="pb-0 mb-6">
@@ -54,11 +45,12 @@
                                     </v-col>
 
                                     <v-col cols="12">
-                                        <router-link class="d-flex align-center justify-center" :to="verified ? '/' : '/login'"
-                                                     :class="{ 'disabled': loading || resending }">
+                                        <router-link class="d-flex align-center justify-center mt-2"
+                                                     :class="{ 'disabled': loading || resending }"
+                                                     :to="verified ? '/' : '/login'">
                                             <v-icon class="icon-with-direction" :icon="mdiChevronLeft"/>
-                                            <span v-if="!verified">{{ tt('Back to login page') }}</span>
-                                            <span v-else-if="verified">{{ tt('Back to home page') }}</span>
+                                            <span class="text-body-medium" v-if="!verified">{{ tt('Back to login page') }}</span>
+                                            <span class="text-body-medium" v-else-if="verified">{{ tt('Back to home page') }}</span>
                                         </router-link>
                                     </v-col>
                                 </v-row>
@@ -68,22 +60,18 @@
                 </div>
                 <v-spacer/>
                 <div class="d-flex align-center justify-center">
-                    <v-card variant="flat" class="w-100 px-4 pb-4" max-width="500">
+                    <v-card variant="flat" class="w-100 px-4 pb-3" max-width="500">
                         <v-card-text class="pt-0">
-                            <v-row>
-                                <v-col cols="12" class="text-center">
-                                    <language-select-button :disabled="resending" />
-                                </v-col>
+                            <div class="text-center">
+                                <language-select-button :disabled="resending" />
+                            </div>
 
-                                <v-col cols="12" class="d-flex align-center pt-0">
-                                    <v-divider />
-                                </v-col>
+                            <v-divider class="mt-2 mb-3" />
 
-                                <v-col cols="12" class="text-center text-sm">
-                                    <span>Powered by </span>
-                                    <a href="https://github.com/mayswind/ezbookkeeping" target="_blank">ezBookkeeping</a>&nbsp;<span>{{ version }}</span>
-                                </v-col>
-                            </v-row>
+                            <div class="auth-powered-by text-center">
+                                <span>Powered by </span>
+                                <a href="https://github.com/mayswind/ezbookkeeping" target="_blank">ezBookkeeping</a>&nbsp;<span>{{ version }}</span>
+                            </div>
                         </v-card-text>
                     </v-card>
                 </div>
@@ -99,15 +87,13 @@
 import ConfirmDialog from '@/components/desktop/ConfirmDialog.vue';
 import SnackBar from '@/components/desktop/SnackBar.vue';
 
-import { ref, computed, useTemplateRef } from 'vue';
+import { ref, useTemplateRef } from 'vue';
 import { useRouter } from 'vue-router';
-import { useTheme } from 'vuetify';
 
 import { useI18n } from '@/locales/helpers.ts';
 
 import { useRootStore } from '@/stores/index.ts';
 
-import { ThemeType } from '@/core/theme.ts';
 import { APPLICATION_LOGO_PATH } from '@/consts/asset.ts';
 
 import { isUserVerifyEmailEnabled } from '@/lib/server_settings.ts';
@@ -128,7 +114,6 @@ const props = defineProps<{
 }>();
 
 const router = useRouter();
-const theme = useTheme();
 
 const { tt, te } = useI18n();
 
@@ -144,8 +129,6 @@ const loading = ref<boolean>(true);
 const resending = ref<boolean>(false);
 const verified = ref<boolean>(false);
 const errorMessage = ref<string>('');
-
-const isDarkMode = computed<boolean>(() => theme.global.name.value === ThemeType.Dark);
 
 function init(): void {
     verified.value = false;

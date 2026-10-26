@@ -7,8 +7,10 @@ import { useUserStore } from '@/stores/user.ts';
 import { type TransactionStatisticsFilter, useStatisticsStore } from '@/stores/statistics.ts';
 
 import type { TypeAndDisplayName } from '@/core/base.ts';
+import type { BigDecimal } from '@/core/numeral.ts';
 import { type LocalizedDateRange, type WeekDayValue, DateRangeScene, DateRange } from '@/core/datetime.ts';
 import type { ColorStyleValue } from '@/core/color.ts';
+import type { AxisChartSourceDataItem } from '@/core/chart.ts';
 import {
     StatisticsAnalysisType,
     ChartDataType,
@@ -28,6 +30,7 @@ import type {
 } from '@/models/transaction.ts';
 
 import { limitText, findNameByType, findDisplayNameByType } from '@/lib/common.ts';
+import { isBigDecimal } from '@/lib/numeral.ts';
 import {
     parseDateTimeFromUnixTime,
     getYearMonthFirstUnixTime,
@@ -44,6 +47,7 @@ export function useStatisticsTransactionPageBase() {
         formatDateTimeToLongDateTime,
         formatDateTimeToGregorianLikeLongYearMonth,
         formatDateRange,
+        formatAmountToLocalizedNumerals,
         formatAmountToLocalizedNumeralsWithCurrency
     } = useI18n();
 
@@ -117,7 +121,9 @@ export function useStatisticsTransactionPageBase() {
     const queryDateRangeName = computed<string>(() => {
         if (analysisType.value === StatisticsAnalysisType.CategoricalAnalysis) {
             if (query.value.chartDataType === ChartDataType.AccountTotalAssets.type ||
-                query.value.chartDataType === ChartDataType.AccountTotalLiabilities.type) {
+                query.value.chartDataType === ChartDataType.AccountTotalLiabilities.type ||
+                query.value.chartDataType === ChartDataType.TotalAssetsByCurrency.type ||
+                query.value.chartDataType === ChartDataType.TotalLiabilitiesByCurrency.type) {
                 return tt(DateRange.All.name);
             }
 
@@ -147,7 +153,9 @@ export function useStatisticsTransactionPageBase() {
     const isQueryDateRangeChanged = computed<boolean>(() => {
         if (analysisType.value === StatisticsAnalysisType.CategoricalAnalysis) {
             if (query.value.chartDataType === ChartDataType.AccountTotalAssets.type ||
-                query.value.chartDataType === ChartDataType.AccountTotalLiabilities.type) {
+                query.value.chartDataType === ChartDataType.AccountTotalLiabilities.type ||
+                query.value.chartDataType === ChartDataType.TotalAssetsByCurrency.type ||
+                query.value.chartDataType === ChartDataType.TotalLiabilitiesByCurrency.type) {
                 return false;
             }
 
@@ -175,7 +183,8 @@ export function useStatisticsTransactionPageBase() {
 
     const canChangeDateRange = computed<boolean>(() => {
         if (analysisType.value === StatisticsAnalysisType.CategoricalAnalysis) {
-            if (query.value.chartDataType === ChartDataType.AccountTotalAssets.type || query.value.chartDataType === ChartDataType.AccountTotalLiabilities.type) {
+            if (query.value.chartDataType === ChartDataType.AccountTotalAssets.type || query.value.chartDataType === ChartDataType.AccountTotalLiabilities.type ||
+                query.value.chartDataType === ChartDataType.TotalAssetsByCurrency.type || query.value.chartDataType === ChartDataType.TotalLiabilitiesByCurrency.type) {
                 return false;
             }
 
@@ -203,7 +212,8 @@ export function useStatisticsTransactionPageBase() {
 
     const canUseCategoryFilter = computed<boolean>(() => {
         if (analysisType.value === StatisticsAnalysisType.CategoricalAnalysis) {
-            if (query.value.chartDataType === ChartDataType.AccountTotalAssets.type || query.value.chartDataType === ChartDataType.AccountTotalLiabilities.type) {
+            if (query.value.chartDataType === ChartDataType.AccountTotalAssets.type || query.value.chartDataType === ChartDataType.AccountTotalLiabilities.type ||
+                query.value.chartDataType === ChartDataType.TotalAssetsByCurrency.type || query.value.chartDataType === ChartDataType.TotalLiabilitiesByCurrency.type) {
                 return false;
             }
         } else if (analysisType.value === StatisticsAnalysisType.AssetTrends) {
@@ -215,7 +225,8 @@ export function useStatisticsTransactionPageBase() {
 
     const canUseServerCustomFilter = computed<boolean>(() => {
         if (analysisType.value === StatisticsAnalysisType.CategoricalAnalysis) {
-            if (query.value.chartDataType === ChartDataType.AccountTotalAssets.type || query.value.chartDataType === ChartDataType.AccountTotalLiabilities.type) {
+            if (query.value.chartDataType === ChartDataType.AccountTotalAssets.type || query.value.chartDataType === ChartDataType.AccountTotalLiabilities.type ||
+                query.value.chartDataType === ChartDataType.TotalAssetsByCurrency.type || query.value.chartDataType === ChartDataType.TotalLiabilitiesByCurrency.type) {
                 return false;
             }
         } else if (analysisType.value === StatisticsAnalysisType.AssetTrends) {
@@ -236,7 +247,10 @@ export function useStatisticsTransactionPageBase() {
     const showAmountInChart = computed<boolean>(() => {
         if (!showAccountBalance.value) {
             if (analysisType.value === StatisticsAnalysisType.CategoricalAnalysis
-                && (query.value.chartDataType === ChartDataType.AccountTotalAssets.type || query.value.chartDataType === ChartDataType.AccountTotalLiabilities.type)) {
+                && (query.value.chartDataType === ChartDataType.AccountTotalAssets.type ||
+                    query.value.chartDataType === ChartDataType.AccountTotalLiabilities.type ||
+                    query.value.chartDataType === ChartDataType.TotalAssetsByCurrency.type ||
+                    query.value.chartDataType === ChartDataType.TotalLiabilitiesByCurrency.type)) {
                 return false;
             }
         }
@@ -257,9 +271,9 @@ export function useStatisticsTransactionPageBase() {
             || query.value.chartDataType === ChartDataType.ExpenseByPrimaryCategory.type
             || query.value.chartDataType === ChartDataType.ExpenseBySecondaryCategory.type) {
             return tt('Total Expense');
-        } else if (query.value.chartDataType === ChartDataType.AccountTotalAssets.type) {
+        } else if (query.value.chartDataType === ChartDataType.AccountTotalAssets.type || query.value.chartDataType === ChartDataType.TotalAssetsByCurrency.type) {
             return tt('Total Assets');
-        } else if (query.value.chartDataType === ChartDataType.AccountTotalLiabilities.type) {
+        } else if (query.value.chartDataType === ChartDataType.AccountTotalLiabilities.type || query.value.chartDataType === ChartDataType.TotalLiabilitiesByCurrency.type) {
             return tt('Total Liabilities');
         }
 
@@ -300,9 +314,49 @@ export function useStatisticsTransactionPageBase() {
     });
 
     const categoricalOverviewAnalysisData = computed<TransactionCategoricalOverviewAnalysisData | null>(() => statisticsStore.categoricalOverviewAnalysisData);
-    const categoricalAnalysisData = computed<TransactionCategoricalAnalysisData>(() => statisticsStore.categoricalAnalysisData);
+    const categoricalAnalysisData = computed<TransactionCategoricalAnalysisData>(() => {
+        const data = statisticsStore.categoricalAnalysisData;
+
+        if (query.value.chartDataType === ChartDataType.TotalAssetsByCurrency.type ||
+            query.value.chartDataType === ChartDataType.TotalLiabilitiesByCurrency.type) {
+            return {
+                value: data.value,
+                items: data.items.map(item => {
+                    if (!isBigDecimal(item.originalValue) || !item.originalCurrency) {
+                        return item;
+                    }
+
+                    return {
+                        ...item,
+                        name: `${item.name} ${formatAmountToLocalizedNumerals(item.originalValue, item.originalCurrency)}`
+                    };
+                })
+            };
+        } else {
+            return data;
+        }
+    });
     const trendsAnalysisData = computed<TransactionTrendsAnalysisData | null>(() => statisticsStore.trendsAnalysisData);
     const assetTrendsData = computed<TransactionAssetTrendsAnalysisData | null>(() => statisticsStore.assetTrendsData);
+
+    const radarChartCategoryNames = computed<string[]>(() => {
+        return categoricalAnalysisData.value?.items.filter(item => !item.hidden).map(item => item.name) ?? [];
+    });
+
+    const radarChartData = computed<AxisChartSourceDataItem[]>(() => {
+        const items = categoricalAnalysisData.value?.items.filter(item => !item.hidden) ?? [];
+
+        if (!items.length) {
+            return [];
+        }
+
+        return [{
+            id: 'amount',
+            name: tt('Amount'),
+            values: items.map(item => item.value),
+            displayOrders: [0]
+        }];
+    });
 
     function canShowCustomDateRange(dateRangeType: number): boolean {
         if (analysisType.value === StatisticsAnalysisType.CategoricalAnalysis) {
@@ -326,12 +380,15 @@ export function useStatisticsTransactionPageBase() {
         }
     }
 
-    function getDisplayAmount(amount: number, currency: string, textLimit?: number): string {
+    function getDisplayAmount(amount: BigDecimal, currency: string, textLimit?: number): string {
         const finalAmount = formatAmountToLocalizedNumeralsWithCurrency(amount, currency);
 
         if (!showAccountBalance.value) {
             if (analysisType.value === StatisticsAnalysisType.CategoricalAnalysis
-                && (query.value.chartDataType === ChartDataType.AccountTotalAssets.type || query.value.chartDataType === ChartDataType.AccountTotalLiabilities.type)) {
+                && (query.value.chartDataType === ChartDataType.AccountTotalAssets.type ||
+                    query.value.chartDataType === ChartDataType.AccountTotalLiabilities.type ||
+                    query.value.chartDataType === ChartDataType.TotalAssetsByCurrency.type ||
+                    query.value.chartDataType === ChartDataType.TotalLiabilitiesByCurrency.type)) {
                 return DISPLAY_HIDDEN_AMOUNT;
             }
         }
@@ -384,6 +441,8 @@ export function useStatisticsTransactionPageBase() {
         categoricalAnalysisData,
         trendsAnalysisData,
         assetTrendsData,
+        radarChartCategoryNames,
+        radarChartData,
         // functions
         canShowCustomDateRange,
         getTransactionCategoricalAnalysisDataItemDisplayColor,

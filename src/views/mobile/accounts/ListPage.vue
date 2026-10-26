@@ -3,43 +3,19 @@
         <f7-navbar>
             <f7-nav-left :class="{ 'disabled': loading }" :back-link="tt('Back')" v-if="!sortable"></f7-nav-left>
             <f7-nav-left v-else-if="sortable">
-                <f7-link icon-f7="xmark" :class="{ 'disabled': displayOrderSaving }" @click="cancelSort"></f7-link>
+                <f7-link icon-f7="xmark" :class="{ 'disabled': displayOrderSaving }" :aria-label="tt('Cancel')" @click="cancelSort"></f7-link>
             </f7-nav-left>
             <f7-nav-title :title="tt('Account List')"></f7-nav-title>
             <f7-nav-right :class="{ 'navbar-compact-icons': true, 'disabled': loading }">
-                <f7-link icon-f7="ellipsis" :class="{ 'disabled': !allAccountCount || sortable }" @click="showMoreActionSheet = true"></f7-link>
-                <f7-link icon-f7="plus" href="/account/add" v-if="!sortable"></f7-link>
-                <f7-link icon-f7="checkmark_alt" :class="{ 'disabled': displayOrderSaving || !displayOrderModified }" @click="saveSortResult" v-else-if="sortable"></f7-link>
+                <f7-link icon-f7="ellipsis" :class="{ 'disabled': !allAccountCount || sortable }" :aria-label="tt('More')" @click="showMoreActionSheet = true"></f7-link>
+                <f7-link icon-f7="plus" href="/account/add" :aria-label="tt('Add')" v-if="!sortable"></f7-link>
+                <f7-link icon-f7="checkmark_alt" :class="{ 'disabled': displayOrderSaving || !displayOrderModified }" :aria-label="tt('Save')" @click="saveSortResult" v-else-if="sortable"></f7-link>
             </f7-nav-right>
         </f7-navbar>
 
-        <f7-card class="account-overview-card margin-top-half" :class="{ 'skeleton-text': loading }">
-            <f7-card-header class="display-block" style="padding-top: 120px;">
-                <p class="no-margin">
-                    <small class="card-header-content" v-if="loading">Net assets</small>
-                    <small class="card-header-content" v-else-if="!loading">{{ tt('Net assets') }}</small>
-                </p>
-                <p class="no-margin">
-                    <span class="net-assets" v-if="loading">0.00 USD</span>
-                    <span class="net-assets" v-else-if="!loading">{{ netAssets }}</span>
-                    <f7-link class="display-inline-flex margin-inline-start-half" @click="showAccountBalance = !showAccountBalance">
-                        <f7-icon class="ebk-hide-icon" :f7="showAccountBalance ? 'eye_slash_fill' : 'eye_fill'"></f7-icon>
-                    </f7-link>
-                </p>
-                <p class="no-margin">
-                    <small class="account-overview-info" v-if="loading">
-                        <span>Total assets | Total liabilities</span>
-                    </small>
-                    <small class="account-overview-info" v-else-if="!loading">
-                        <span>{{ tt('Total assets') }}</span>
-                        <span>{{ totalAssets }}</span>
-                        <span>|</span>
-                        <span>{{ tt('Total liabilities') }}</span>
-                        <span>{{ totalLiabilities }}</span>
-                    </small>
-                </p>
-            </f7-card-header>
-        </f7-card>
+        <div class="margin-top-half margin-bottom">
+            <asset-summary-widget scene="accountList" :loading="loading" :support-hide-account-balance="true" />
+        </div>
 
         <div class="skeleton-text" v-if="loading">
             <f7-list strong inset dividers sortable class="list-has-group-title account-list margin-vertical"
@@ -77,17 +53,24 @@
                      :sortable-enabled="sortable"
                      v-if="allCategorizedAccountsMap[accountCategory.type]"
                      @sortable:sort="onSort">
-                <f7-list-item group-title :sortable="false">
+                <f7-list-item group-title class="justify-content-space-between" :sortable="false">
                     <small>
                         <span>{{ tt(accountCategory.name) }}</span>
-                        <span style="margin-inline-start: 10px">{{ accountCategoryTotalBalance(accountCategory) }}</span>
+                        <span style="margin-inline-start: 10px">{{ accountCategoryTotalBalance(accountCategory, showAvailableCreditForCreditCard) }}</span>
+                    </small>
+                    <small class="account-list-credit-card-amount-link" :class="{ 'disabled': sortable }"
+                         v-if="accountCategory.type === AccountCategory.CreditCard.type">
+                        <f7-link href="#" class="text-color-gray" popover-open=".credit-card-amount-popover">
+                            <span class="text-truncate">{{ showAvailableCreditForCreditCard ? tt('pageSpecific.accountListPage.availableBalance') : tt('pageSpecific.accountListPage.outstandingBalance') }}</span>
+                            <f7-icon class="picker-chevron bold-chevron" f7="chevron_up_chevron_down"></f7-icon>
+                        </f7-link>
                     </small>
                 </f7-list-item>
                 <f7-list-item swipeout
                               class="nested-list-item"
                               :id="getAccountDomId(account)"
                               :class="{ 'has-child-list-item': account.type === AccountType.MultiSubAccounts.type && hasVisibleSubAccount(account), 'actual-first-child': account.id === firstShowingIds.accounts[accountCategory.type], 'actual-last-child': account.id === lastShowingIds.accounts[accountCategory.type] }"
-                              :after="account.type === AccountType.SingleAccount.type ? accountBalance(account) : ''"
+                              :after="account.type === AccountType.SingleAccount.type ? accountBalanceOrAvailableCredit(account, undefined, showAvailableCreditForCreditCard, showAccountBalance) : ''"
                               :link="!sortable ? '/transaction/list?accountIds=' + account.id : null"
                               :key="account.id"
                               v-for="account in allCategorizedAccountsMap[accountCategory.type]!.accounts"
@@ -95,7 +78,7 @@
                               @taphold="setSortable()"
                 >
                     <template #media v-if="account.type !== AccountType.MultiSubAccounts.type || !hasVisibleSubAccount(account)">
-                        <ItemIcon icon-type="account" :icon-id="account.icon" :color="account.color">
+                        <ItemIcon :icon-type="getAccountIconType(account.iconType)" :icon-id="account.icon" :color="account.color">
                             <f7-badge color="gray" class="right-bottom-icon" v-if="account.hidden">
                                 <f7-icon f7="eye_slash_fill"></f7-icon>
                             </f7-badge>
@@ -104,7 +87,7 @@
 
                     <template #title>
                         <div class="nested-list-item-inner display-flex padding-top-half padding-bottom-half">
-                            <ItemIcon icon-type="account" :icon-id="account.icon" :color="account.color"
+                            <ItemIcon :icon-type="getAccountIconType(account.iconType)" :icon-id="account.icon" :color="account.color"
                                       v-if="account.type === AccountType.MultiSubAccounts.type && hasVisibleSubAccount(account)">
                                 <f7-badge color="gray" class="right-bottom-icon" v-if="account.hidden">
                                     <f7-icon f7="eye_slash_fill"></f7-icon>
@@ -113,10 +96,9 @@
                             <div class="nested-list-item-title">
                                 <span>{{ account.name }}</span>
                                 <div class="item-footer" v-if="account.comment">{{ account.comment }}</div>
-                                <div class="item-footer" v-if="account.creditLimit">{{ tt('Available') }}: {{ getRemainingCredit(account) }}</div>
                             </div>
                             <div class="nested-list-item-after" v-if="account.type === AccountType.MultiSubAccounts.type">
-                                <span>{{ accountBalance(account) }}</span>
+                                <span>{{ accountBalanceOrAvailableCredit(account, undefined, showAvailableCreditForCreditCard, showAccountBalance) }}</span>
                             </div>
                         </div>
                         <li v-if="account.type === AccountType.MultiSubAccounts.type">
@@ -124,14 +106,15 @@
                                 <f7-list-item class="no-sortable nested-list-item-child"
                                               :class="{ 'actual-first-child': subAccount.id === firstShowingIds.subAccounts[account.id], 'actual-last-child': subAccount.id === lastShowingIds.subAccounts[account.id] }"
                                               :id="getAccountDomId(subAccount)"
-                                              :title="subAccount.name" :footer="subAccount.comment" :after="accountBalance(account, subAccount.id)"
+                                              :title="subAccount.name" :footer="subAccount.comment"
+                                              :after="!showAvailableCreditForCreditCard || account.category !== AccountCategory.CreditCard.type ? accountBalance(account, subAccount.id, showAccountBalance) : ''"
                                               :link="!sortable ? '/transaction/list?accountIds=' + subAccount.id : null"
                                               :key="subAccount.id"
                                               v-for="subAccount in account.subAccounts"
                                               v-show="showHidden || !subAccount.hidden"
                                 >
                                     <template #media>
-                                        <ItemIcon icon-type="account" :icon-id="subAccount.icon" :color="subAccount.color">
+                                        <ItemIcon :icon-type="getAccountIconType(subAccount.iconType)" :icon-id="subAccount.icon" :color="subAccount.color">
                                             <f7-badge color="gray" class="right-bottom-icon" v-if="subAccount.hidden">
                                                 <f7-icon f7="eye_slash_fill"></f7-icon>
                                             </f7-badge>
@@ -144,8 +127,10 @@
                     <f7-swipeout-actions :left="textDirection === TextDirection.LTR"
                                          :right="textDirection === TextDirection.RTL"
                                          v-if="sortable">
-                        <f7-swipeout-button :color="account.hidden ? 'blue' : 'gray'" class="padding-horizontal"
-                                            overswipe close @click="hide(account, !account.hidden)">
+                        <f7-swipeout-button class="padding-horizontal" overswipe close
+                                            :aria-label="account.hidden ? tt('Show') : tt('Hide')"
+                                            :color="account.hidden ? 'blue' : 'gray'"
+                                            @click="hide(account, !account.hidden)">
                             <f7-icon :f7="account.hidden ? 'eye' : 'eye_slash'"></f7-icon>
                         </f7-swipeout-button>
                     </f7-swipeout-actions>
@@ -154,7 +139,7 @@
                                          v-if="!sortable">
                         <f7-swipeout-button color="orange" close :text="tt('Edit')" @click="edit(account)"></f7-swipeout-button>
                         <f7-swipeout-button color="primary" close :text="tt('More')" @click="showMoreActionSheetForAccount(account)"></f7-swipeout-button>
-                        <f7-swipeout-button color="red" class="padding-horizontal" @click="remove(account, false)">
+                        <f7-swipeout-button color="red" class="padding-horizontal" :aria-label="tt('Delete')" @click="remove(account, false)">
                             <f7-icon f7="trash"></f7-icon>
                         </f7-swipeout-button>
                     </f7-swipeout-actions>
@@ -211,9 +196,29 @@
             </f7-actions-group>
         </f7-actions>
 
+        <f7-popover class="credit-card-amount-popover">
+            <f7-list dividers>
+                <f7-list-item link="#" no-chevron popover-close
+                              :title="tt('Outstanding Balance')"
+                              :class="{ 'list-item-selected': !showAvailableCreditForCreditCard }"
+                              @click="showAvailableCreditForCreditCard = false">
+                    <template #after>
+                        <f7-icon class="list-item-checked-icon" f7="checkmark_alt" v-if="!showAvailableCreditForCreditCard" />
+                    </template>
+                </f7-list-item>
+                <f7-list-item link="#" no-chevron popover-close
+                              :title="tt('Available Credit')"
+                              :class="{ 'list-item-selected': showAvailableCreditForCreditCard }"
+                              @click="showAvailableCreditForCreditCard = true">
+                    <template #after>
+                        <f7-icon class="list-item-checked-icon" f7="checkmark_alt" v-if="showAvailableCreditForCreditCard" />
+                    </template>
+                </f7-list-item>
+            </f7-list>
+        </f7-popover>
+
         <password-input-sheet :title="tt('Are you sure you want to clear all transactions?')"
-                              :hint="tt(isPasswordConfirmationEnabled() ? 'format.misc.clearTransactionsInAccountTip' : 'format.misc.clearTransactionsInAccountTipWithoutPassword', { account: accountToClearTransactions?.name ?? 'undefined' })"
-                              :password-optional="!isPasswordConfirmationEnabled()"
+                              :hint="tt('format.misc.clearTransactionsInAccountTip', { account: accountToClearTransactions?.name ?? 'undefined' })"
                               :confirm-disabled="clearingData"
                               :cancel-disabled="clearingData"
                               color="red"
@@ -225,6 +230,8 @@
 </template>
 
 <script setup lang="ts">
+import AssetSummaryWidget from '@/views/mobile/overview/widgets/AssetSummaryWidget.vue';
+
 import { ref, computed } from 'vue';
 import type { Router } from 'framework7/types';
 
@@ -233,21 +240,22 @@ import { useI18nUIComponents, showLoading, hideLoading } from '@/lib/ui/mobile.t
 import { useAccountListPageBase } from '@/views/base/accounts/AccountListPageBase.ts';
 
 import { useRootStore } from '@/stores/index.ts';
+import { useSettingsStore } from '@/stores/setting.ts';
 import { useAccountsStore } from '@/stores/account.ts';
 
 import { TextDirection } from '@/core/text.ts';
-import { AccountType, AccountCategory } from '@/core/account.ts';
+import { AccountType, AccountCategory, CreditCardAmountDisplayType } from '@/core/account.ts';
 import type { Account, AccountShowingIds } from '@/models/account.ts';
 
 import { getCurrentUnixTime } from '@/lib/datetime.ts';
-import { isPasswordConfirmationEnabled } from '@/lib/server_settings.ts';
+import { getAccountIconType } from '@/lib/icon.ts';
 import { onSwipeoutDeleted } from '@/lib/ui/mobile.ts';
 
 const props = defineProps<{
     f7router: Router.Router;
 }>();
 
-const { tt, getCurrentLanguageTextDirection, formatAmountToLocalizedNumeralsWithCurrency } = useI18n();
+const { tt, getCurrentLanguageTextDirection } = useI18n();
 const { showAlert, showConfirm, showToast, routeBackOnError } = useI18nUIComponents();
 
 const {
@@ -260,14 +268,13 @@ const {
     allCategorizedAccountsMap,
     allAccountCount,
     maxCategoryAccountCount,
-    netAssets,
-    totalAssets,
-    totalLiabilities,
     accountCategoryTotalBalance,
-    accountBalance
+    accountBalance,
+    accountBalanceOrAvailableCredit
 } = useAccountListPageBase();
 
 const rootStore = useRootStore();
+const settingsStore = useSettingsStore();
 const accountsStore = useAccountsStore();
 
 const loadingError = ref<unknown | null>(null);
@@ -285,6 +292,7 @@ const showInputPasswordSheetForClearAllTransactions = ref<boolean>(false);
 const displayOrderSaving = ref<boolean>(false);
 
 const textDirection = computed<TextDirection>(() => getCurrentLanguageTextDirection());
+const showAvailableCreditForCreditCard = ref<boolean>(settingsStore.appSettings.defaultCreditCardAmountDisplayTypeInMobile === CreditCardAmountDisplayType.AvailableCredit.type);
 const firstShowingIds = computed<AccountShowingIds>(() => accountsStore.getFirstShowingIds(showHidden.value));
 const lastShowingIds = computed<AccountShowingIds>(() => accountsStore.getLastShowingIds(showHidden.value));
 const hasAnyVisibleAccount = computed<boolean>(() => accountsStore.allVisibleAccountsCount > 0);
@@ -295,14 +303,6 @@ const noAvailableAccount = computed<boolean>(() => {
         return accountsStore.allVisibleAccountsCount < 1;
     }
 });
-
-function getRemainingCredit(account: Account): string {
-    if (!account.creditLimit) {
-        return '';
-    }
-    const remaining = account.creditLimit + account.balance; // balance is negative for credit cards
-    return formatAmountToLocalizedNumeralsWithCurrency(remaining, account.currency);
-}
 
 function hasAccount(accountCategory: AccountCategory, visibleOnly: boolean): boolean {
     return accountsStore.hasAccount(accountCategory, visibleOnly);
@@ -663,5 +663,22 @@ init();
 
 .account-list .item-footer {
     padding-top: 4px;
+}
+
+.account-list-credit-card-amount-link {
+    display: flex;
+    min-width: 0;
+    margin-inline-start: 4px;
+
+    > .link {
+        display: flex;
+        min-width: 0;
+        max-width: 100%;
+
+        > .picker-chevron {
+            flex-shrink: 0;
+            font-weight: bold;
+        }
+    }
 }
 </style>

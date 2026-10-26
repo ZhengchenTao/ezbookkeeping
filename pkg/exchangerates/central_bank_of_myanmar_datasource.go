@@ -1,7 +1,7 @@
 package exchangerates
 
 import (
-	"encoding/json"
+	"encoding/json/v2"
 	"math"
 	"net/http"
 	"strings"
@@ -13,6 +13,9 @@ import (
 	"github.com/mayswind/ezbookkeeping/pkg/utils"
 	"github.com/mayswind/ezbookkeeping/pkg/validators"
 )
+
+// API Documentation:
+// https://forex.cbm.gov.mm/index.php/api
 
 const centralBankOfMyanmarExchangeRateUrl = "https://forex.cbm.gov.mm/api/latest"
 const centralBankOfMyanmarExchangeRateReferenceUrl = "https://forex.cbm.gov.mm/index.php/fxrate"

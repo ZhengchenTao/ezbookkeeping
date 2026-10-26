@@ -3,21 +3,23 @@
         item-title="nativeDisplayName"
         item-value="languageTag"
         persistent-placeholder
+        :density="density"
+        :variant="variant"
         :disabled="disabled"
         :label="label"
         :placeholder="placeholder"
         :items="allLanguages"
         v-model="currentLocaleValue"
     >
-        <template #item="{ props, item }">
-            <v-list-item :value="item.value" v-bind="props">
+        <template #item="{ props, internalItem }">
+            <v-list-item :value="internalItem.value" v-bind="props">
                 <template #title>
                     <v-list-item-title>
                         <div class="d-flex align-center">
-                            <span>{{ item.title }}</span>
+                            <span>{{ internalItem.title }}</span>
                             <v-spacer style="min-width: 40px" />
-                            <v-icon :icon="mdiCheck" v-if="isLanguageSelected(item.raw.languageTag)" />
-                            <span class="text-field-append-text" v-if="!isLanguageSelected(item.raw.languageTag)">{{ item.raw.displayName }}</span>
+                            <v-icon :icon="mdiCheck" v-if="isLanguageSelected(internalItem.raw.languageTag)" />
+                            <span class="text-field-append-text" v-if="!isLanguageSelected(internalItem.raw.languageTag)">{{ internalItem.raw.displayName }}</span>
                         </div>
                     </v-list-item-title>
                 </template>
@@ -32,11 +34,15 @@ import { type LanguageSelectBaseProps, type LanguageSelectBaseEmits, useLanguage
 
 import { useI18n } from '@/locales/helpers.ts';
 
+import type { ComponentDensity, InputVariant } from '@/lib/ui/desktop.ts';
+
 import {
     mdiCheck
 } from '@mdi/js';
 
 interface DesktopLanguageSelectProps extends LanguageSelectBaseProps {
+    density?: ComponentDensity;
+    variant?: InputVariant;
     label?: string;
     placeholder?: string;
 }

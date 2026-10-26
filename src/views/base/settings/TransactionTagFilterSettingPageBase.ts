@@ -2,9 +2,11 @@ import { ref, computed } from 'vue';
 
 import { useI18n } from '@/locales/helpers.ts';
 
+import { useSettingsStore } from '@/stores/setting.ts';
 import { useTransactionTagsStore } from '@/stores/transactionTag.ts';
 import { useTransactionsStore } from '@/stores/transaction.ts';
 import { useStatisticsStore } from '@/stores/statistics.ts';
+import { useOverviewStore } from '@/stores/overview.ts';
 
 import { entries, keys, values } from '@/core/base.ts';
 import { NormalizedText } from '@/core/text.ts';
@@ -44,9 +46,11 @@ function getEmptyGroupTagFilterTypesMap(allTransactionTagsByGroupMap: Record<str
 export function useTransactionTagFilterSettingPageBase(type?: string) {
     const { tt } = useI18n();
 
+    const settingsStore = useSettingsStore();
     const transactionTagsStore = useTransactionTagsStore();
     const transactionsStore = useTransactionsStore();
     const statisticsStore = useStatisticsStore();
+    const overviewStore = useOverviewStore();
 
     const loading = ref<boolean>(true);
     const showHidden = ref<boolean>(false);
@@ -145,13 +149,17 @@ export function useTransactionTagFilterSettingPageBase(type?: string) {
         return false;
     });
 
-    function loadFilterTagIds(): boolean {
+    function loadFilterTagIds(customTagFilter?: string): boolean {
         let tagFilters: TransactionTagFilter[] = [];
 
         if (type === 'statisticsCurrent') {
             tagFilters = TransactionTagFilter.parse(statisticsStore.transactionStatisticsFilter.tagFilter);
         } else if (type === 'transactionListCurrent') {
             tagFilters = TransactionTagFilter.parse(transactionsStore.transactionsFilter.tagFilter);
+        } else if (type === 'homePageOverview') {
+            tagFilters = TransactionTagFilter.parse(settingsStore.appSettings.overviewTransactionTagFilterInHomePage);
+        } else if (type === 'custom') {
+            tagFilters = TransactionTagFilter.parse(customTagFilter ?? '');
         } else {
             return false;
         }
@@ -200,8 +208,9 @@ export function useTransactionTagFilterSettingPageBase(type?: string) {
         return true;
     }
 
-    function saveFilterTagIds(): boolean {
+    function saveFilterTagIds(): [boolean, string] {
         const tagFilters: TransactionTagFilter[] = [];
+        let textualTagFilter: string = '';
         let changed = true;
 
         for (const [groupId, tags] of entries(transactionTagsStore.allTransactionTagsByGroupMap)) {
@@ -233,9 +242,11 @@ export function useTransactionTagFilterSettingPageBase(type?: string) {
             }
         }
 
+        textualTagFilter = TransactionTagFilter.toTextualTagFilters(tagFilters);
+
         if (type === 'statisticsCurrent') {
             changed = statisticsStore.updateTransactionStatisticsFilter({
-                tagFilter: TransactionTagFilter.toTextualTagFilters(tagFilters)
+                tagFilter: textualTagFilter
             });
 
             if (changed) {
@@ -243,15 +254,22 @@ export function useTransactionTagFilterSettingPageBase(type?: string) {
             }
         } else if (type === 'transactionListCurrent') {
             changed = transactionsStore.updateTransactionListFilter({
-                tagFilter: TransactionTagFilter.toTextualTagFilters(tagFilters)
+                tagFilter: textualTagFilter
             });
 
             if (changed) {
                 transactionsStore.updateTransactionListInvalidState(true);
             }
+        } else if (type === 'homePageOverview') {
+            changed = settingsStore.appSettings.overviewTransactionTagFilterInHomePage !== textualTagFilter;
+
+            if (changed) {
+                settingsStore.setOverviewTransactionTagFilterInHomePage(textualTagFilter);
+                overviewStore.updateTransactionOverviewInvalidState(true);
+            }
         }
 
-        return changed;
+        return [changed, textualTagFilter];
     }
 
     return {

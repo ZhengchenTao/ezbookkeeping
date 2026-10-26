@@ -1,5 +1,40 @@
 import type { TypeAndName, TypeAndDisplayName } from '@/core/base.ts';
 
+export interface BigDecimal {
+    isZero(): boolean;
+    isFinite(): boolean;
+    isPositive(): boolean;
+    isNegative(): boolean;
+    isPositiveOrZero(): boolean;
+    isNegativeOrZero(): boolean;
+    isPositiveInfinity(): boolean;
+    isNegativeInfinity(): boolean;
+    isNaN(): boolean;
+    equals(other: BigDecimal | number | undefined): boolean;
+    notEquals(other: BigDecimal | number | undefined): boolean;
+    compareTo(other: BigDecimal | number): number;
+    greaterThan(other: BigDecimal | number): boolean;
+    greaterThanOrEqual(other: BigDecimal | number): boolean;
+    lessThan(other: BigDecimal | number): boolean;
+    lessThanOrEqual(other: BigDecimal | number): boolean;
+    between(min: BigDecimal | number, max: BigDecimal | number): boolean;
+    add(other: BigDecimal | number): BigDecimal;
+    subtract(other: BigDecimal | number): BigDecimal;
+    multiply(other: BigDecimal | number): BigDecimal;
+    divide(other: BigDecimal | number): BigDecimal;
+    negate(): BigDecimal;
+    sign(): BigDecimal;
+    pow(exponent: BigDecimal | number): BigDecimal;
+    sqrt(): BigDecimal;
+    log(): BigDecimal;
+    exp(): BigDecimal;
+    abs(): BigDecimal;
+    truncate(): BigDecimal;
+    toSafeIntegerNumber(): number;
+    toDoubleNumber(): number;
+    toString(): string;
+}
+
 export type HiddenAmount = '***';
 
 export interface NumberFormatOptions {
@@ -11,8 +46,8 @@ export interface NumberFormatOptions {
     readonly trimTailZero?: boolean;
 }
 
-export interface NumberWithSuffix {
-    readonly value: number;
+export interface BigDecimalWithSuffix {
+    readonly value: BigDecimal;
     readonly suffix: string;
 }
 
@@ -126,6 +161,22 @@ export class NumeralSystem implements TypeAndName {
         }
 
         return this.replaceWesternArabicDigitsToLocalizedDigits(value.toString(10));
+    }
+
+    public formatBigDecimal(value: BigDecimal): string {
+        if (!value) {
+            return '';
+        }
+
+        if (this.type === NumeralSystem.WesternArabicNumerals.type) {
+            return value.toString();
+        }
+
+        if (value.isZero()) {
+            return this.digitZero;
+        }
+
+        return this.replaceWesternArabicDigitsToLocalizedDigits(value.toString());
     }
 
     public replaceWesternArabicDigitsToLocalizedDigits(value: string): string {
@@ -494,6 +545,41 @@ export class AmountFilterType {
         } else {
             return '';
         }
+    }
+
+    public static parseTextualFilter(filter: string): { filterType: AmountFilterType, params: number[] } | undefined {
+        const parts = filter.split(':');
+
+        if (parts.length < 2) {
+            return undefined;
+        }
+
+        const filterType = AmountFilterType.valueOf(parts[0] as string);
+
+        if (!filterType) {
+            return undefined;
+        }
+
+        if (parts.length - 1 !== filterType.paramCount) {
+            return undefined;
+        }
+
+        const params: number[] = [];
+
+        for (let i = 1; i < parts.length; i++) {
+            const param = parseInt(parts[i] as string);
+
+            if (Number.isNaN(param)) {
+                return undefined;
+            }
+
+            params.push(param);
+        }
+
+        return {
+            filterType: filterType,
+            params: params
+        };
     }
 
     public static match(filter: string, amount: number): boolean {

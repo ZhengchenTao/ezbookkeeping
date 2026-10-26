@@ -208,6 +208,14 @@ export function getNumberValue(value: unknown, defaultValue: number): number {
     }
 }
 
+export function normalizeInteger(value: unknown, defaultValue: number, min: number, max: number): number {
+    if (!isInteger(value)) {
+        return defaultValue;
+    }
+
+    return Math.min(max, Math.max(min, Math.round(value)));
+}
+
 export function sortNumbersArray(array: number[]): number[] {
     return array.sort(function (num1, num2) {
         return num1 - num2;
@@ -461,6 +469,16 @@ export function objectFieldWithValueToArrayItem<T>(object: Record<string, T>, va
 
     for (const field of keysIfValueEquals(object, value)) {
         ret.push(field);
+    }
+
+    return ret;
+}
+
+export function objectValueToArrayItem<T>(object: Record<string, T>): T[] {
+    const ret: T[] = [];
+
+    for (const value of values(object)) {
+        ret.push(value);
     }
 
     return ret;

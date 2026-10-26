@@ -3,34 +3,25 @@
         <router-link to="/">
             <div class="auth-logo d-flex align-start gap-x-3">
                 <img alt="logo" class="login-page-logo" :src="APPLICATION_LOGO_PATH" />
-                <h1 class="font-weight-medium leading-normal text-2xl">{{ tt('global.app.title') }}</h1>
+                <span class="auth-app-title">{{ tt('global.app.title') }}</span>
             </div>
         </router-link>
         <v-row no-gutters class="auth-wrapper">
             <v-col cols="12" md="4" class="auth-image-background d-none d-md-flex align-center justify-center position-relative">
-                <div class="d-flex auth-img-footer" v-if="!isDarkMode">
-                    <v-img class="img-with-direction" src="img/desktop/background.svg"/>
-                </div>
-                <div class="d-flex auth-img-footer" v-if="isDarkMode">
-                    <v-img class="img-with-direction" src="img/desktop/background-dark.svg"/>
-                </div>
-                <div class="d-flex align-center justify-center w-100 pt-10">
-                    <v-img class="img-with-direction" max-width="320px" src="img/desktop/people2.svg" v-if="!isDarkMode"/>
-                    <v-img class="img-with-direction" max-width="320px" src="img/desktop/people2-dark.svg" v-else-if="isDarkMode"/>
-                </div>
+                <auth-illustration variant="signup" />
             </v-col>
             <v-col cols="12" md="8" class="auth-card d-flex align-center justify-center pa-10">
                 <v-card variant="flat" class="mt-12 mt-sm-0 pt-sm-12 pt-md-0">
                     <steps-bar min-width="700" :steps="allSteps" :current-step="currentStep" @step:change="switchToTab" />
 
-                    <v-window class="mt-5 disable-tab-transition" style="max-width: 700px" v-model="currentStep">
+                    <v-window class="mt-5 mt-md-6 disable-tab-transition" style="max-width: 700px" v-model="currentStep">
                         <v-form>
                             <v-window-item value="basicSetting">
-                                <h4 class="text-h4 mb-1">{{ tt('Basic Information') }}</h4>
-                                <p class="text-sm mt-2 mb-5">
+                                <div class="text-headline-small mb-1">{{ tt('Basic Information') }}</div>
+                                <div class="auth-message text-body-medium my-3">
                                     <span>{{ tt('Already have an account?') }}</span>
                                     <router-link class="ms-1" to="/login">{{ tt('Click here to log in') }}</router-link>
-                                </p>
+                                </div>
                                 <v-row>
                                     <v-col cols="12" md="6">
                                         <v-text-field
@@ -124,9 +115,9 @@
                                 </v-row>
                             </v-window-item>
 
-                            <v-window-item value="presetCategories" class="signup-preset-categories">
-                                <h4 class="text-h4 mb-1">{{ tt('Preset Categories') }}</h4>
-                                <p class="text-sm mt-2 mb-2">{{ tt('Set whether to use preset transaction categories') }}</p>
+                            <v-window-item value="presetCategories">
+                                <div class="text-headline-small mb-1">{{ tt('Preset Categories') }}</div>
+                                <div class="auth-message text-body-medium my-3">{{ tt('Set whether to use preset transaction categories') }}</div>
 
                                 <v-row>
                                     <v-col cols="12" sm="6">
@@ -140,16 +131,16 @@
                                     </v-col>
                                 </v-row>
 
-                                <div class="overflow-y-auto px-3" :class="{ 'disabled': !usePresetCategories || submitting || navigateToHomePage }" style="max-height: 323px">
+                                <div class="overflow-y-auto pe-1" :class="{ 'disabled': !usePresetCategories || submitting || navigateToHomePage }" style="max-height: 323px">
                                     <v-row :key="categoryType" v-for="(categories, categoryType) in allPresetCategories">
                                         <v-col cols="12" md="12">
-                                            <h4 class="mb-3">{{ getCategoryTypeName(parseInt(categoryType)) }}</h4>
+                                            <span class="text-body-large">{{ getCategoryTypeName(parseInt(categoryType)) }}</span>
 
-                                            <v-expansion-panels class="border rounded" variant="accordion" multiple>
+                                            <v-expansion-panels class="compacted-expansion-panels mt-2" variant="accordion" multiple>
                                                 <v-expansion-panel :key="idx" v-for="(category, idx) in categories">
-                                                    <v-expansion-panel-title class="py-0">
-                                                        <ItemIcon icon-type="category" :icon-id="category.icon" :color="category.color"></ItemIcon>
-                                                        <span class="ms-3">{{ category.name }}</span>
+                                                    <v-expansion-panel-title class="py-0 px-4">
+                                                        <ItemIcon :icon-type="getCategoryIconType(category.iconType)" :icon-id="category.icon" :color="category.color"></ItemIcon>
+                                                        <span class="text-body-medium ms-2">{{ category.name }}</span>
                                                     </v-expansion-panel-title>
                                                     <v-expansion-panel-text v-if="category.subCategories.length">
                                                         <v-list rounded density="comfortable" class="pa-0">
@@ -157,9 +148,9 @@
                                                                       v-for="(subCategory, subIdx) in category.subCategories">
                                                                 <v-list-item>
                                                                     <template #prepend>
-                                                                        <ItemIcon icon-type="category" :icon-id="subCategory.icon" :color="subCategory.color"></ItemIcon>
+                                                                        <ItemIcon :icon-type="getCategoryIconType(subCategory.iconType)" :icon-id="subCategory.icon" :color="subCategory.color"></ItemIcon>
                                                                     </template>
-                                                                    <span class="ms-3">{{ subCategory.name }}</span>
+                                                                    <span class="text-body-medium ms-2">{{ subCategory.name }}</span>
                                                                 </v-list-item>
                                                                 <v-divider v-if="subIdx !== category.subCategories.length - 1"/>
                                                             </template>
@@ -173,8 +164,8 @@
                             </v-window-item>
 
                             <v-window-item value="finalResult" v-if="finalResultMessage">
-                                <h4 class="text-h4 mb-1">{{ tt('Registration Completed') }}</h4>
-                                <p class="my-5">{{ finalResultMessage }}</p>
+                                <div class="text-headline-large mb-1">{{ tt('Registration Completed') }}</div>
+                                <div class="my-3">{{ finalResultMessage }}</div>
                             </v-window-item>
                         </v-form>
                     </v-window>
@@ -217,7 +208,6 @@ import type { StepBarItem } from '@/components/desktop/StepsBar.vue';
 
 import { ref, computed, useTemplateRef } from 'vue';
 import { useRouter } from 'vue-router';
-import { useTheme } from 'vuetify';
 
 import { useI18n } from '@/locales/helpers.ts';
 import { useSignupPageBase } from '@/views/base/SignupPageBase.ts';
@@ -226,10 +216,10 @@ import { useRootStore } from '@/stores/index.ts';
 
 import type { TypeAndDisplayName } from '@/core/base.ts';
 import { type LocalizedPresetCategory } from '@/core/category.ts';
-import { ThemeType } from '@/core/theme.ts';
 import { APPLICATION_LOGO_PATH } from '@/consts/asset.ts';
 
 import { categorizedArrayToPlainArray } from '@/lib/common.ts';
+import { getCategoryIconType } from '@/lib/icon.ts';
 import { isUserLogined } from '@/lib/userstate.ts';
 
 import {
@@ -241,7 +231,6 @@ import {
 type SnackBarType = InstanceType<typeof SnackBar>;
 
 const router = useRouter();
-const theme = useTheme();
 
 const { tt, getAllWeekDays, getAllTransactionDefaultCategories } = useI18n();
 
@@ -267,7 +256,6 @@ const navigateToHomePage = ref<boolean>(false);
 
 const allWeekDays = computed<TypeAndDisplayName[]>(() => getAllWeekDays());
 const allPresetCategories = computed<Record<string, LocalizedPresetCategory[]>>(() => getAllTransactionDefaultCategories(0, currentLocale.value));
-const isDarkMode = computed<boolean>(() => theme.global.name.value === ThemeType.Dark);
 
 const allSteps = computed<StepBarItem[]>(() => {
     const allSteps = [
@@ -389,10 +377,3 @@ function onSnackbarShowStateChanged(newValue: boolean): void {
     }
 }
 </script>
-
-<style>
-.signup-preset-categories .v-expansion-panel-text__wrapper {
-    padding: 0 0 0 0;
-    padding-inline-start: 20px;
-}
-</style>

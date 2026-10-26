@@ -9,16 +9,14 @@
             <div class="padding-horizontal padding-bottom">
                 <p class="no-margin-top" v-if="hint">{{ hint }}</p>
                 <p class="no-margin-top margin-bottom" v-if="beginDateTime && endDateTime">
-                    <span>{{ beginDateTime }}</span>
-                    <span> - </span>
-                    <span>{{ endDateTime }}</span>
+                    <span>{{ formatRange(beginDateTime, endDateTime) }}</span>
                 </p>
                 <slot></slot>
                 <month-picker month-picker-class="justify-content-center margin-bottom"
                               :is-dark-mode="isDarkMode" v-model="dateRange"></month-picker>
                 <f7-button large fill
                            :class="{ 'disabled': !dateRange[0] || !dateRange[1] }"
-                           :text="tt('Continue')"
+                           :text="tt('Apply')"
                            @click="confirm">
                 </f7-button>
                 <div class="margin-top text-align-center">
@@ -48,7 +46,7 @@ const emit = defineEmits<{
     (e: 'dateRange:change', minYearMonth: TextualYearMonth | '', maxYearMonth: TextualYearMonth | ''): void;
 }>();
 
-const { tt } = useI18n();
+const { tt, formatRange } = useI18n();
 const { showToast } = useI18nUIComponents();
 const { dateRange, beginDateTime, endDateTime, getFinalMonthRange } = useMonthRangeSelectionBase(props);
 

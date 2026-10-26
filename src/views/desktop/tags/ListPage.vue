@@ -2,21 +2,21 @@
     <v-row class="match-height">
         <v-col cols="12">
             <v-card>
-                <v-layout>
-                    <v-navigation-drawer :permanent="alwaysShowNav" v-model="showNav">
-                        <div class="mx-6 my-4">
-                            <span class="text-subtitle-2">{{ tt('Total tags') }}</span>
-                            <p class="transaction-tags-statistic-item-value mt-1">
+                <v-layout class="page-with-navigation-drawer">
+                    <v-navigation-drawer class="scrollable-tabs-navigation-drawer" :permanent="alwaysShowNav" v-model="showNav">
+                        <div class="mx-4 my-3">
+                            <span class="text-body-medium">{{ tt('Total tags') }}</span>
+                            <div class="text-body-large mt-1">
                                 <span v-if="!loading || totalAvailableTagsCount > 0">{{ displayTotalAvailableTagsCount }}</span>
                                 <span v-else-if="loading && totalAvailableTagsCount <= 0">
                                     <v-skeleton-loader class="skeleton-no-margin pt-2 pb-1" type="text" :loading="true"></v-skeleton-loader>
                                 </span>
-                            </p>
+                            </div>
                         </div>
                         <v-divider />
                         <v-tabs show-arrows
                                 class="scrollable-vertical-tabs"
-                                style="max-height: calc(100% - 88px)"
+                                style="max-height: calc(100% - 82px)"
                                 direction="vertical"
                                 :prev-icon="mdiMenuUp" :next-icon="mdiMenuDown"
                                 :disabled="loading || updating" v-model="activeTagGroupId">
@@ -27,7 +27,7 @@
                                 <span class="text-truncate">{{ tagGroup.name }}</span>
                             </v-tab>
                             <template v-if="loading && (!allTagGroupsWithDefault || allTagGroupsWithDefault.length < 2)">
-                                <v-skeleton-loader class="skeleton-no-margin mx-5 mt-4 mb-3" type="text"
+                                <v-skeleton-loader class="skeleton-no-margin mx-4 mt-h1 py-3" type="text"
                                                    :key="itemIdx" :loading="true" v-for="itemIdx in [ 1, 2, 3, 4, 5 ]"></v-skeleton-loader>
                             </template>
                         </v-tabs>
@@ -38,8 +38,8 @@
                                 <v-card variant="flat" min-height="780">
                                     <template #title>
                                         <div class="title-and-toolbar d-flex align-center">
-                                            <v-btn class="me-3 d-md-none" density="compact" color="default" variant="plain"
-                                                   :ripple="false" :icon="true" @click="showNav = !showNav">
+                                            <v-btn class="me-3 d-lg-none" density="compact" color="default" variant="plain"
+                                                   :aria-label="tt('Open Menu')" :ripple="false" :icon="true" @click="showNav = !showNav">
                                                 <v-icon :icon="mdiMenu" size="24" />
                                             </v-btn>
                                             <span>{{ tt('Transaction Tags') }}</span>
@@ -48,8 +48,8 @@
                                             <v-btn class="ms-3" color="primary" variant="tonal"
                                                    :disabled="loading || updating || hasEditingTag" @click="saveSortResult"
                                                    v-if="displayOrderModified">{{ tt('Save Display Order') }}</v-btn>
-                                            <v-btn density="compact" color="default" variant="text" size="24"
-                                                   class="ms-2" :icon="true" :disabled="loading || updating || hasEditingTag"
+                                            <v-btn density="compact" color="default" variant="text" class="ms-2"
+                                                   :aria-label="tt('Refresh')" :icon="true" :disabled="loading || updating || hasEditingTag"
                                                    :loading="loading" @click="reload">
                                                 <template #loader>
                                                     <v-progress-circular indeterminate size="20"/>
@@ -59,7 +59,7 @@
                                             </v-btn>
                                             <v-spacer/>
                                             <v-btn density="comfortable" color="default" variant="text" class="ms-2"
-                                                   :disabled="loading || updating || hasEditingTag" :icon="true">
+                                                   :aria-label="tt('More')" :disabled="loading || updating || hasEditingTag" :icon="true">
                                                 <v-icon :icon="mdiDotsVertical" />
                                                 <v-menu activator="parent">
                                                     <v-list>
@@ -105,7 +105,8 @@
                                         </div>
                                     </template>
 
-                                    <v-table class="transaction-tags-table table-striped" :hover="!loading">
+                                    <v-table class="transaction-tags-table table-striped"
+                                             density="default" :hover="!loading">
                                         <thead>
                                         <tr>
                                             <th>
@@ -155,7 +156,7 @@
                                                                 <span class="transaction-tag-name">{{ element.name }}</span>
                                                             </div>
 
-                                                            <v-text-field class="w-100 me-2" type="text"
+                                                            <v-text-field class="w-100 me-2" type="text" autocomplete="off"
                                                                           density="compact" variant="underlined"
                                                                           :disabled="loading || updating"
                                                                           :placeholder="tt('Tag Title')"
@@ -249,7 +250,7 @@
 
                                                             <span class="ms-2">
                                                                 <v-icon :class="!loading && !updating && !hasEditingTag && availableTagCount > 1 ? 'drag-handle' : 'disabled'"
-                                                                        :icon="mdiDrag"/>
+                                                                        :aria-label="tt('Drag to Reorder')" :icon="mdiDrag"/>
                                                                 <v-tooltip activator="parent" v-if="!loading && !updating && !hasEditingTag && availableTagCount > 1 && hoveredTagId === element.id">{{ tt('Drag to Reorder') }}</v-tooltip>
                                                             </span>
                                                         </div>
@@ -262,7 +263,7 @@
                                         <tr :class="{ 'even-row': (availableTagCount & 1) === 1}">
                                             <td>
                                                 <div class="d-flex align-center">
-                                                    <v-text-field class="w-100 me-2" type="text" color="primary"
+                                                    <v-text-field class="w-100 me-2" type="text" autocomplete="off" color="primary"
                                                                   density="compact" variant="underlined"
                                                                   :disabled="loading || updating" :placeholder="tt('Tag Title')"
                                                                   v-model="newTag.name" @keyup.enter="save(newTag)">
@@ -308,13 +309,10 @@
     </v-row>
 
     <v-dialog width="640" v-model="showTagMoveToDialog">
-        <v-card class="pa-sm-1 pa-md-2">
-            <template #title>
-                <div class="d-flex align-center">
-                    <h4 class="text-h4">{{ tt('Move to...') }}</h4>
-                </div>
-            </template>
-            <v-card-text class="d-flex flex-column flex-md-row flex-grow-1 overflow-y-auto">
+        <one-column-dialog-layout content-class="pa-0" :disabled="loading || updating"
+                                  :title="tt('Move to...')" :cancel-button-title="tt('Close')"
+                                  @cancel="showTagMoveToDialog = false">
+            <template #content>
                 <v-table hover density="comfortable" class="w-100 table-striped">
                     <tbody>
                     <tr class="cursor-pointer" :key="tagGroup.id" v-for="tagGroup in allTagGroupsWithDefault" v-show="activeTagGroupId !== tagGroup.id">
@@ -324,13 +322,8 @@
                     </tr>
                     </tbody>
                 </v-table>
-            </v-card-text>
-            <v-card-text class="overflow-y-visible">
-                <div class="w-100 d-flex justify-center flex-wrap mt-sm-1 mt-md-2 gap-4">
-                    <v-btn color="secondary" variant="tonal" :disabled="loading || updating" @click="showTagMoveToDialog = false">{{ tt('Close') }}</v-btn>
-                </div>
-            </v-card-text>
-        </v-card>
+            </template>
+        </one-column-dialog-layout>
     </v-dialog>
 
     <tag-group-change-display-order-dialog ref="tagGroupChangeDisplayOrderDialog" />
@@ -389,7 +382,7 @@ type RenameDialogType = InstanceType<typeof RenameDialog>;
 type ConfirmDialogType = InstanceType<typeof ConfirmDialog>;
 type SnackBarType = InstanceType<typeof SnackBar>;
 
-const display = useDisplay();
+const { lgAndUp } = useDisplay();
 
 const { tt, formatNumberToLocalizedNumerals } = useI18n();
 
@@ -420,8 +413,8 @@ const snackbar = useTemplateRef<SnackBarType>('snackbar');
 
 const updating = ref<boolean>(false);
 const activeTab = ref<string>('tagListPage');
-const alwaysShowNav = ref<boolean>(display.mdAndUp.value);
-const showNav = ref<boolean>(display.mdAndUp.value);
+const alwaysShowNav = ref<boolean>(lgAndUp.value);
+const showNav = ref<boolean>(lgAndUp.value);
 const hoveredTagId = ref<string>('');
 const tagUpdating = ref<Record<string, boolean>>({});
 const tagHiding = ref<Record<string, boolean>>({});
@@ -743,7 +736,7 @@ transactionTagsStore.loadAllTags({
     }
 });
 
-watch(() => display.mdAndUp.value, (newValue) => {
+watch(lgAndUp, (newValue) => {
     alwaysShowNav.value = newValue;
 
     if (!showNav.value) {
@@ -753,41 +746,40 @@ watch(() => display.mdAndUp.value, (newValue) => {
 </script>
 
 <style>
-.transaction-tags-statistic-item-value {
-    font-size: 1rem;
-}
+.transaction-tags-table {
+    tr:not(:last-child) > td > div,
+    .has-bottom-border tr:last-child > td > div {
+        padding-bottom: 1px;
+    }
 
-.transaction-tags-table tr:not(:last-child) > td > div {
-    padding-bottom: 1px;
-}
+    tr.transaction-tags-table-row-tag {
+        .right-bottom-icon {
+            .v-badge__badge {
+                padding-bottom: 1px;
+            }
+        }
+    }
 
-.transaction-tags-table .has-bottom-border tr:last-child > td > div {
-    padding-bottom: 1px;
-}
+    .v-text-field {
+        .v-input__prepend {
+            margin-inline-end: 0;
 
-.transaction-tags-table tr.transaction-tags-table-row-tag .right-bottom-icon .v-badge__badge {
-    padding-bottom: 1px;
-}
+            > .v-icon {
+                opacity: 1;
+            }
+        }
 
-.transaction-tags-table .v-text-field .v-input__prepend {
-    margin-inline-end: 0;
-    color: rgba(var(--v-theme-on-surface));
-}
+        &.v-input--plain-underlined .v-input__prepend {
+            padding-top: 4px;
+        }
 
-.transaction-tags-table .v-text-field .v-input__prepend .v-badge > .v-badge__wrapper > .v-icon {
-    opacity: var(--v-medium-emphasis-opacity);
-}
+        .v-field {
+            font-size: 0.875rem;
 
-.transaction-tags-table .v-text-field.v-input--plain-underlined .v-input__prepend {
-    padding-top: 10px;
-}
-
-.transaction-tags-table .v-text-field .v-field__input {
-    padding-top: 0;
-    color: rgba(var(--v-theme-on-surface));
-}
-
-.transaction-tags-table tr .v-text-field .v-field__input {
-    padding-bottom: 1px;
+            .v-field__input {
+                padding-top: 0;
+            }
+        }
+    }
 }
 </style>

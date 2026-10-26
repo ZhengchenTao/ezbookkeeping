@@ -1,7 +1,7 @@
 package mcp
 
 import (
-	"encoding/json"
+	"encoding/json/v2"
 	"reflect"
 
 	"github.com/mayswind/ezbookkeeping/pkg/core"
@@ -53,7 +53,7 @@ func (h *mcpQueryAllAccountsToolHandler) Handle(c *core.WebContext, callToolReq 
 	accounts, err := services.GetAccountService().GetAllAccountsByUid(c, uid)
 
 	if err != nil {
-		log.Errorf(c, "[query_all_accounts.Handle] failed to get all accounts for user \"uid:%d\", because %s", uid, err.Error())
+		log.Errorf(c, "[query_all_accounts_tool_handler.Handle] failed to get all accounts for user \"uid:%d\", because %s", uid, err.Error())
 		return nil, nil, err
 	}
 

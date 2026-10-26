@@ -1,7 +1,7 @@
 package mcp
 
 import (
-	"encoding/json"
+	"encoding/json/v2"
 	"reflect"
 
 	"github.com/mayswind/ezbookkeeping/pkg/core"
@@ -45,7 +45,7 @@ func (h *mcpQueryAllTransactionTagsToolHandler) Handle(c *core.WebContext, callT
 	tags, err := services.GetTransactionTagService().GetAllTagsByUid(c, uid)
 
 	if err != nil {
-		log.Errorf(c, "[query_all_transaction_tags.Handle] failed to get tags for user \"uid:%d\", because %s", uid, err.Error())
+		log.Errorf(c, "[query_all_transaction_tags_tool_handler.Handle] failed to get tags for user \"uid:%d\", because %s", uid, err.Error())
 		return nil, nil, err
 	}
 

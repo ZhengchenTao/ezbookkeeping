@@ -17,8 +17,11 @@ import (
 	"github.com/mayswind/ezbookkeeping/pkg/validators"
 )
 
-const nationalBankOfRomaniaExchangeRateUrl = "https://www.bnr.ro/nbrfxrates.xml"
-const nationalBankOfRomaniaExchangeRateReferenceUrl = "https://bnro.ro/Exchange-rates-1224.aspx"
+// API Documentation:
+// https://www.bnr.ro/en/24006-exchange-rate-list-in-xml-format
+
+const nationalBankOfRomaniaExchangeRateUrl = "https://curs.bnr.ro/nbrfxrates.xml"
+const nationalBankOfRomaniaExchangeRateReferenceUrl = "https://www.bnr.ro/en/561-exchange-rates"
 const nationalBankOfRomaniaDataSource = "Banca Naţională a României"
 
 const nationalBankOfRomaniaUpdateDateFormat = "2006-01-02 15"

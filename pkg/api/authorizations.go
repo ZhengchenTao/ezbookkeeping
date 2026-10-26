@@ -1,10 +1,9 @@
 package api
 
 import (
-	"encoding/json"
+	"encoding/json/v2"
 	"errors"
-
-	"github.com/pquerna/otp/totp"
+	"time"
 
 	"github.com/mayswind/ezbookkeeping/pkg/avatars"
 	"github.com/mayswind/ezbookkeeping/pkg/core"
@@ -14,6 +13,7 @@ import (
 	"github.com/mayswind/ezbookkeeping/pkg/models"
 	"github.com/mayswind/ezbookkeeping/pkg/services"
 	"github.com/mayswind/ezbookkeeping/pkg/settings"
+	"github.com/mayswind/ezbookkeeping/pkg/utils"
 )
 
 // AuthorizationsApi represents authorization api
@@ -196,9 +196,22 @@ func (a *AuthorizationsApi) TwoFactorAuthorizeHandler(c *core.WebContext) (any, 
 		return nil, errs.Or(err, errs.ErrSystemError)
 	}
 
-	if !totp.Validate(credential.Passcode, twoFactorSetting.Secret) {
+	if !a.twoFactorAuthorizations.ValidateTwoFactorPasscode(c, credential.Passcode, twoFactorSetting.Secret) {
 		log.Warnf(c, "[authorizations.TwoFactorAuthorizeHandler] passcode is invalid for user \"uid:%d\"", uid)
 
+		err = a.CheckAndIncreaseFailureCount(c, uid)
+
+		if err != nil {
+			log.Warnf(c, "[authorizations.TwoFactorAuthorizeHandler] cannot auth for user \"uid:%d\", because %s", uid, err.Error())
+			return nil, errs.Or(err, errs.ErrFailureCountLimitReached)
+		}
+
+		return nil, errs.ErrPasscodeInvalid
+	}
+
+	passcodeUsed := a.update2FAPasscodeUsed(c, uid, credential.Passcode)
+
+	if passcodeUsed {
 		err = a.CheckAndIncreaseFailureCount(c, uid)
 
 		if err != nil {
@@ -309,7 +322,7 @@ func (a *AuthorizationsApi) TwoFactorAuthorizeByRecoveryCodeHandler(c *core.WebC
 		return nil, errs.ErrEmailIsNotVerified
 	}
 
-	err = a.twoFactorAuthorizations.GetAndUseUserTwoFactorRecoveryCode(c, uid, credential.RecoveryCode, user.Salt)
+	err = a.twoFactorAuthorizations.UseUserTwoFactorRecoveryCode(c, uid, credential.RecoveryCode, user.Salt)
 
 	if errs.IsCustomError(err) {
 		failureCheckErr := a.CheckAndIncreaseFailureCount(c, uid)
@@ -441,9 +454,22 @@ func (a *AuthorizationsApi) OAuth2CallbackAuthorizeHandler(c *core.WebContext) (
 					return nil, errs.ErrPasscodeEmpty
 				}
 
-				if !totp.Validate(credential.Passcode, twoFactorSetting.Secret) {
+				if !a.twoFactorAuthorizations.ValidateTwoFactorPasscode(c, credential.Passcode, twoFactorSetting.Secret) {
 					log.Warnf(c, "[authorizations.OAuth2CallbackAuthorizeHandler] passcode is invalid for user \"uid:%d\"", uid)
 
+					err = a.CheckAndIncreaseFailureCount(c, uid)
+
+					if err != nil {
+						log.Warnf(c, "[authorizations.OAuth2CallbackAuthorizeHandler] cannot auth for user \"uid:%d\", because %s", uid, err.Error())
+						return nil, errs.Or(err, errs.ErrFailureCountLimitReached)
+					}
+
+					return nil, errs.ErrPasscodeInvalid
+				}
+
+				passcodeUsed := a.update2FAPasscodeUsed(c, uid, credential.Passcode)
+
+				if passcodeUsed {
 					err = a.CheckAndIncreaseFailureCount(c, uid)
 
 					if err != nil {
@@ -499,7 +525,11 @@ func (a *AuthorizationsApi) OAuth2CallbackAuthorizeHandler(c *core.WebContext) (
 			return nil, errs.ErrInvalidToken
 		}
 
-		if claims.Uid != user.Uid {
+		if claims.Type != core.USER_TOKEN_TYPE_NORMAL {
+			log.Warnf(c, "[authorizations.OAuth2CallbackAuthorizeHandler] token type \"%d\" is not allowed to login via oauth 2.0", claims.Type)
+			token = ""
+			claims = nil
+		} else if claims.Uid != user.Uid {
 			log.Warnf(c, "[authorizations.OAuth2CallbackAuthorizeHandler] oauth 2.0 user \"uid:%d\" does not match current user \"uid:%d\"", user.Uid, claims.Uid)
 			token = ""
 			claims = nil
@@ -544,4 +574,15 @@ func (a *AuthorizationsApi) getAuthResponse(c *core.WebContext, token string, ne
 		ApplicationCloudSettings: applicationCloudSettings,
 		NotificationContent:      a.GetAfterLoginNotificationContent(user.Language, c.GetClientLocale()),
 	}
+}
+
+func (a *AuthorizationsApi) update2FAPasscodeUsed(c *core.WebContext, uid int64, passcode string) bool {
+	passcodeHash := utils.MD5EncodeToStringWithUidAndSalt([]byte(passcode), uid, a.CurrentConfig().SecretKey)
+	found, remark := a.GetOrSetSubmissionRemarkWithCustomExpiration(duplicatechecker.DUPLICATE_CHECKER_TYPE_2FA_PASSCODE, uid, passcodeHash, utils.Int64ToString(time.Now().Unix()), a.twoFactorAuthorizations.GetTwoFactorPasscodeExpirationDuration())
+
+	if found {
+		log.Warnf(c, "[authorizations.update2FAPasscodeUsed] passcode \"%s\" has been used for user \"uid:%d\" in unix timestamp %s", passcode, uid, remark)
+	}
+
+	return found
 }

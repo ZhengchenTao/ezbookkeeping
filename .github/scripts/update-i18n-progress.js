@@ -108,7 +108,13 @@ function isFrontendAlwaysTranslatedKey(key) {
         return true;
     } else if (key.startsWith('format.')) {
         if (key.startsWith('format.misc.')) {
-            if (key === 'format.misc.multiTextJoinSeparator') {
+            if (key === 'format.misc.multiIndexJoinSeparator') {
+                return true;
+            } else if (key === 'format.misc.startEndRange') {
+                return true;
+            } else if (key === 'format.misc.rangeSeparator') {
+                return true;
+            } else if (key === 'format.misc.multiTextJoinSeparator') {
                 return true;
             } else if (key === 'format.misc.eachMonthDayInMonthDays') {
                 return true;

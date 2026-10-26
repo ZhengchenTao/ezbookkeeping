@@ -1,0 +1,201 @@
+import type { GenericNameValue } from './base.ts';
+
+export enum OverviewWidgetType {
+    AssetSummary = 'asset-summary',
+    AccountBalanceList = 'account-balance-list',
+    AccountUnreconciledTransactions = 'account-unreconciled-transactions',
+    CurrentMonthOverview = 'current-month-overview',
+    CurrentMonthExpenseProgress = 'current-month-expense-progress',
+    PeriodIncomeExpense = 'period-income-expense',
+    PeriodNetIncomeAndSavingsRate = 'period-net-income-and-savings-rate',
+    IncomeExpenseTrend = 'income-expense-trend',
+    NetAssetsTrend = 'net-assets-trend',
+    ExpenseCategoryRanking = 'expense-category-ranking',
+    RecentTransactions = 'recent-transactions',
+    TransactionCalendar = 'transaction-calendar',
+    TransactionCalendarHeatmap = 'transaction-calendar-heatmap',
+    AddTransactionButton = 'add-transaction-button'
+}
+
+export enum OverviewWidgetDataRequirement {
+    Accounts = 'accounts',
+    TransactionCategories = 'transactionCategories',
+    TransactionOverview = 'transactionOverview',
+    AccountUnreconciledTransactionCounts = 'accountUnreconciledTransactionCounts',
+    TransactionOverviewLast2Months = 'transactionOverviewLast2Months',
+    TransactionOverviewLast12Months = 'transactionOverviewLast12Months',
+    TransactionCategoryStatistics = 'transactionCategoryStatistics',
+    AssetTrends = 'assetTrends',
+    RecentTransactions = 'recentTransactions',
+    CurrentMonthTransactions = 'currentMonthTransactions',
+    DailyTransactionAmounts = 'dailyTransactionAmounts'
+}
+
+export type OverviewWidgetSettingValue = string | number | boolean | (string | number)[];
+
+export interface OverviewWidgetCustomSelectSettingValue extends GenericNameValue<string | number> {
+    name: string;
+    value: string | number;
+    disabled?: (settings: Record<string, OverviewWidgetSettingValue> | undefined, context: OverviewWidgetSettingContext) => boolean;
+}
+
+interface OverviewWidgetSettingItemBase {
+    settingType: 'itemCountSelect' | 'monthSelect' | 'accountSelect' | 'categorySelect' | 'tagSelect' | 'customSelect' | 'switch' | 'color' | 'amount' | 'amountFilter' | 'textbox';
+    settingName: string;
+    displayName: string;
+    condition?: (settings?: Record<string, OverviewWidgetSettingValue>) => boolean;
+}
+
+export interface OverviewWidgetItemCountSelectSettingItem extends OverviewWidgetSettingItemBase {
+    settingType: 'itemCountSelect';
+    itemCountValues: number[];
+}
+
+export interface OverviewWidgetMonthSelectSettingItem extends OverviewWidgetSettingItemBase {
+    settingType: 'monthSelect';
+    monthValues: number[];
+}
+
+export interface OverviewWidgetAccountSelectSettingItem extends OverviewWidgetSettingItemBase {
+    settingType: 'accountSelect';
+    disableHiddenAccounts?: boolean;
+}
+
+export interface OverviewWidgetCategorySelectSettingItem extends OverviewWidgetSettingItemBase {
+    settingType: 'categorySelect';
+}
+
+export interface OverviewWidgetTagSelectSettingItem extends OverviewWidgetSettingItemBase {
+    settingType: 'tagSelect';
+}
+
+export interface OverviewWidgetCustomSelectSettingItem extends OverviewWidgetSettingItemBase {
+    settingType: 'customSelect';
+    selectValues: OverviewWidgetCustomSelectSettingValue[];
+    multiple?: boolean;
+    minSelections?: number;
+    allValue?: string | number;
+}
+
+export interface OverviewWidgetSwitchSettingItem extends OverviewWidgetSettingItemBase {
+    settingType: 'switch';
+}
+
+export interface OverviewWidgetColorSettingItem extends OverviewWidgetSettingItemBase {
+    settingType: 'color';
+}
+
+export interface OverviewWidgetAmountSettingItem extends OverviewWidgetSettingItemBase {
+    settingType: 'amount';
+}
+
+export interface OverviewWidgetAmountFilterSettingItem extends OverviewWidgetSettingItemBase {
+    settingType: 'amountFilter';
+}
+
+export interface OverviewWidgetTextboxSettingItem extends OverviewWidgetSettingItemBase {
+    settingType: 'textbox';
+    placeholder?: string;
+}
+
+export type OverviewWidgetSettingItem = OverviewWidgetItemCountSelectSettingItem |
+    OverviewWidgetMonthSelectSettingItem |
+    OverviewWidgetAccountSelectSettingItem |
+    OverviewWidgetCategorySelectSettingItem |
+    OverviewWidgetTagSelectSettingItem |
+    OverviewWidgetCustomSelectSettingItem |
+    OverviewWidgetSwitchSettingItem |
+    OverviewWidgetColorSettingItem |
+    OverviewWidgetAmountSettingItem |
+    OverviewWidgetAmountFilterSettingItem |
+    OverviewWidgetTextboxSettingItem;
+
+export interface OverviewWidgetSettingContext {
+    aiTextRecognitionEnabled: boolean;
+    aiImageRecognitionEnabled: boolean;
+}
+
+export interface OverviewRecentTransactionsQuery {
+    count: number;
+    accountIds: string[];
+    categoryIds: string[];
+    tagFilter: string;
+    amountFilter: string;
+    keyword: string;
+}
+
+export interface OverviewWidgetDefinitionBase {
+    type: OverviewWidgetType;
+    name: string;
+    supportsSettings: OverviewWidgetSettingItem[];
+    defaultSettings: Record<string, OverviewWidgetSettingValue>;
+    dataRequirements: OverviewWidgetDataRequirement[];
+}
+
+export interface OverviewLayoutBase {
+    widgets: OverviewWidgetLayoutBase[];
+}
+
+export interface OverviewWidgetLayoutBase {
+    id: string;
+    type: OverviewWidgetType;
+    settings: Record<string, OverviewWidgetSettingValue>;
+}
+
+export interface DesktopOverviewWidgetDefinition extends OverviewWidgetDefinitionBase{
+    type: OverviewWidgetType;
+    name: string;
+    supportsSettings: OverviewWidgetSettingItem[];
+    defaultWidth: number;
+    defaultHeight: number;
+    minWidth: number;
+    minHeight: number;
+    maxWidth?: number;
+    maxHeight?: number;
+    defaultSettings: Record<string, OverviewWidgetSettingValue>;
+    dataRequirements: OverviewWidgetDataRequirement[];
+}
+
+export interface DesktopOverviewLayout extends OverviewLayoutBase {
+    widgets: DesktopOverviewWidgetLayout[];
+}
+
+export interface DesktopOverviewWidgetLayout extends OverviewWidgetLayoutBase {
+    id: string;
+    type: OverviewWidgetType;
+    x: number;
+    y: number;
+    w: number;
+    h: number;
+    settings: Record<string, OverviewWidgetSettingValue>;
+}
+
+export interface MobileOverviewWidgetDefinition extends OverviewWidgetDefinitionBase {
+    type: OverviewWidgetType;
+    name: string;
+    supportsSettings: OverviewWidgetSettingItem[];
+    defaultSettings: Record<string, OverviewWidgetSettingValue>;
+    dataRequirements: OverviewWidgetDataRequirement[];
+}
+
+export interface MobileOverviewLayout extends OverviewLayoutBase {
+    widgets: MobileOverviewWidgetLayout[];
+}
+
+export interface MobileOverviewWidgetLayout extends OverviewWidgetLayoutBase {
+    id: string;
+    type: OverviewWidgetType;
+    settings: Record<string, OverviewWidgetSettingValue>;
+}
+
+export enum MobileOverviewWidgetNavigationType {
+    Url = 'url',
+    AIClipboardTextRecognition = 'ai-clipboard-text-recognition',
+    AIImageRecognition = 'ai-image-recognition'
+}
+
+export enum AddTransactionButtonDefaultAction {
+    AddTransaction = 'add-transaction',
+    AIClipboardTextRecognition = 'ai-clipboard-text-recognition',
+    AIImageRecognition = 'ai-image-recognition'
+}

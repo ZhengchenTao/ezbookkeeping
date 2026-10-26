@@ -6,6 +6,7 @@
             <f7-nav-right :class="{ 'disabled': loading }">
                 <f7-link icon-f7="checkmark_alt"
                          :class="{ 'disabled': !fromAccount || !toAccountId || fromAccount?.id === toAccountId || !toAccountName || !isToAccountNameValid || moving }"
+                         :aria-label="tt('Confirm')"
                          @click="confirm"></f7-link>
             </f7-nav-right>
         </f7-navbar>
@@ -31,12 +32,12 @@
             >
                 <two-column-list-item-selection-sheet primary-key-field="id" primary-value-field="category"
                                                       primary-title-field="name" primary-footer-field="displayBalance"
-                                                      primary-icon-field="icon" primary-icon-type="account"
+                                                      primary-icon-field="icon" primary-icon-type-field="iconType" primary-icon-type="account"
                                                       primary-sub-items-field="accounts"
                                                       :primary-title-i18n="true"
                                                       secondary-key-field="id" secondary-value-field="id"
                                                       secondary-title-field="name" secondary-footer-field="displayBalance"
-                                                      secondary-icon-field="icon" secondary-icon-type="account" secondary-color-field="color"
+                                                      secondary-icon-field="icon" secondary-icon-type-field="iconType" secondary-icon-type="account" secondary-color-field="color"
                                                       :enable-filter="true" :filter-placeholder="tt('Find account')" :filter-no-items-text="tt('No available account')"
                                                       :items="allVisibleCategorizedAccounts"
                                                       v-model:show="showAccountSheet"
@@ -46,6 +47,7 @@
 
             <f7-list-input
                 type="text"
+                autocomplete="off"
                 clear-button
                 :label="tt('Confirm Target Account Name')"
                 :placeholder="tt('Please re-enter the target account name to confirm')"

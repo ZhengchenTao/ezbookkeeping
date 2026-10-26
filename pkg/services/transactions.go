@@ -3,6 +3,7 @@ package services
 import (
 	"fmt"
 	"math"
+	"math/big"
 	"strings"
 	"time"
 
@@ -103,7 +104,7 @@ func (s *TransactionService) GetAllSpecifiedTransactions(c core.Context, uid int
 }
 
 // GetAllTransactionsInOneAccountWithAccountBalanceByMaxTime returns account statement within time range
-func (s *TransactionService) GetAllTransactionsInOneAccountWithAccountBalanceByMaxTime(c core.Context, uid int64, pageCount int32, maxTransactionTime int64, minTransactionTime int64, accountId int64, accountCategory models.AccountCategory) ([]*models.TransactionWithAccountBalance, int64, int64, int64, int64, error) {
+func (s *TransactionService) GetAllTransactionsInOneAccountWithAccountBalanceByMaxTime(c core.Context, uid int64, pageCount int32, maxTransactionTime int64, minTransactionTime int64, accountId int64, accountCategory models.AccountCategory) ([]*models.TransactionWithAccountBalance, *big.Int, *big.Int, *big.Int, *big.Int, error) {
 	if maxTransactionTime <= 0 {
 		maxTransactionTime = utils.GetMaxTransactionTimeFromUnixTime(time.Now().Unix())
 	}
@@ -114,7 +115,7 @@ func (s *TransactionService) GetAllTransactionsInOneAccountWithAccountBalanceByM
 		transactions, err := s.GetTransactionsByMaxTime(c, uid, maxTransactionTime, 0, 0, nil, []int64{accountId}, nil, false, "", "", core.MATCH_MODE_DEFAULT, false, 1, pageCount, false, true)
 
 		if err != nil {
-			return nil, 0, 0, 0, 0, err
+			return nil, nil, nil, nil, nil, err
 		}
 
 		allTransactions = append(allTransactions, transactions...)
@@ -130,66 +131,66 @@ func (s *TransactionService) GetAllTransactionsInOneAccountWithAccountBalanceByM
 	allTransactionsAndAccountBalance := make([]*models.TransactionWithAccountBalance, 0, len(allTransactions))
 
 	if len(allTransactions) < 1 {
-		return allTransactionsAndAccountBalance, 0, 0, 0, 0, nil
+		return allTransactionsAndAccountBalance, big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), nil
 	}
 
-	totalInflows := int64(0)
-	totalOutflows := int64(0)
-	openingBalance := int64(0)
-	accumulatedBalance := int64(0)
-	lastAccumulatedBalance := int64(0)
+	totalInflows := big.NewInt(0)
+	totalOutflows := big.NewInt(0)
+	openingBalance := big.NewInt(0)
+	accumulatedBalance := big.NewInt(0)
+	lastAccumulatedBalance := big.NewInt(0)
 
 	for i := len(allTransactions) - 1; i >= 0; i-- {
 		transaction := allTransactions[i]
 
 		if transaction.Type == models.TRANSACTION_DB_TYPE_MODIFY_BALANCE {
-			accumulatedBalance = accumulatedBalance + transaction.RelatedAccountAmount
+			accumulatedBalance.Add(accumulatedBalance, big.NewInt(transaction.RelatedAccountAmount))
 		} else if transaction.Type == models.TRANSACTION_DB_TYPE_INCOME {
-			accumulatedBalance = accumulatedBalance + transaction.Amount
+			accumulatedBalance.Add(accumulatedBalance, big.NewInt(transaction.Amount))
 		} else if transaction.Type == models.TRANSACTION_DB_TYPE_EXPENSE {
-			accumulatedBalance = accumulatedBalance - transaction.Amount
+			accumulatedBalance.Sub(accumulatedBalance, big.NewInt(transaction.Amount))
 		} else if transaction.Type == models.TRANSACTION_DB_TYPE_TRANSFER_OUT {
-			accumulatedBalance = accumulatedBalance - transaction.Amount
+			accumulatedBalance.Sub(accumulatedBalance, big.NewInt(transaction.Amount))
 		} else if transaction.Type == models.TRANSACTION_DB_TYPE_TRANSFER_IN {
-			accumulatedBalance = accumulatedBalance + transaction.Amount
+			accumulatedBalance.Add(accumulatedBalance, big.NewInt(transaction.Amount))
 		} else {
 			log.Errorf(c, "[transactions.GetAllTransactionsInOneAccountWithAccountBalanceByMaxTime] trasaction type (%d) is invalid (id:%d)", transaction.TransactionId, transaction.Type)
-			return nil, 0, 0, 0, 0, errs.ErrTransactionTypeInvalid
+			return nil, nil, nil, nil, nil, errs.ErrTransactionTypeInvalid
 		}
 
 		if transaction.TransactionTime < minTransactionTime {
-			openingBalance = accumulatedBalance
-			lastAccumulatedBalance = accumulatedBalance
+			openingBalance.Set(accumulatedBalance)
+			lastAccumulatedBalance.Set(accumulatedBalance)
 			continue
 		}
 
 		if transaction.Type == models.TRANSACTION_DB_TYPE_MODIFY_BALANCE {
 			if accountCategory.IsAsset() {
-				totalInflows = totalInflows + transaction.RelatedAccountAmount
+				totalInflows.Add(totalInflows, big.NewInt(transaction.RelatedAccountAmount))
 			} else if accountCategory.IsLiability() {
-				totalOutflows = totalOutflows - transaction.RelatedAccountAmount
+				totalOutflows.Sub(totalOutflows, big.NewInt(transaction.RelatedAccountAmount))
 			}
 		} else if transaction.Type == models.TRANSACTION_DB_TYPE_INCOME {
-			totalInflows = totalInflows + transaction.Amount
+			totalInflows.Add(totalInflows, big.NewInt(transaction.Amount))
 		} else if transaction.Type == models.TRANSACTION_DB_TYPE_EXPENSE {
-			totalOutflows = totalOutflows + transaction.Amount
+			totalOutflows.Add(totalOutflows, big.NewInt(transaction.Amount))
 		} else if transaction.Type == models.TRANSACTION_DB_TYPE_TRANSFER_OUT {
-			totalOutflows = totalOutflows + transaction.Amount
+			totalOutflows.Add(totalOutflows, big.NewInt(transaction.Amount))
 		} else if transaction.Type == models.TRANSACTION_DB_TYPE_TRANSFER_IN {
-			totalInflows = totalInflows + transaction.Amount
+			totalInflows.Add(totalInflows, big.NewInt(transaction.Amount))
 		}
 
 		transactionsAndAccountBalance := &models.TransactionWithAccountBalance{
 			Transaction:           transaction,
-			AccountOpeningBalance: lastAccumulatedBalance,
-			AccountClosingBalance: accumulatedBalance,
+			AccountOpeningBalance: new(big.Int).Set(lastAccumulatedBalance),
+			AccountClosingBalance: new(big.Int).Set(accumulatedBalance),
 		}
 
-		lastAccumulatedBalance = accumulatedBalance
+		lastAccumulatedBalance.Set(accumulatedBalance)
 		allTransactionsAndAccountBalance = append(allTransactionsAndAccountBalance, transactionsAndAccountBalance)
 	}
 
-	return allTransactionsAndAccountBalance, totalInflows, totalOutflows, openingBalance, accumulatedBalance, nil
+	return allTransactionsAndAccountBalance, totalInflows, totalOutflows, openingBalance, new(big.Int).Set(accumulatedBalance), nil
 }
 
 // GetAllAccountsDailyOpeningAndClosingBalance returns daily opening and closing balance of all accounts within time range
@@ -224,24 +225,29 @@ func (s *TransactionService) GetAllAccountsDailyOpeningAndClosingBalance(c core.
 		return accountDailyBalances, nil
 	}
 
-	accumulatedBalances := make(map[int64]int64)
-	accumulatedBalancesBeforeStartTime := make(map[int64]int64)
+	accumulatedBalances := make(map[int64]*big.Int)
+	accumulatedBalancesBeforeStartTime := make(map[int64]*big.Int)
 
 	for i := len(allTransactions) - 1; i >= 0; i-- {
 		transaction := allTransactions[i]
 		accumulatedBalance := accumulatedBalances[transaction.AccountId]
-		lastAccumulatedBalance := accumulatedBalances[transaction.AccountId]
+
+		if accumulatedBalance == nil {
+			accumulatedBalance = big.NewInt(0)
+		}
+
+		lastAccumulatedBalance := new(big.Int).Set(accumulatedBalance)
 
 		if transaction.Type == models.TRANSACTION_DB_TYPE_MODIFY_BALANCE {
-			accumulatedBalance = accumulatedBalance + transaction.RelatedAccountAmount
+			accumulatedBalance.Add(accumulatedBalance, big.NewInt(transaction.RelatedAccountAmount))
 		} else if transaction.Type == models.TRANSACTION_DB_TYPE_INCOME {
-			accumulatedBalance = accumulatedBalance + transaction.Amount
+			accumulatedBalance.Add(accumulatedBalance, big.NewInt(transaction.Amount))
 		} else if transaction.Type == models.TRANSACTION_DB_TYPE_EXPENSE {
-			accumulatedBalance = accumulatedBalance - transaction.Amount
+			accumulatedBalance.Sub(accumulatedBalance, big.NewInt(transaction.Amount))
 		} else if transaction.Type == models.TRANSACTION_DB_TYPE_TRANSFER_OUT {
-			accumulatedBalance = accumulatedBalance - transaction.Amount
+			accumulatedBalance.Sub(accumulatedBalance, big.NewInt(transaction.Amount))
 		} else if transaction.Type == models.TRANSACTION_DB_TYPE_TRANSFER_IN {
-			accumulatedBalance = accumulatedBalance + transaction.Amount
+			accumulatedBalance.Add(accumulatedBalance, big.NewInt(transaction.Amount))
 		} else {
 			log.Errorf(c, "[transactions.GetAllTransactionsWithAccountBalanceByMaxTime] trasaction type (%d) is invalid (id:%d)", transaction.TransactionId, transaction.Type)
 			return nil, errs.ErrTransactionTypeInvalid
@@ -250,7 +256,7 @@ func (s *TransactionService) GetAllAccountsDailyOpeningAndClosingBalance(c core.
 		accumulatedBalances[transaction.AccountId] = accumulatedBalance
 
 		if transaction.TransactionTime < minTransactionTime {
-			accumulatedBalancesBeforeStartTime[transaction.AccountId] = accumulatedBalance
+			accumulatedBalancesBeforeStartTime[transaction.AccountId] = new(big.Int).Set(accumulatedBalance)
 			continue
 		}
 
@@ -259,14 +265,14 @@ func (s *TransactionService) GetAllAccountsDailyOpeningAndClosingBalance(c core.
 		dailyAccountBalance, exists := accountDailyLastBalances[groupKey]
 
 		if exists {
-			dailyAccountBalance.AccountClosingBalance = accumulatedBalance
+			dailyAccountBalance.AccountClosingBalance.Set(accumulatedBalance)
 		} else {
 			dailyAccountBalance = &models.TransactionWithAccountBalance{
 				Transaction: &models.Transaction{
 					AccountId: transaction.AccountId,
 				},
 				AccountOpeningBalance: lastAccumulatedBalance,
-				AccountClosingBalance: accumulatedBalance,
+				AccountClosingBalance: new(big.Int).Set(accumulatedBalance),
 			}
 			accountDailyLastBalances[groupKey] = dailyAccountBalance
 		}
@@ -282,7 +288,7 @@ func (s *TransactionService) GetAllAccountsDailyOpeningAndClosingBalance(c core.
 
 	// fill in the opening balance for accounts that do not have transactions on the first day
 	for accountId, accumulatedBalance := range accumulatedBalancesBeforeStartTime {
-		if accumulatedBalance == 0 {
+		if accumulatedBalance.Sign() == 0 {
 			continue
 		}
 
@@ -296,8 +302,8 @@ func (s *TransactionService) GetAllAccountsDailyOpeningAndClosingBalance(c core.
 			Transaction: &models.Transaction{
 				AccountId: accountId,
 			},
-			AccountOpeningBalance: accumulatedBalance,
-			AccountClosingBalance: accumulatedBalance,
+			AccountOpeningBalance: new(big.Int).Set(accumulatedBalance),
+			AccountClosingBalance: new(big.Int).Set(accumulatedBalance),
 		}
 	}
 
@@ -810,126 +816,14 @@ func (s *TransactionService) CreateScheduledTransactions(c core.Context, current
 
 	for i := 0; i < len(allTemplates); i++ {
 		template := allTemplates[i]
+		transaction, tagIds := s.createTransactionByScheduledTransactionTemplate(c, template, startTimeInUTC, todayFirstUnixTimeInUTC)
 
-		if template.ScheduledFrequencyType == models.TRANSACTION_SCHEDULE_FREQUENCY_TYPE_DISABLED {
+		if transaction == nil {
 			skipCount++
-			log.Warnf(c, "[transactions.CreateScheduledTransactions] transaction template \"id:%d\" disabled scheduled transaction frequency", template.TemplateId)
 			continue
 		}
 
-		if (template.ScheduledFrequencyType != models.TRANSACTION_SCHEDULE_FREQUENCY_TYPE_WEEKLY &&
-			template.ScheduledFrequencyType != models.TRANSACTION_SCHEDULE_FREQUENCY_TYPE_MONTHLY &&
-			template.ScheduledFrequencyType != models.TRANSACTION_SCHEDULE_FREQUENCY_TYPE_DAILY &&
-			template.ScheduledFrequencyType != models.TRANSACTION_SCHEDULE_FREQUENCY_TYPE_YEARLY &&
-			template.ScheduledFrequencyType != models.TRANSACTION_SCHEDULE_FREQUENCY_TYPE_EVERY_N_DAYS) ||
-			template.ScheduledFrequency == "" {
-			skipCount++
-			log.Warnf(c, "[transactions.CreateScheduledTransactions] transaction template \"id:%d\" has invalid scheduled transaction frequency", template.TemplateId)
-			continue
-		}
-
-		frequencyValues, err := utils.StringArrayToInt64Array(strings.Split(template.ScheduledFrequency, ","))
-
-		if err != nil {
-			skipCount++
-			log.Warnf(c, "[transactions.CreateScheduledTransactions] transaction template \"id:%d\" has invalid scheduled transaction frequency, because %s", template.TemplateId, err.Error())
-			continue
-		}
-
-		if template.ScheduledFrequencyType == models.TRANSACTION_SCHEDULE_FREQUENCY_TYPE_MONTHLY {
-			maxDayInMonth := utils.GetMaxDayOfMonth(currentTime.Year(), currentTime.Month())
-
-			for i := 0; i < len(frequencyValues); i++ {
-				if frequencyValues[i] < 0 {
-					frequencyValues[i] = int64(maxDayInMonth) + frequencyValues[i] + 1
-				}
-			}
-		}
-
-		frequencyValueSet := utils.ToSet(frequencyValues)
-		templateTimeZone := time.FixedZone("Template Timezone", int(template.ScheduledTimezoneUtcOffset)*60)
-		transactionUnixTime := todayFirstUnixTimeInUTC + int64(template.ScheduledAt)*60
-		transactionTime := time.Unix(transactionUnixTime, 0).In(templateTimeZone)
-
-		if template.ScheduledFrequencyType == models.TRANSACTION_SCHEDULE_FREQUENCY_TYPE_WEEKLY && !frequencyValueSet[int64(transactionTime.Weekday())] {
-			skipCount++
-			log.Infof(c, "[transactions.CreateScheduledTransactions] transaction template \"id:%d\" does not need to create transaction, today is %s", template.TemplateId, startTimeInUTC.Weekday())
-			continue
-		} else if template.ScheduledFrequencyType == models.TRANSACTION_SCHEDULE_FREQUENCY_TYPE_MONTHLY && !frequencyValueSet[int64(transactionTime.Day())] {
-			skipCount++
-			log.Infof(c, "[transactions.CreateScheduledTransactions] transaction template \"id:%d\" does not need to create transaction, today is %d of month", template.TemplateId, startTimeInUTC.Day())
-			continue
-		} else if template.ScheduledFrequencyType == models.TRANSACTION_SCHEDULE_FREQUENCY_TYPE_YEARLY && !frequencyValueSet[int64(transactionTime.Month())*100+int64(transactionTime.Day())] {
-			skipCount++
-			log.Infof(c, "[transactions.CreateScheduledTransactions] transaction template \"id:%d\" does not need to create transaction, today is %d-%d of year", template.TemplateId, startTimeInUTC.Month(), startTimeInUTC.Day())
-			continue
-		} else if template.ScheduledFrequencyType == models.TRANSACTION_SCHEDULE_FREQUENCY_TYPE_EVERY_N_DAYS {
-			if template.ScheduledStartTime == nil || len(frequencyValues) != 1 || frequencyValues[0] <= 0 {
-				skipCount++
-				log.Warnf(c, "[transactions.CreateScheduledTransactions] transaction template \"id:%d\" has invalid scheduled transaction frequency for every N days", template.TemplateId)
-				continue
-			}
-
-			n := frequencyValues[0]
-			startDate := time.Unix(*template.ScheduledStartTime, 0).In(templateTimeZone)
-			startDateOnly := time.Date(startDate.Year(), startDate.Month(), startDate.Day(), 0, 0, 0, 0, templateTimeZone)
-			transactionDateOnly := time.Date(transactionTime.Year(), transactionTime.Month(), transactionTime.Day(), 0, 0, 0, 0, templateTimeZone)
-			daysDiff := int(transactionDateOnly.Sub(startDateOnly).Hours() / 24)
-
-			if daysDiff < 0 || int64(daysDiff)%n != 0 {
-				skipCount++
-				log.Infof(c, "[transactions.CreateScheduledTransactions] transaction template \"id:%d\" does not need to create transaction, days diff is %d with interval %d", template.TemplateId, daysDiff, n)
-				continue
-			}
-		}
-
-		if template.ScheduledStartTime != nil && *template.ScheduledStartTime > transactionUnixTime {
-			skipCount++
-			log.Infof(c, "[transactions.CreateScheduledTransactions] transaction template \"id:%d\" does not need to create transaction, now is earlier than the start time %d", template.TemplateId, *template.ScheduledStartTime)
-			continue
-		}
-
-		if template.ScheduledEndTime != nil && *template.ScheduledEndTime < transactionUnixTime {
-			skipCount++
-			log.Infof(c, "[transactions.CreateScheduledTransactions] transaction template \"id:%d\" does not need to create transaction, now is later than the end time %d", template.TemplateId, *template.ScheduledEndTime)
-			continue
-		}
-
-		var transactionDbType models.TransactionDbType
-
-		if template.Type == models.TRANSACTION_TYPE_EXPENSE {
-			transactionDbType = models.TRANSACTION_DB_TYPE_EXPENSE
-		} else if template.Type == models.TRANSACTION_TYPE_INCOME {
-			transactionDbType = models.TRANSACTION_DB_TYPE_INCOME
-		} else if template.Type == models.TRANSACTION_TYPE_TRANSFER {
-			transactionDbType = models.TRANSACTION_DB_TYPE_TRANSFER_OUT
-		} else {
-			skipCount++
-			log.Warnf(c, "[transactions.CreateScheduledTransactions] transaction template \"id:%d\" has invalid transaction type", template.TemplateId)
-			continue
-		}
-
-		transaction := &models.Transaction{
-			Uid:               template.Uid,
-			Type:              transactionDbType,
-			CategoryId:        template.CategoryId,
-			TransactionTime:   utils.GetMinTransactionTimeFromUnixTime(transactionTime.Unix()),
-			TimezoneUtcOffset: template.ScheduledTimezoneUtcOffset,
-			AccountId:         template.AccountId,
-			Amount:            template.Amount,
-			HideAmount:        template.HideAmount,
-			Comment:           template.Comment,
-			CreatedIp:         c.ClientIP(),
-			ScheduledCreated:  true,
-		}
-
-		if template.Type == models.TRANSACTION_TYPE_TRANSFER {
-			transaction.RelatedAccountId = template.RelatedAccountId
-			transaction.RelatedAccountAmount = template.RelatedAccountAmount
-		}
-
-		tagIds := template.GetTagIds()
-		err = s.CreateTransaction(c, transaction, tagIds, nil)
+		err := s.CreateTransaction(c, transaction, tagIds, nil)
 
 		if err == nil {
 			successCount++
@@ -1105,7 +999,7 @@ func (s *TransactionService) ModifyTransaction(c core.Context, transaction *mode
 			minTransactionTime := utils.GetMinTransactionTimeFromUnixTime(utils.GetUnixTimeFromTransactionTime(transaction.TransactionTime))
 			maxTransactionTime := utils.GetMaxTransactionTimeFromUnixTime(utils.GetUnixTimeFromTransactionTime(transaction.TransactionTime))
 
-			has, err = sess.Where("uid=? AND deleted=? AND transaction_time>=? AND transaction_time<=?", transaction.Uid, false, minTransactionTime, maxTransactionTime).OrderBy("transaction_time desc").Limit(1).Get(sameSecondLatestTransaction)
+			has, err = sess.Where("uid=? AND transaction_time>=? AND transaction_time<=?", transaction.Uid, minTransactionTime, maxTransactionTime).OrderBy("transaction_time desc").Limit(1).Get(sameSecondLatestTransaction)
 
 			if err != nil {
 				log.Errorf(c, "[transactions.ModifyTransaction] failed to get trasaction time, because %s", err.Error())
@@ -1356,7 +1250,7 @@ func (s *TransactionService) ModifyTransaction(c core.Context, transaction *mode
 
 			if transaction.Amount != oldTransaction.Amount && transaction.RelatedAccountAmount != oldTransaction.RelatedAccountAmount {
 				sourceAccount.UpdatedUnixTime = time.Now().Unix()
-				updatedRows, err := sess.ID(sourceAccount.AccountId).SetExpr("balance", fmt.Sprintf("balance-(%d)+(%d)", oldTransaction.RelatedAccountAmount, transaction.RelatedAccountAmount)).Cols("updated_unix_time").Where("uid=? AND deleted=?", sourceAccount.Uid, false).Update(sourceAccount)
+				updatedRows, err := s.updateAccountBalance(sess, sourceAccount, transaction.RelatedAccountAmount-oldTransaction.RelatedAccountAmount)
 
 				if err != nil {
 					log.Errorf(c, "[transactions.ModifyTransaction] failed to update account balance, because %s", err.Error())
@@ -1383,7 +1277,7 @@ func (s *TransactionService) ModifyTransaction(c core.Context, transaction *mode
 
 			if oldAccountNewAmount != oldAccountOldAmount {
 				oldSourceAccount.UpdatedUnixTime = time.Now().Unix()
-				updatedRows, err := sess.ID(oldSourceAccount.AccountId).SetExpr("balance", fmt.Sprintf("balance-(%d)+(%d)", oldAccountOldAmount, oldAccountNewAmount)).Cols("updated_unix_time").Where("uid=? AND deleted=?", oldSourceAccount.Uid, false).Update(oldSourceAccount)
+				updatedRows, err := s.updateAccountBalance(sess, oldSourceAccount, oldAccountNewAmount-oldAccountOldAmount)
 
 				if err != nil {
 					log.Errorf(c, "[transactions.ModifyTransaction] failed to update account balance, because %s", err.Error())
@@ -1396,7 +1290,7 @@ func (s *TransactionService) ModifyTransaction(c core.Context, transaction *mode
 
 			if newAccountNewAmount != 0 {
 				sourceAccount.UpdatedUnixTime = time.Now().Unix()
-				updatedRows, err := sess.ID(sourceAccount.AccountId).SetExpr("balance", fmt.Sprintf("balance+(%d)", newAccountNewAmount)).Cols("updated_unix_time").Where("uid=? AND deleted=?", sourceAccount.Uid, false).Update(sourceAccount)
+				updatedRows, err := s.updateAccountBalance(sess, sourceAccount, newAccountNewAmount)
 
 				if err != nil {
 					log.Errorf(c, "[transactions.ModifyTransaction] failed to update account balance, because %s", err.Error())
@@ -1409,7 +1303,7 @@ func (s *TransactionService) ModifyTransaction(c core.Context, transaction *mode
 
 			if oldTransaction.Type == models.TRANSACTION_DB_TYPE_TRANSFER_OUT {
 				oldDestinationAccount.UpdatedUnixTime = time.Now().Unix()
-				updatedRows, err := sess.ID(oldDestinationAccount.AccountId).SetExpr("balance", fmt.Sprintf("balance-(%d)", oldTransaction.RelatedAccountAmount)).Cols("updated_unix_time").Where("uid=? AND deleted=?", oldDestinationAccount.Uid, false).Update(oldDestinationAccount)
+				updatedRows, err := s.updateAccountBalance(sess, oldDestinationAccount, -oldTransaction.RelatedAccountAmount)
 
 				if err != nil {
 					log.Errorf(c, "[transactions.ModifyTransaction] failed to update related account balance, because %s", err.Error())
@@ -1436,7 +1330,7 @@ func (s *TransactionService) ModifyTransaction(c core.Context, transaction *mode
 
 			if oldAccountNewAmount != oldAccountOldAmount {
 				oldSourceAccount.UpdatedUnixTime = time.Now().Unix()
-				updatedRows, err := sess.ID(oldSourceAccount.AccountId).SetExpr("balance", fmt.Sprintf("balance+(%d)-(%d)", oldAccountOldAmount, oldAccountNewAmount)).Cols("updated_unix_time").Where("uid=? AND deleted=?", oldSourceAccount.Uid, false).Update(oldSourceAccount)
+				updatedRows, err := s.updateAccountBalance(sess, oldSourceAccount, oldAccountOldAmount-oldAccountNewAmount)
 
 				if err != nil {
 					log.Errorf(c, "[transactions.ModifyTransaction] failed to update account balance, because %s", err.Error())
@@ -1449,7 +1343,7 @@ func (s *TransactionService) ModifyTransaction(c core.Context, transaction *mode
 
 			if newAccountNewAmount != 0 {
 				sourceAccount.UpdatedUnixTime = time.Now().Unix()
-				updatedRows, err := sess.ID(sourceAccount.AccountId).SetExpr("balance", fmt.Sprintf("balance-(%d)", newAccountNewAmount)).Cols("updated_unix_time").Where("uid=? AND deleted=?", sourceAccount.Uid, false).Update(sourceAccount)
+				updatedRows, err := s.updateAccountBalance(sess, sourceAccount, -newAccountNewAmount)
 
 				if err != nil {
 					log.Errorf(c, "[transactions.ModifyTransaction] failed to update account balance, because %s", err.Error())
@@ -1462,7 +1356,7 @@ func (s *TransactionService) ModifyTransaction(c core.Context, transaction *mode
 
 			if oldTransaction.Type == models.TRANSACTION_DB_TYPE_TRANSFER_OUT {
 				oldDestinationAccount.UpdatedUnixTime = time.Now().Unix()
-				updatedRows, err := sess.ID(oldDestinationAccount.AccountId).SetExpr("balance", fmt.Sprintf("balance-(%d)", oldTransaction.RelatedAccountAmount)).Cols("updated_unix_time").Where("uid=? AND deleted=?", oldDestinationAccount.Uid, false).Update(oldDestinationAccount)
+				updatedRows, err := s.updateAccountBalance(sess, oldDestinationAccount, -oldTransaction.RelatedAccountAmount)
 
 				if err != nil {
 					log.Errorf(c, "[transactions.ModifyTransaction] failed to update related account balance, because %s", err.Error())
@@ -1489,7 +1383,7 @@ func (s *TransactionService) ModifyTransaction(c core.Context, transaction *mode
 
 			if oldSourceAccountNewAmount != oldSourceAccountOldAmount {
 				oldSourceAccount.UpdatedUnixTime = time.Now().Unix()
-				updatedRows, err := sess.ID(oldSourceAccount.AccountId).SetExpr("balance", fmt.Sprintf("balance+(%d)-(%d)", oldSourceAccountOldAmount, oldSourceAccountNewAmount)).Cols("updated_unix_time").Where("uid=? AND deleted=?", oldSourceAccount.Uid, false).Update(oldSourceAccount)
+				updatedRows, err := s.updateAccountBalance(sess, oldSourceAccount, oldSourceAccountOldAmount-oldSourceAccountNewAmount)
 
 				if err != nil {
 					log.Errorf(c, "[transactions.ModifyTransaction] failed to update account balance, because %s", err.Error())
@@ -1502,7 +1396,7 @@ func (s *TransactionService) ModifyTransaction(c core.Context, transaction *mode
 
 			if newSourceAccountNewAmount != 0 {
 				sourceAccount.UpdatedUnixTime = time.Now().Unix()
-				updatedRows, err := sess.ID(sourceAccount.AccountId).SetExpr("balance", fmt.Sprintf("balance-(%d)", newSourceAccountNewAmount)).Cols("updated_unix_time").Where("uid=? AND deleted=?", sourceAccount.Uid, false).Update(sourceAccount)
+				updatedRows, err := s.updateAccountBalance(sess, sourceAccount, -newSourceAccountNewAmount)
 
 				if err != nil {
 					log.Errorf(c, "[transactions.ModifyTransaction] failed to update account balance, because %s", err.Error())
@@ -1525,7 +1419,7 @@ func (s *TransactionService) ModifyTransaction(c core.Context, transaction *mode
 			if oldTransaction.Type == models.TRANSACTION_DB_TYPE_TRANSFER_OUT {
 				if oldDestinationAccountNewAmount != oldTransaction.RelatedAccountAmount {
 					oldDestinationAccount.UpdatedUnixTime = time.Now().Unix()
-					updatedRows, err := sess.ID(oldDestinationAccount.AccountId).SetExpr("balance", fmt.Sprintf("balance-(%d)+(%d)", oldTransaction.RelatedAccountAmount, oldDestinationAccountNewAmount)).Cols("updated_unix_time").Where("uid=? AND deleted=?", oldDestinationAccount.Uid, false).Update(oldDestinationAccount)
+					updatedRows, err := s.updateAccountBalance(sess, oldDestinationAccount, oldDestinationAccountNewAmount-oldTransaction.RelatedAccountAmount)
 
 					if err != nil {
 						log.Errorf(c, "[transactions.ModifyTransaction] failed to update account balance, because %s", err.Error())
@@ -1539,7 +1433,7 @@ func (s *TransactionService) ModifyTransaction(c core.Context, transaction *mode
 
 			if newDestinationAccountNewAmount != 0 {
 				destinationAccount.UpdatedUnixTime = time.Now().Unix()
-				updatedRows, err := sess.ID(destinationAccount.AccountId).SetExpr("balance", fmt.Sprintf("balance+(%d)", newDestinationAccountNewAmount)).Cols("updated_unix_time").Where("uid=? AND deleted=?", destinationAccount.Uid, false).Update(destinationAccount)
+				updatedRows, err := s.updateAccountBalance(sess, destinationAccount, newDestinationAccountNewAmount)
 
 				if err != nil {
 					log.Errorf(c, "[transactions.ModifyTransaction] failed to update account balance, because %s", err.Error())
@@ -1822,8 +1716,18 @@ func (s *TransactionService) MoveAllTransactionsBetweenAccounts(c core.Context, 
 				laterTransaction = balanceModificationTransactions[0]
 			}
 
-			earlierTransaction.Amount += laterTransaction.Amount
-			earlierTransaction.RelatedAccountAmount += laterTransaction.RelatedAccountAmount
+			mergedAmount, validAmount := utils.AddInt64(earlierTransaction.Amount, laterTransaction.Amount)
+			mergedRelatedAccountAmount, validRelatedAmount := utils.AddInt64(earlierTransaction.RelatedAccountAmount, laterTransaction.RelatedAccountAmount)
+
+			if !validAmount || !validRelatedAmount ||
+				(mergedAmount <= models.MinimumTransactionAmount || mergedAmount >= models.MaximumTransactionAmount) ||
+				(mergedRelatedAccountAmount <= models.MinimumTransactionAmount || mergedRelatedAccountAmount >= models.MaximumTransactionAmount) {
+				log.Errorf(c, "[transactions.MoveAllTransactionsBetweenAccounts] user \"uid:%d\" cannot combine balance modification transactions \"id:%d\" and \"id:%d\", because the merged amount exceeds the supported range", uid, earlierTransaction.TransactionId, laterTransaction.TransactionId)
+				return errs.ErrMergedBalanceModificationTransactionAmountOverflow
+			}
+
+			earlierTransaction.Amount = mergedAmount
+			earlierTransaction.RelatedAccountAmount = mergedRelatedAccountAmount
 			earlierTransaction.UpdatedUnixTime = time.Now().Unix()
 
 			updatedRows, err := sess.ID(earlierTransaction.TransactionId).Cols("amount", "related_account_amount", "updated_unix_time").Where("uid=? AND deleted=?", uid, false).Update(earlierTransaction)
@@ -1868,7 +1772,26 @@ func (s *TransactionService) MoveAllTransactionsBetweenAccounts(c core.Context, 
 				return err
 			} else if has && balanceModificationTransactions[0].TransactionTime > earliestTransaction.TransactionTime {
 				balanceModificationTransaction := balanceModificationTransactions[0]
-				balanceModificationTransaction.TransactionTime = utils.GetMinTransactionTimeFromUnixTime(utils.GetUnixTimeFromTransactionTime(earliestTransaction.TransactionTime) - 1)
+				earliestTransactionUnixTime := utils.GetUnixTimeFromTransactionTime(earliestTransaction.TransactionTime)
+
+				newBalanceModificationMinTransactionTime := utils.GetMinTransactionTimeFromUnixTime(earliestTransactionUnixTime - 1)
+				newBalanceModificationMaxTransactionTime := utils.GetMaxTransactionTimeFromUnixTime(earliestTransactionUnixTime - 1)
+				balanceModificationTransaction.TransactionTime = newBalanceModificationMinTransactionTime
+
+				sameSecondLatestTransaction := &models.Transaction{}
+				has, err = sess.Where("uid=? AND transaction_time>=? AND transaction_time<=?", balanceModificationTransaction.Uid, newBalanceModificationMinTransactionTime, newBalanceModificationMaxTransactionTime).OrderBy("transaction_time desc").Limit(1).Get(sameSecondLatestTransaction)
+
+				if err != nil {
+					log.Errorf(c, "[transactions.MoveAllTransactionsBetweenAccounts] failed to get trasaction time, because %s", err.Error())
+					return err
+				}
+
+				if has && sameSecondLatestTransaction.TransactionTime < newBalanceModificationMaxTransactionTime-1 {
+					balanceModificationTransaction.TransactionTime = sameSecondLatestTransaction.TransactionTime + 1
+				} else if has && sameSecondLatestTransaction.TransactionTime == newBalanceModificationMaxTransactionTime-1 {
+					return errs.ErrTooMuchTransactionInOneSecond
+				}
+
 				balanceModificationTransaction.UpdatedUnixTime = time.Now().Unix()
 
 				if balanceModificationTransaction.TransactionTime < 0 {
@@ -1938,8 +1861,14 @@ func (s *TransactionService) MoveAllTransactionsBetweenAccounts(c core.Context, 
 
 		// update account balance
 		if fromAccount.Balance != 0 {
+			newToAccountBalance, ok := utils.AddInt64(toAccount.Balance, fromAccount.Balance)
+
+			if !ok {
+				return errs.ErrAccountBalanceOverflow
+			}
+
 			toAccount.UpdatedUnixTime = time.Now().Unix()
-			updatedRows, err := sess.ID(toAccount.AccountId).SetExpr("balance", fmt.Sprintf("balance+(%d)", fromAccount.Balance)).Cols("updated_unix_time").Where("uid=? AND deleted=?", uid, false).Update(toAccount)
+			updatedRows, err := s.updateAccountBalance(sess, toAccount, fromAccount.Balance)
 
 			if err != nil {
 				return err
@@ -1948,7 +1877,7 @@ func (s *TransactionService) MoveAllTransactionsBetweenAccounts(c core.Context, 
 				return errs.ErrDatabaseOperationFailed
 			}
 
-			log.Infof(c, "[transactions.MoveAllTransactionsBetweenAccounts] user \"uid:%d\" has updated account \"id:%d\" balance from %d to %d", uid, toAccountId, toAccount.Balance, toAccount.Balance+fromAccount.Balance)
+			log.Infof(c, "[transactions.MoveAllTransactionsBetweenAccounts] user \"uid:%d\" has updated account \"id:%d\" balance from %d to %d", uid, toAccountId, toAccount.Balance, newToAccountBalance)
 
 			fromAccount.Balance = 0
 			fromAccount.UpdatedUnixTime = time.Now().Unix()
@@ -2052,7 +1981,7 @@ func (s *TransactionService) DeleteTransaction(c core.Context, uid int64, transa
 		if oldTransaction.Type == models.TRANSACTION_DB_TYPE_MODIFY_BALANCE {
 			if oldTransaction.RelatedAccountAmount != 0 {
 				sourceAccount.UpdatedUnixTime = time.Now().Unix()
-				updatedRows, err := sess.ID(sourceAccount.AccountId).SetExpr("balance", fmt.Sprintf("balance-(%d)", oldTransaction.RelatedAccountAmount)).Cols("updated_unix_time").Where("uid=? AND deleted=?", sourceAccount.Uid, false).Update(sourceAccount)
+				updatedRows, err := s.updateAccountBalance(sess, sourceAccount, -oldTransaction.RelatedAccountAmount)
 
 				if err != nil {
 					return err
@@ -2064,7 +1993,7 @@ func (s *TransactionService) DeleteTransaction(c core.Context, uid int64, transa
 		} else if oldTransaction.Type == models.TRANSACTION_DB_TYPE_INCOME {
 			if oldTransaction.Amount != 0 {
 				sourceAccount.UpdatedUnixTime = time.Now().Unix()
-				updatedRows, err := sess.ID(sourceAccount.AccountId).SetExpr("balance", fmt.Sprintf("balance-(%d)", oldTransaction.Amount)).Cols("updated_unix_time").Where("uid=? AND deleted=?", sourceAccount.Uid, false).Update(sourceAccount)
+				updatedRows, err := s.updateAccountBalance(sess, sourceAccount, -oldTransaction.Amount)
 
 				if err != nil {
 					return err
@@ -2076,7 +2005,7 @@ func (s *TransactionService) DeleteTransaction(c core.Context, uid int64, transa
 		} else if oldTransaction.Type == models.TRANSACTION_DB_TYPE_EXPENSE {
 			if oldTransaction.Amount != 0 {
 				sourceAccount.UpdatedUnixTime = time.Now().Unix()
-				updatedRows, err := sess.ID(sourceAccount.AccountId).SetExpr("balance", fmt.Sprintf("balance+(%d)", oldTransaction.Amount)).Cols("updated_unix_time").Where("uid=? AND deleted=?", sourceAccount.Uid, false).Update(sourceAccount)
+				updatedRows, err := s.updateAccountBalance(sess, sourceAccount, oldTransaction.Amount)
 
 				if err != nil {
 					return err
@@ -2088,7 +2017,7 @@ func (s *TransactionService) DeleteTransaction(c core.Context, uid int64, transa
 		} else if oldTransaction.Type == models.TRANSACTION_DB_TYPE_TRANSFER_OUT {
 			if oldTransaction.Amount != 0 {
 				sourceAccount.UpdatedUnixTime = time.Now().Unix()
-				updatedSourceRows, err := sess.ID(sourceAccount.AccountId).SetExpr("balance", fmt.Sprintf("balance+(%d)", oldTransaction.Amount)).Cols("updated_unix_time").Where("uid=? AND deleted=?", sourceAccount.Uid, false).Update(sourceAccount)
+				updatedSourceRows, err := s.updateAccountBalance(sess, sourceAccount, oldTransaction.Amount)
 
 				if err != nil {
 					return err
@@ -2100,7 +2029,7 @@ func (s *TransactionService) DeleteTransaction(c core.Context, uid int64, transa
 
 			if oldTransaction.RelatedAccountAmount != 0 {
 				destinationAccount.UpdatedUnixTime = time.Now().Unix()
-				updatedDestinationRows, err := sess.ID(destinationAccount.AccountId).SetExpr("balance", fmt.Sprintf("balance-(%d)", oldTransaction.RelatedAccountAmount)).Cols("updated_unix_time").Where("uid=? AND deleted=?", destinationAccount.Uid, false).Update(destinationAccount)
+				updatedDestinationRows, err := s.updateAccountBalance(sess, destinationAccount, -oldTransaction.RelatedAccountAmount)
 
 				if err != nil {
 					return err
@@ -2257,7 +2186,7 @@ func (s *TransactionService) GetRelatedTransferTransaction(originalTransaction *
 }
 
 // GetAccountsTotalIncomeAndExpense returns the every accounts total income and expense amount by specific date range
-func (s *TransactionService) GetAccountsTotalIncomeAndExpense(c core.Context, uid int64, startUnixTime int64, endUnixTime int64, excludeAccountIds []int64, excludeCategoryIds []int64, clientTimezone *time.Location, useTransactionTimezone bool) (map[int64]int64, map[int64]int64, error) {
+func (s *TransactionService) GetAccountsTotalIncomeAndExpense(c core.Context, uid int64, startUnixTime int64, endUnixTime int64, excludeAccountIds []int64, excludeCategoryIds []int64, tagFilters []*models.TransactionTagFilter, clientTimezone *time.Location, useTransactionTimezone bool) (map[int64]*big.Int, map[int64]*big.Int, error) {
 	if uid <= 0 {
 		return nil, nil, errs.ErrUserIdInvalid
 	}
@@ -2265,85 +2194,14 @@ func (s *TransactionService) GetAccountsTotalIncomeAndExpense(c core.Context, ui
 	startLocalDateTime := utils.FormatUnixTimeToNumericLocalDateTime(startUnixTime, clientTimezone)
 	endLocalDateTime := utils.FormatUnixTimeToNumericLocalDateTime(endUnixTime, clientTimezone)
 
-	startUnixTime = utils.GetMinUnixTimeWithSameLocalDateTime(startUnixTime, utils.GetTimezoneOffsetMinutes(startUnixTime, clientTimezone))
-	endUnixTime = utils.GetMaxUnixTimeWithSameLocalDateTime(endUnixTime, utils.GetTimezoneOffsetMinutes(endUnixTime, clientTimezone))
+	allTransactions, err := s.getAllTransactionsInSpecifiedDateRange(c, uid, startUnixTime, endUnixTime, excludeAccountIds, excludeCategoryIds, tagFilters, clientTimezone)
 
-	startTransactionTime := utils.GetMinTransactionTimeFromUnixTime(startUnixTime)
-	endTransactionTime := utils.GetMaxTransactionTimeFromUnixTime(endUnixTime)
-
-	condition := "uid=? AND deleted=? AND (type=? OR type=?)"
-	conditionParams := make([]any, 0, 4+len(excludeAccountIds)+len(excludeCategoryIds))
-	conditionParams = append(conditionParams, uid)
-	conditionParams = append(conditionParams, false)
-	conditionParams = append(conditionParams, models.TRANSACTION_DB_TYPE_INCOME)
-	conditionParams = append(conditionParams, models.TRANSACTION_DB_TYPE_EXPENSE)
-
-	if len(excludeAccountIds) > 0 {
-		var accountIdsCondition strings.Builder
-		accountIdConditionParams := make([]any, 0, len(excludeAccountIds))
-
-		for i := 0; i < len(excludeAccountIds); i++ {
-			if i > 0 {
-				accountIdsCondition.WriteString(",")
-			}
-
-			accountIdsCondition.WriteString("?")
-			accountIdConditionParams = append(accountIdConditionParams, excludeAccountIds[i])
-		}
-
-		condition = condition + " AND account_id NOT IN (" + accountIdsCondition.String() + ")"
-		conditionParams = append(conditionParams, accountIdConditionParams...)
+	if err != nil {
+		return nil, nil, err
 	}
 
-	if len(excludeCategoryIds) > 0 {
-		var categoryIdsCondition strings.Builder
-		categoryIdConditionParams := make([]any, 0, len(excludeCategoryIds))
-
-		for i := 0; i < len(excludeCategoryIds); i++ {
-			if i > 0 {
-				categoryIdsCondition.WriteString(",")
-			}
-
-			categoryIdsCondition.WriteString("?")
-			categoryIdConditionParams = append(categoryIdConditionParams, excludeCategoryIds[i])
-		}
-
-		condition = condition + " AND category_id NOT IN (" + categoryIdsCondition.String() + ")"
-		conditionParams = append(conditionParams, categoryIdConditionParams...)
-	}
-
-	condition = condition + " AND transaction_time>=? AND transaction_time<=?"
-
-	minTransactionTime := startTransactionTime
-	maxTransactionTime := endTransactionTime
-	var allTransactions []*models.Transaction
-
-	for maxTransactionTime > 0 {
-		var transactions []*models.Transaction
-
-		finalConditionParams := make([]any, 0, 6)
-		finalConditionParams = append(finalConditionParams, conditionParams...)
-		finalConditionParams = append(finalConditionParams, minTransactionTime)
-		finalConditionParams = append(finalConditionParams, maxTransactionTime)
-
-		err := s.UserDataDB(uid).NewSession(c).Select("type, account_id, transaction_time, timezone_utc_offset, amount").Where(condition, finalConditionParams...).Limit(pageCountForLoadTransactionAmounts, 0).OrderBy("transaction_time desc").Find(&transactions)
-
-		if err != nil {
-			return nil, nil, err
-		}
-
-		allTransactions = append(allTransactions, transactions...)
-
-		if len(transactions) < pageCountForLoadTransactionAmounts {
-			maxTransactionTime = 0
-			break
-		}
-
-		maxTransactionTime = transactions[len(transactions)-1].TransactionTime - 1
-	}
-
-	incomeAmounts := make(map[int64]int64)
-	expenseAmounts := make(map[int64]int64)
+	incomeAmounts := make(map[int64]*big.Int)
+	expenseAmounts := make(map[int64]*big.Int)
 
 	for i := 0; i < len(allTransactions); i++ {
 		transaction := allTransactions[i]
@@ -2359,7 +2217,7 @@ func (s *TransactionService) GetAccountsTotalIncomeAndExpense(c core.Context, ui
 			continue
 		}
 
-		var amountsMap map[int64]int64
+		var amountsMap map[int64]*big.Int
 
 		if transaction.Type == models.TRANSACTION_DB_TYPE_INCOME {
 			amountsMap = incomeAmounts
@@ -2370,18 +2228,80 @@ func (s *TransactionService) GetAccountsTotalIncomeAndExpense(c core.Context, ui
 		totalAmounts, exists := amountsMap[transaction.AccountId]
 
 		if !exists {
-			totalAmounts = 0
+			totalAmounts = big.NewInt(0)
 		}
 
-		totalAmounts += transaction.Amount
+		totalAmounts.Add(totalAmounts, big.NewInt(transaction.Amount))
 		amountsMap[transaction.AccountId] = totalAmounts
 	}
 
 	return incomeAmounts, expenseAmounts, nil
 }
 
+// GetAccountsDailyIncomeAndExpense returns daily income and expense amounts grouped by account
+func (s *TransactionService) GetAccountsDailyIncomeAndExpense(c core.Context, uid int64, startUnixTime int64, endUnixTime int64, excludeAccountIds []int64, excludeCategoryIds []int64, tagFilters []*models.TransactionTagFilter, clientTimezone *time.Location, useTransactionTimezone bool) (map[int32]map[int64]*big.Int, map[int32]map[int64]*big.Int, error) {
+	if uid <= 0 {
+		return nil, nil, errs.ErrUserIdInvalid
+	}
+
+	startLocalDateTime := utils.FormatUnixTimeToNumericLocalDateTime(startUnixTime, clientTimezone)
+	endLocalDateTime := utils.FormatUnixTimeToNumericLocalDateTime(endUnixTime, clientTimezone)
+
+	allTransactions, err := s.getAllTransactionsInSpecifiedDateRange(c, uid, startUnixTime, endUnixTime, excludeAccountIds, excludeCategoryIds, tagFilters, clientTimezone)
+
+	if err != nil {
+		return nil, nil, err
+	}
+
+	incomeAmounts := make(map[int32]map[int64]*big.Int)
+	expenseAmounts := make(map[int32]map[int64]*big.Int)
+
+	for i := 0; i < len(allTransactions); i++ {
+		transaction := allTransactions[i]
+		timeZone := clientTimezone
+
+		if useTransactionTimezone {
+			timeZone = time.FixedZone("Transaction Timezone", int(transaction.TimezoneUtcOffset)*60)
+		}
+
+		unixTime := utils.GetUnixTimeFromTransactionTime(transaction.TransactionTime)
+		localDateTime := utils.FormatUnixTimeToNumericLocalDateTime(unixTime, timeZone)
+
+		if localDateTime < startLocalDateTime || localDateTime > endLocalDateTime {
+			continue
+		}
+
+		var allAmounts map[int32]map[int64]*big.Int
+
+		if transaction.Type == models.TRANSACTION_DB_TYPE_INCOME {
+			allAmounts = incomeAmounts
+		} else if transaction.Type == models.TRANSACTION_DB_TYPE_EXPENSE {
+			allAmounts = expenseAmounts
+		}
+
+		yearMonthDay := utils.FormatUnixTimeToNumericYearMonthDay(unixTime, timeZone)
+		dailyAmounts, exists := allAmounts[yearMonthDay]
+
+		if !exists {
+			dailyAmounts = make(map[int64]*big.Int)
+		}
+
+		amount, exists := dailyAmounts[transaction.AccountId]
+
+		if !exists {
+			amount = big.NewInt(0)
+		}
+
+		amount.Add(amount, big.NewInt(transaction.Amount))
+		dailyAmounts[transaction.AccountId] = amount
+		allAmounts[yearMonthDay] = dailyAmounts
+	}
+
+	return incomeAmounts, expenseAmounts, nil
+}
+
 // GetAccountsAndCategoriesTotalInflowAndOutflow returns the every accounts and categories total inflows and outflows amount by specific date range
-func (s *TransactionService) GetAccountsAndCategoriesTotalInflowAndOutflow(c core.Context, uid int64, startUnixTime int64, endUnixTime int64, tagFilters []*models.TransactionTagFilter, noTags bool, keyword string, matchMode core.MatchMode, clientTimezone *time.Location, useTransactionTimezone bool) ([]*models.Transaction, error) {
+func (s *TransactionService) GetAccountsAndCategoriesTotalInflowAndOutflow(c core.Context, uid int64, startUnixTime int64, endUnixTime int64, tagFilters []*models.TransactionTagFilter, noTags bool, keyword string, matchMode core.MatchMode, clientTimezone *time.Location, useTransactionTimezone bool) ([]*models.TransactionTotalAmount, error) {
 	if uid <= 0 {
 		return nil, errs.ErrUserIdInvalid
 	}
@@ -2458,7 +2378,7 @@ func (s *TransactionService) GetAccountsAndCategoriesTotalInflowAndOutflow(c cor
 		maxTransactionTime = transactions[len(transactions)-1].TransactionTime - 1
 	}
 
-	transactionTotalAmountsMap := make(map[string]*models.Transaction)
+	transactionTotalAmountsMap := make(map[string]*models.TransactionTotalAmount)
 
 	for i := 0; i < len(allTransactions); i++ {
 		transaction := allTransactions[i]
@@ -2483,21 +2403,21 @@ func (s *TransactionService) GetAccountsAndCategoriesTotalInflowAndOutflow(c cor
 		totalAmounts, exists := transactionTotalAmountsMap[groupKey]
 
 		if !exists {
-			totalAmounts = &models.Transaction{
+			totalAmounts = &models.TransactionTotalAmount{
 				Type:             transaction.Type,
 				CategoryId:       transaction.CategoryId,
 				AccountId:        transaction.AccountId,
 				RelatedAccountId: transaction.RelatedAccountId,
-				Amount:           0,
+				Amount:           big.NewInt(0),
 			}
 
 			transactionTotalAmountsMap[groupKey] = totalAmounts
 		}
 
-		totalAmounts.Amount += transaction.Amount
+		totalAmounts.Amount.Add(totalAmounts.Amount, big.NewInt(transaction.Amount))
 	}
 
-	transactionTotalAmounts := make([]*models.Transaction, 0, len(transactionTotalAmountsMap))
+	transactionTotalAmounts := make([]*models.TransactionTotalAmount, 0, len(transactionTotalAmountsMap))
 
 	for _, totalAmounts := range transactionTotalAmountsMap {
 		transactionTotalAmounts = append(transactionTotalAmounts, totalAmounts)
@@ -2506,8 +2426,34 @@ func (s *TransactionService) GetAccountsAndCategoriesTotalInflowAndOutflow(c cor
 	return transactionTotalAmounts, nil
 }
 
+// GetUnreconciledTransactionCounts returns transaction counts after each account's last reconciled time
+func (s *TransactionService) GetUnreconciledTransactionCounts(c core.Context, uid int64, accountLastReconciledTimes map[int64]int64) ([]*models.TransactionUnreconciledCountItem, error) {
+	if uid <= 0 {
+		return nil, errs.ErrUserIdInvalid
+	}
+
+	accountConditions := make([]builder.Cond, 0, len(accountLastReconciledTimes))
+
+	for accountId, lastReconciledTime := range accountLastReconciledTimes {
+		accountConditions = append(accountConditions, builder.And(
+			builder.Eq{"account_id": accountId},
+			builder.Gt{"transaction_time": utils.GetMaxTransactionTimeFromUnixTime(lastReconciledTime)},
+		))
+	}
+
+	counts := make([]*models.TransactionUnreconciledCountItem, 0)
+
+	if len(accountConditions) < 1 {
+		return counts, nil
+	}
+
+	err := s.UserDataDB(uid).NewSession(c).Table(&models.Transaction{}).Select("account_id, SUM(1) AS count").Where(builder.And(builder.Eq{"uid": uid, "deleted": false}, builder.Or(accountConditions...))).GroupBy("account_id").Having("SUM(1) > 0").OrderBy("account_id asc").Find(&counts)
+
+	return counts, err
+}
+
 // GetAccountsAndCategoriesMonthlyInflowAndOutflow returns the every accounts monthly inflows and outflows amount by specific date range
-func (s *TransactionService) GetAccountsAndCategoriesMonthlyInflowAndOutflow(c core.Context, uid int64, startYear int32, startMonth int32, endYear int32, endMonth int32, tagFilters []*models.TransactionTagFilter, noTags bool, keyword string, matchMode core.MatchMode, clientTimezone *time.Location, useTransactionTimezone bool) (map[int32][]*models.Transaction, error) {
+func (s *TransactionService) GetAccountsAndCategoriesMonthlyInflowAndOutflow(c core.Context, uid int64, startYear int32, startMonth int32, endYear int32, endMonth int32, tagFilters []*models.TransactionTagFilter, noTags bool, keyword string, matchMode core.MatchMode, clientTimezone *time.Location, useTransactionTimezone bool) (map[int32][]*models.TransactionTotalAmount, error) {
 	if uid <= 0 {
 		return nil, errs.ErrUserIdInvalid
 	}
@@ -2591,8 +2537,8 @@ func (s *TransactionService) GetAccountsAndCategoriesMonthlyInflowAndOutflow(c c
 
 	startYearMonth := startYear*100 + startMonth
 	endYearMonth := endYear*100 + endMonth
-	transactionsMonthlyAmountsMap := make(map[string]*models.Transaction)
-	transactionsMonthlyAmounts := make(map[int32][]*models.Transaction)
+	transactionsMonthlyAmountsMap := make(map[string]*models.TransactionTotalAmount)
+	transactionsMonthlyAmounts := make(map[int32][]*models.TransactionTotalAmount)
 
 	for i := 0; i < len(allTransactions); i++ {
 		transaction := allTransactions[i]
@@ -2617,18 +2563,18 @@ func (s *TransactionService) GetAccountsAndCategoriesMonthlyInflowAndOutflow(c c
 		transactionAmounts, exists := transactionsMonthlyAmountsMap[groupKey]
 
 		if !exists {
-			transactionAmounts = &models.Transaction{
+			transactionAmounts = &models.TransactionTotalAmount{
 				Type:             transaction.Type,
 				CategoryId:       transaction.CategoryId,
 				AccountId:        transaction.AccountId,
 				RelatedAccountId: transaction.RelatedAccountId,
-				Amount:           0,
+				Amount:           big.NewInt(0),
 			}
 
 			transactionsMonthlyAmountsMap[groupKey] = transactionAmounts
 		}
 
-		transactionAmounts.Amount += transaction.Amount
+		transactionAmounts.Amount.Add(transactionAmounts.Amount, big.NewInt(transaction.Amount))
 	}
 
 	for groupKey, transaction := range transactionsMonthlyAmountsMap {
@@ -2637,7 +2583,7 @@ func (s *TransactionService) GetAccountsAndCategoriesMonthlyInflowAndOutflow(c c
 		monthlyAmounts, exists := transactionsMonthlyAmounts[yearMonth]
 
 		if !exists {
-			monthlyAmounts = make([]*models.Transaction, 0, 0)
+			monthlyAmounts = make([]*models.TransactionTotalAmount, 0)
 		}
 
 		monthlyAmounts = append(monthlyAmounts, transaction)
@@ -2846,7 +2792,7 @@ func (s *TransactionService) doCreateTransaction(c core.Context, database *datas
 	if transaction.Type == models.TRANSACTION_DB_TYPE_MODIFY_BALANCE {
 		if transaction.RelatedAccountAmount != 0 {
 			sourceAccount.UpdatedUnixTime = time.Now().Unix()
-			updatedRows, err := sess.ID(sourceAccount.AccountId).SetExpr("balance", fmt.Sprintf("balance+(%d)", transaction.RelatedAccountAmount)).Cols("updated_unix_time").Where("uid=? AND deleted=?", sourceAccount.Uid, false).Update(sourceAccount)
+			updatedRows, err := s.updateAccountBalance(sess, sourceAccount, transaction.RelatedAccountAmount)
 
 			if err != nil {
 				log.Errorf(c, "[transactions.doCreateTransaction] failed to update account balance, because %s", err.Error())
@@ -2859,7 +2805,7 @@ func (s *TransactionService) doCreateTransaction(c core.Context, database *datas
 	} else if transaction.Type == models.TRANSACTION_DB_TYPE_INCOME {
 		if transaction.Amount != 0 {
 			sourceAccount.UpdatedUnixTime = time.Now().Unix()
-			updatedRows, err := sess.ID(sourceAccount.AccountId).SetExpr("balance", fmt.Sprintf("balance+(%d)", transaction.Amount)).Cols("updated_unix_time").Where("uid=? AND deleted=?", sourceAccount.Uid, false).Update(sourceAccount)
+			updatedRows, err := s.updateAccountBalance(sess, sourceAccount, transaction.Amount)
 
 			if err != nil {
 				log.Errorf(c, "[transactions.doCreateTransaction] failed to update account balance, because %s", err.Error())
@@ -2872,7 +2818,7 @@ func (s *TransactionService) doCreateTransaction(c core.Context, database *datas
 	} else if transaction.Type == models.TRANSACTION_DB_TYPE_EXPENSE {
 		if transaction.Amount != 0 {
 			sourceAccount.UpdatedUnixTime = time.Now().Unix()
-			updatedRows, err := sess.ID(sourceAccount.AccountId).SetExpr("balance", fmt.Sprintf("balance-(%d)", transaction.Amount)).Cols("updated_unix_time").Where("uid=? AND deleted=?", sourceAccount.Uid, false).Update(sourceAccount)
+			updatedRows, err := s.updateAccountBalance(sess, sourceAccount, -transaction.Amount)
 
 			if err != nil {
 				log.Errorf(c, "[transactions.doCreateTransaction] failed to update account balance, because %s", err.Error())
@@ -2885,7 +2831,7 @@ func (s *TransactionService) doCreateTransaction(c core.Context, database *datas
 	} else if transaction.Type == models.TRANSACTION_DB_TYPE_TRANSFER_OUT {
 		if transaction.Amount != 0 {
 			sourceAccount.UpdatedUnixTime = time.Now().Unix()
-			updatedSourceRows, err := sess.ID(sourceAccount.AccountId).SetExpr("balance", fmt.Sprintf("balance-(%d)", transaction.Amount)).Cols("updated_unix_time").Where("uid=? AND deleted=?", sourceAccount.Uid, false).Update(sourceAccount)
+			updatedSourceRows, err := s.updateAccountBalance(sess, sourceAccount, -transaction.Amount)
 
 			if err != nil {
 				log.Errorf(c, "[transactions.doCreateTransaction] failed to update account balance, because %s", err.Error())
@@ -2898,7 +2844,7 @@ func (s *TransactionService) doCreateTransaction(c core.Context, database *datas
 
 		if transaction.RelatedAccountAmount != 0 {
 			destinationAccount.UpdatedUnixTime = time.Now().Unix()
-			updatedDestinationRows, err := sess.ID(destinationAccount.AccountId).SetExpr("balance", fmt.Sprintf("balance+(%d)", transaction.RelatedAccountAmount)).Cols("updated_unix_time").Where("uid=? AND deleted=?", destinationAccount.Uid, false).Update(destinationAccount)
+			updatedDestinationRows, err := s.updateAccountBalance(sess, destinationAccount, transaction.RelatedAccountAmount)
 
 			if err != nil {
 				log.Errorf(c, "[transactions.doCreateTransaction] failed to update account balance, because %s", err.Error())
@@ -2913,6 +2859,114 @@ func (s *TransactionService) doCreateTransaction(c core.Context, database *datas
 	}
 
 	return err
+}
+
+func (s *TransactionService) updateAccountBalance(sess *xorm.Session, account *models.Account, delta int64) (int64, error) {
+	if delta == 0 {
+		return 1, nil
+	}
+
+	updateSession := sess.ID(account.AccountId).Cols("updated_unix_time").Where("uid=? AND deleted=?", account.Uid, false)
+
+	if delta > 0 {
+		updateSession = updateSession.Where("balance<=?", int64(math.MaxInt64)-delta)
+	} else if delta == math.MinInt64 {
+		updateSession = updateSession.Where("balance>=?", int64(0))
+	} else {
+		updateSession = updateSession.Where("balance>=?", int64(math.MinInt64)-delta)
+	}
+
+	updatedRows, err := updateSession.SetExpr("balance", fmt.Sprintf("balance+(%d)", delta)).Update(account)
+
+	if err == nil && updatedRows < 1 {
+		return 0, errs.ErrAccountBalanceOverflow
+	}
+
+	return updatedRows, err
+}
+
+func (s *TransactionService) getAllTransactionsInSpecifiedDateRange(c core.Context, uid int64, startUnixTime int64, endUnixTime int64, excludeAccountIds []int64, excludeCategoryIds []int64, tagFilters []*models.TransactionTagFilter, clientTimezone *time.Location) ([]*models.Transaction, error) {
+	startUnixTime = utils.GetMinUnixTimeWithSameLocalDateTime(startUnixTime, utils.GetTimezoneOffsetMinutes(startUnixTime, clientTimezone))
+	endUnixTime = utils.GetMaxUnixTimeWithSameLocalDateTime(endUnixTime, utils.GetTimezoneOffsetMinutes(endUnixTime, clientTimezone))
+
+	startTransactionTime := utils.GetMinTransactionTimeFromUnixTime(startUnixTime)
+	endTransactionTime := utils.GetMaxTransactionTimeFromUnixTime(endUnixTime)
+
+	condition := "uid=? AND deleted=? AND (type=? OR type=?)"
+	conditionParams := make([]any, 0, 4+len(excludeAccountIds)+len(excludeCategoryIds))
+	conditionParams = append(conditionParams, uid)
+	conditionParams = append(conditionParams, false)
+	conditionParams = append(conditionParams, models.TRANSACTION_DB_TYPE_INCOME)
+	conditionParams = append(conditionParams, models.TRANSACTION_DB_TYPE_EXPENSE)
+
+	if len(excludeAccountIds) > 0 {
+		var accountIdsCondition strings.Builder
+		accountIdConditionParams := make([]any, 0, len(excludeAccountIds))
+
+		for i := 0; i < len(excludeAccountIds); i++ {
+			if i > 0 {
+				accountIdsCondition.WriteString(",")
+			}
+
+			accountIdsCondition.WriteString("?")
+			accountIdConditionParams = append(accountIdConditionParams, excludeAccountIds[i])
+		}
+
+		condition = condition + " AND account_id NOT IN (" + accountIdsCondition.String() + ")"
+		conditionParams = append(conditionParams, accountIdConditionParams...)
+	}
+
+	if len(excludeCategoryIds) > 0 {
+		var categoryIdsCondition strings.Builder
+		categoryIdConditionParams := make([]any, 0, len(excludeCategoryIds))
+
+		for i := 0; i < len(excludeCategoryIds); i++ {
+			if i > 0 {
+				categoryIdsCondition.WriteString(",")
+			}
+
+			categoryIdsCondition.WriteString("?")
+			categoryIdConditionParams = append(categoryIdConditionParams, excludeCategoryIds[i])
+		}
+
+		condition = condition + " AND category_id NOT IN (" + categoryIdsCondition.String() + ")"
+		conditionParams = append(conditionParams, categoryIdConditionParams...)
+	}
+
+	condition = condition + " AND transaction_time>=? AND transaction_time<=?"
+
+	minTransactionTime := startTransactionTime
+	maxTransactionTime := endTransactionTime
+	var allTransactions []*models.Transaction
+
+	for maxTransactionTime > 0 {
+		var transactions []*models.Transaction
+
+		finalConditionParams := make([]any, 0, 6)
+		finalConditionParams = append(finalConditionParams, conditionParams...)
+		finalConditionParams = append(finalConditionParams, minTransactionTime)
+		finalConditionParams = append(finalConditionParams, maxTransactionTime)
+
+		sess := s.UserDataDB(uid).NewSession(c).Select("type, account_id, transaction_time, timezone_utc_offset, amount").Where(condition, finalConditionParams...)
+		sess = s.appendFilterTagIdsConditionToQuery(sess, uid, maxTransactionTime, minTransactionTime, tagFilters, false)
+
+		err := sess.Limit(pageCountForLoadTransactionAmounts, 0).OrderBy("transaction_time desc").Find(&transactions)
+
+		if err != nil {
+			return nil, err
+		}
+
+		allTransactions = append(allTransactions, transactions...)
+
+		if len(transactions) < pageCountForLoadTransactionAmounts {
+			maxTransactionTime = 0
+			break
+		}
+
+		maxTransactionTime = transactions[len(transactions)-1].TransactionTime - 1
+	}
+
+	return allTransactions, nil
 }
 
 func (s *TransactionService) buildTransactionQueryCondition(uid int64, maxTransactionTime int64, minTransactionTime int64, transactionDbType models.TransactionDbType, categoryIds []int64, accountIds []int64, tagFilters []*models.TransactionTagFilter, amountFilter string, keyword string, matchMode core.MatchMode, noDuplicated bool) (string, []any) {
@@ -3136,29 +3190,131 @@ func (s *TransactionService) appendFilterPicturesConditionToQuery(sess *xorm.Ses
 	return sess
 }
 
-func (s *TransactionService) isAccountIdValid(transaction *models.Transaction) error {
-	if transaction.Type == models.TRANSACTION_DB_TYPE_MODIFY_BALANCE {
-		if transaction.RelatedAccountId != 0 && transaction.RelatedAccountId != transaction.AccountId {
-			return errs.ErrTransactionDestinationAccountCannotBeSet
-		}
-	} else if transaction.Type == models.TRANSACTION_DB_TYPE_INCOME ||
-		transaction.Type == models.TRANSACTION_DB_TYPE_EXPENSE {
-		if transaction.RelatedAccountId != 0 {
-			return errs.ErrTransactionDestinationAccountCannotBeSet
-		} else if transaction.RelatedAccountAmount != 0 {
-			return errs.ErrTransactionDestinationAmountCannotBeSet
-		}
-	} else if transaction.Type == models.TRANSACTION_DB_TYPE_TRANSFER_OUT {
-		if transaction.AccountId == transaction.RelatedAccountId {
-			return errs.ErrTransactionSourceAndDestinationIdCannotBeEqual
-		}
-	} else if transaction.Type == models.TRANSACTION_DB_TYPE_TRANSFER_IN {
-		return errs.ErrTransactionTypeInvalid
-	} else {
-		return errs.ErrTransactionTypeInvalid
+func (s *TransactionService) createTransactionByScheduledTransactionTemplate(c core.Context, template *models.TransactionTemplate, startTimeInUTC time.Time, todayFirstUnixTimeInUTC int64) (*models.Transaction, []int64) {
+	if template.ScheduledFrequencyType == models.TRANSACTION_SCHEDULE_FREQUENCY_TYPE_DISABLED {
+		log.Infof(c, "[transactions.CreateScheduledTransactions] transaction template \"id:%d\" disabled scheduled transaction frequency", template.TemplateId)
+		return nil, nil
 	}
 
-	return nil
+	if (template.ScheduledFrequencyType != models.TRANSACTION_SCHEDULE_FREQUENCY_TYPE_WEEKLY &&
+		template.ScheduledFrequencyType != models.TRANSACTION_SCHEDULE_FREQUENCY_TYPE_MONTHLY &&
+		template.ScheduledFrequencyType != models.TRANSACTION_SCHEDULE_FREQUENCY_TYPE_DAILY &&
+		template.ScheduledFrequencyType != models.TRANSACTION_SCHEDULE_FREQUENCY_TYPE_YEARLY &&
+		template.ScheduledFrequencyType != models.TRANSACTION_SCHEDULE_FREQUENCY_TYPE_EVERY_N_DAYS) ||
+		template.ScheduledFrequency == "" {
+		log.Warnf(c, "[transactions.CreateScheduledTransactions] transaction template \"id:%d\" has invalid scheduled transaction frequency", template.TemplateId)
+		return nil, nil
+	}
+
+	frequencyValues, err := utils.StringArrayToInt64Array(strings.Split(template.ScheduledFrequency, ","))
+
+	if err != nil {
+		log.Warnf(c, "[transactions.CreateScheduledTransactions] transaction template \"id:%d\" has invalid scheduled transaction frequency, because %s", template.TemplateId, err.Error())
+		return nil, nil
+	}
+
+	templateTimezone := time.FixedZone("Template Timezone", int(template.ScheduledTimezoneUtcOffset)*60)
+
+	if len(template.ScheduledTimezoneName) > 0 {
+		location, err := time.LoadLocation(template.ScheduledTimezoneName)
+
+		if err != nil {
+			log.Warnf(c, "[transactions.CreateScheduledTransactions] transaction template \"id:%d\" cannot load timezone \"%s\", because %s", template.TemplateId, template.ScheduledTimezoneName, err.Error())
+		} else {
+			templateTimezone = location
+		}
+	}
+
+	transactionTime := utils.GetScheduledTransactionFinalTime(todayFirstUnixTimeInUTC, template.ScheduledAt, template.CreatedUnixTime, templateTimezone)
+
+	if transactionTime == nil {
+		log.Warnf(c, "[transactions.CreateScheduledTransactions] transaction template \"id:%d\" does not need to create transaction, the scheduled local date does not exist", template.TemplateId)
+		return nil, nil
+	}
+
+	transactionTimezoneUtcOffset := utils.GetTimezoneOffsetMinutes(transactionTime.Unix(), templateTimezone)
+
+	if template.ScheduledFrequencyType == models.TRANSACTION_SCHEDULE_FREQUENCY_TYPE_MONTHLY {
+		maxDayInMonth := utils.GetMaxDayOfMonth(transactionTime.Year(), transactionTime.Month())
+
+		for i := 0; i < len(frequencyValues); i++ {
+			if frequencyValues[i] < 0 {
+				frequencyValues[i] = int64(maxDayInMonth) + frequencyValues[i] + 1
+			}
+		}
+	}
+
+	frequencyValueSet := utils.ToSet(frequencyValues)
+
+	if template.ScheduledFrequencyType == models.TRANSACTION_SCHEDULE_FREQUENCY_TYPE_WEEKLY && !frequencyValueSet[int64(transactionTime.Weekday())] {
+		log.Infof(c, "[transactions.CreateScheduledTransactions] transaction template \"id:%d\" does not need to create transaction, today is %s", template.TemplateId, startTimeInUTC.Weekday())
+		return nil, nil
+	} else if template.ScheduledFrequencyType == models.TRANSACTION_SCHEDULE_FREQUENCY_TYPE_MONTHLY && !frequencyValueSet[int64(transactionTime.Day())] {
+		log.Infof(c, "[transactions.CreateScheduledTransactions] transaction template \"id:%d\" does not need to create transaction, today is %d of month", template.TemplateId, startTimeInUTC.Day())
+		return nil, nil
+	} else if template.ScheduledFrequencyType == models.TRANSACTION_SCHEDULE_FREQUENCY_TYPE_YEARLY && !frequencyValueSet[int64(transactionTime.Month())*100+int64(transactionTime.Day())] {
+		log.Infof(c, "[transactions.CreateScheduledTransactions] transaction template \"id:%d\" does not need to create transaction, today is %d-%d of year", template.TemplateId, startTimeInUTC.Month(), startTimeInUTC.Day())
+		return nil, nil
+	} else if template.ScheduledFrequencyType == models.TRANSACTION_SCHEDULE_FREQUENCY_TYPE_EVERY_N_DAYS {
+		if template.ScheduledStartTime == nil || len(frequencyValues) != 1 || frequencyValues[0] <= 0 {
+			log.Warnf(c, "[transactions.CreateScheduledTransactions] transaction template \"id:%d\" has invalid scheduled transaction frequency for every N days", template.TemplateId)
+			return nil, nil
+		}
+
+		n := frequencyValues[0]
+		startDate := time.Unix(*template.ScheduledStartTime, 0).In(templateTimezone)
+		daysDiff := utils.GetDaysBetweenDates(startDate, *transactionTime)
+
+		if daysDiff < 0 || int64(daysDiff)%n != 0 {
+			log.Infof(c, "[transactions.CreateScheduledTransactions] transaction template \"id:%d\" does not need to create transaction, days diff is %d with interval %d", template.TemplateId, daysDiff, n)
+			return nil, nil
+		}
+	}
+
+	if template.ScheduledStartTime != nil && *template.ScheduledStartTime > transactionTime.Unix() {
+		log.Infof(c, "[transactions.CreateScheduledTransactions] transaction template \"id:%d\" does not need to create transaction, now is earlier than the start time %d", template.TemplateId, *template.ScheduledStartTime)
+		return nil, nil
+	}
+
+	if template.ScheduledEndTime != nil && *template.ScheduledEndTime < transactionTime.Unix() {
+		log.Infof(c, "[transactions.CreateScheduledTransactions] transaction template \"id:%d\" does not need to create transaction, now is later than the end time %d", template.TemplateId, *template.ScheduledEndTime)
+		return nil, nil
+	}
+
+	var transactionDbType models.TransactionDbType
+
+	if template.Type == models.TRANSACTION_TYPE_EXPENSE {
+		transactionDbType = models.TRANSACTION_DB_TYPE_EXPENSE
+	} else if template.Type == models.TRANSACTION_TYPE_INCOME {
+		transactionDbType = models.TRANSACTION_DB_TYPE_INCOME
+	} else if template.Type == models.TRANSACTION_TYPE_TRANSFER {
+		transactionDbType = models.TRANSACTION_DB_TYPE_TRANSFER_OUT
+	} else {
+		log.Warnf(c, "[transactions.CreateScheduledTransactions] transaction template \"id:%d\" has invalid transaction type", template.TemplateId)
+		return nil, nil
+	}
+
+	transaction := &models.Transaction{
+		Uid:               template.Uid,
+		Type:              transactionDbType,
+		CategoryId:        template.CategoryId,
+		TransactionTime:   utils.GetMinTransactionTimeFromUnixTime(transactionTime.Unix()),
+		TimezoneUtcOffset: transactionTimezoneUtcOffset,
+		AccountId:         template.AccountId,
+		Amount:            template.Amount,
+		HideAmount:        template.HideAmount,
+		Comment:           template.Comment,
+		CreatedIp:         c.ClientIP(),
+		ScheduledCreated:  true,
+	}
+
+	if template.Type == models.TRANSACTION_TYPE_TRANSFER {
+		transaction.RelatedAccountId = template.RelatedAccountId
+		transaction.RelatedAccountAmount = template.RelatedAccountAmount
+	}
+
+	tagIds := template.GetTagIds()
+	return transaction, tagIds
 }
 
 func (s *TransactionService) getAccountModels(sess *xorm.Session, transaction *models.Transaction) (sourceAccount *models.Account, destinationAccount *models.Account, err error) {
@@ -3300,6 +3456,31 @@ func (s *TransactionService) getRelatedUpdateColumns(updateCols []string) []stri
 	}
 
 	return relatedUpdateCols
+}
+
+func (s *TransactionService) isAccountIdValid(transaction *models.Transaction) error {
+	if transaction.Type == models.TRANSACTION_DB_TYPE_MODIFY_BALANCE {
+		if transaction.RelatedAccountId != 0 && transaction.RelatedAccountId != transaction.AccountId {
+			return errs.ErrTransactionDestinationAccountCannotBeSet
+		}
+	} else if transaction.Type == models.TRANSACTION_DB_TYPE_INCOME ||
+		transaction.Type == models.TRANSACTION_DB_TYPE_EXPENSE {
+		if transaction.RelatedAccountId != 0 {
+			return errs.ErrTransactionDestinationAccountCannotBeSet
+		} else if transaction.RelatedAccountAmount != 0 {
+			return errs.ErrTransactionDestinationAmountCannotBeSet
+		}
+	} else if transaction.Type == models.TRANSACTION_DB_TYPE_TRANSFER_OUT {
+		if transaction.AccountId == transaction.RelatedAccountId {
+			return errs.ErrTransactionSourceAndDestinationIdCannotBeEqual
+		}
+	} else if transaction.Type == models.TRANSACTION_DB_TYPE_TRANSFER_IN {
+		return errs.ErrTransactionTypeInvalid
+	} else {
+		return errs.ErrTransactionTypeInvalid
+	}
+
+	return nil
 }
 
 func (s *TransactionService) isCategoryValid(sess *xorm.Session, transaction *models.Transaction) error {

@@ -123,6 +123,7 @@ func startWebServer(c *core.CliContext) error {
 		_ = v.RegisterValidation("validCurrency", validators.ValidCurrency)
 		_ = v.RegisterValidation("validHexRGBColor", validators.ValidHexRGBColor)
 		_ = v.RegisterValidation("validAmountFilter", validators.ValidAmountFilter)
+		_ = v.RegisterValidation("validTransactionAmount", validators.ValidTransactionAmount)
 		_ = v.RegisterValidation("validTagFilter", validators.ValidTagFilter)
 		_ = v.RegisterValidation("validFiscalYearStart", validators.ValidateFiscalYearStart)
 	}
@@ -198,6 +199,14 @@ func startWebServer(c *core.CliContext) error {
 		pictureRoute.Use(bindMiddleware(middlewares.JWTAuthorizationByQueryString(config), config))
 		{
 			pictureRoute.GET("/:fileName", bindImage(api.TransactionPictures.TransactionPictureGetHandler, config))
+		}
+	}
+
+	if config.EnableUserCustomIcon {
+		customIconRoute := router.Group("/icons")
+		customIconRoute.Use(bindMiddleware(middlewares.JWTAuthorizationByQueryString(config), config))
+		{
+			customIconRoute.GET("/:fileName", bindImage(api.UserCustomIcons.CustomIconGetHandler, config))
 		}
 	}
 
@@ -325,7 +334,7 @@ func startWebServer(c *core.CliContext) error {
 		apiRoute.GET("/logout.json", bindApiWithTokenUpdate(api.Tokens.TokenRevokeCurrentHandler, config))
 
 		apiV1Route := apiRoute.Group("/v1")
-		apiV1Route.Use(bindMiddleware(middlewares.JWTAuthorization(config), config))
+		apiV1Route.Use(bindMiddleware(middlewares.JWTAuthorizationByHeader(config), config))
 		apiV1Route.Use(bindMiddleware(middlewares.APITokenIpLimit(config), config))
 		{
 			// Tokens
@@ -397,10 +406,12 @@ func startWebServer(c *core.CliContext) error {
 			apiV1Route.GET("/transactions/list/by_month.json", bindApi(api.Transactions.TransactionMonthListHandler, config))
 			apiV1Route.GET("/transactions/list/all.json", bindApi(api.Transactions.TransactionListAllHandler, config))
 			apiV1Route.GET("/transactions/reconciliation_statements.json", bindApi(api.Transactions.TransactionReconciliationStatementHandler, config))
+			apiV1Route.GET("/transactions/unreconciled_transaction_counts.json", bindApi(api.Transactions.TransactionUnreconciledTransactionCountsHandler, config))
 			apiV1Route.GET("/transactions/statistics.json", bindApi(api.Transactions.TransactionStatisticsHandler, config))
 			apiV1Route.GET("/transactions/statistics/trends.json", bindApi(api.Transactions.TransactionStatisticsTrendsHandler, config))
 			apiV1Route.GET("/transactions/statistics/asset_trends.json", bindApi(api.Transactions.TransactionStatisticsAssetTrendsHandler, config))
 			apiV1Route.GET("/transactions/amounts.json", bindApi(api.Transactions.TransactionAmountsHandler, config))
+			apiV1Route.GET("/transactions/amounts/daily.json", bindApi(api.Transactions.TransactionDailyAmountsHandler, config))
 			apiV1Route.GET("/transactions/get.json", bindApi(api.Transactions.TransactionGetHandler, config))
 			apiV1Route.POST("/transactions/add.json", bindApi(api.Transactions.TransactionCreateHandler, config))
 			apiV1Route.POST("/transactions/modify.json", bindApi(api.Transactions.TransactionModifyHandler, config))
@@ -483,6 +494,20 @@ func startWebServer(c *core.CliContext) error {
 				if config.TransactionFromAIImageRecognition {
 					apiV1Route.POST("/llm/transactions/recognize_receipt_image.json", bindApi(api.LargeLanguageModels.RecognizeReceiptImageHandler, config))
 				}
+			}
+
+			if config.CodingAssistantLLMConfig != nil && config.CodingAssistantLLMConfig.LLMProvider != "" {
+				if config.InsightsExplorerCodingAssistant {
+					apiV1Route.POST("/llm/code/generate.json", bindApi(api.LargeLanguageModels.GenerateCodeHandler, config))
+				}
+			}
+
+			// User Custom Icons
+			if config.EnableUserCustomIcon {
+				apiV1Route.GET("/custom_icons/list.json", bindApi(api.UserCustomIcons.CustomIconListHandler, config))
+				apiV1Route.POST("/custom_icons/upload.json", bindApi(api.UserCustomIcons.CustomIconUploadHandler, config))
+				apiV1Route.POST("/custom_icons/move.json", bindApi(api.UserCustomIcons.CustomIconMoveHandler, config))
+				apiV1Route.POST("/custom_icons/delete.json", bindApi(api.UserCustomIcons.CustomIconDeleteHandler, config))
 			}
 
 			// Exchange Rates

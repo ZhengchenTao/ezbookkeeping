@@ -37,6 +37,10 @@ export function isUserVerifyEmailEnabled(): boolean {
     return getServerSetting('v') === 1;
 }
 
+export function isUserCustomIconEnabled(): boolean {
+    return getServerSetting('c') === 1;
+}
+
 export function isTransactionPicturesEnabled(): boolean {
     return getServerSetting('p') === 1;
 }
@@ -71,6 +75,10 @@ export function isTransactionFromAITextRecognitionEnabled(): boolean {
 
 export function isTransactionFromAIImageRecognitionEnabled(): boolean {
     return getServerSetting('llmir') === 1;
+}
+
+export function isInsightsExplorerCodingAssistantEnabled(): boolean {
+    return getServerSetting('llmec') === 1;
 }
 
 export function getLoginPageTips(): Record<string, string>{
@@ -146,4 +154,8 @@ export function getAmapApplicationSecret(): string {
 
 export function getExchangeRatesRequestTimeout(): number {
     return getServerSetting('errt') as number;
+}
+
+export function isLanguagePreviewEnabled(): boolean {
+    return getServerSetting('dlp') === 1;
 }

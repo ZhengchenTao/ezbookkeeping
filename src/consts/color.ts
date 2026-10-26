@@ -6,7 +6,7 @@ export const DEFAULT_ICON_COLOR: ColorValue = defaultColor;
 export const DEFAULT_ACCOUNT_COLOR: ColorValue = defaultColor;
 export const DEFAULT_CATEGORY_COLOR: ColorValue = defaultColor;
 
-export const DEFAULT_COLOR_STYLE_VARIABLE: ColorStyleValue = 'var(--default-icon-color)';
+export const DEFAULT_COLOR_STYLE_VARIABLE: ColorStyleValue = 'var(--ebk-icon-default-color)';
 
 const allAvailableColors: ColorValue[] = [
     '000000', // black
@@ -27,6 +27,10 @@ const allAvailableColors: ColorValue[] = [
 
 export const ALL_ACCOUNT_COLORS: ColorValue[] = allAvailableColors;
 export const ALL_CATEGORY_COLORS: ColorValue[] = allAvailableColors;
+
+export const DEFAULT_MOBILE_OVERVIEW_WIDGET_LIGHT_BACKGROUND_COLOR: ColorValue = 'edddcd';
+export const DEFAULT_MOBILE_OVERVIEW_WIDGET_DARK_BACKGROUND_COLOR: ColorValue = '7f5e4b';
+export const DEFAULT_MOBILE_ADD_TRANSACTION_BUTTON_BACKGROUND_COLOR: ColorValue = 'c67e48';
 
 export const DEFAULT_CHART_COLORS: ColorValue[] = [
     'cc4a66',

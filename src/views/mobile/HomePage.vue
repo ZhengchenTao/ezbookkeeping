@@ -4,192 +4,37 @@
             <f7-nav-title :title="tt('global.app.title')"></f7-nav-title>
         </f7-navbar>
 
-        <f7-card class="home-summary-card no-margin-top" :class="{ 'skeleton-text': loading }">
-            <f7-card-header class="display-block" style="padding-top: 120px;">
-                <p class="no-margin">
-                    <span class="card-header-content" v-if="loading">
-                        <span class="home-summary-month">Month</span>
-                        <span>·</span>
-                        <small>Expense</small>
-                    </span>
-                    <span class="card-header-content" v-else-if="!loading">
-                        <span class="home-summary-month">{{ displayDateRange?.thisMonth?.displayTime }}</span>
-                        <span>·</span>
-                        <small>{{ tt('Expense') }}</small>
-                    </span>
-                </p>
-                <p class="no-margin">
-                    <span class="month-expense" v-if="loading">0.00 USD</span>
-                    <span class="month-expense" v-else-if="!loading">{{ transactionOverview && transactionOverview.thisMonth ? getDisplayExpenseAmount(transactionOverview.thisMonth) : '-' }}</span>
-                    <f7-link class="display-inline-flex margin-inline-start-half" @click="showAmountInHomePage = !showAmountInHomePage">
-                        <f7-icon class="ebk-hide-icon" :f7="showAmountInHomePage ? 'eye_slash_fill' : 'eye_fill'"></f7-icon>
-                    </f7-link>
-                </p>
-                <p class="no-margin">
-                    <small class="home-summary-misc" v-if="loading">Monthly income 0.00 USD</small>
-                    <small class="home-summary-misc" v-else-if="!loading">
-                        <span>{{ tt('Monthly income') }}</span>
-                        <span>{{ transactionOverview && transactionOverview.thisMonth ? getDisplayIncomeAmount(transactionOverview.thisMonth) : '-' }}</span>
-                    </small>
-                </p>
-            </f7-card-header>
-        </f7-card>
-
-        <f7-list strong inset dividers class="margin-top overview-transaction-list" :class="{ 'skeleton-text': loading }">
-            <f7-list-item :link="`/transaction/list?${overviewStore.getTransactionListPageParams({ dateType: DateRange.Today.type })}`" chevron-center>
-                <template #media>
-                    <f7-icon f7="calendar_today"></f7-icon>
-                </template>
-                <template #title>
-                    <div class="padding-top-half">
-                        <span v-if="loading">Today</span>
-                        <span v-else-if="!loading">{{ tt('Today') }}</span>
-                    </div>
-                </template>
-                <template #footer>
-                    <div class="overview-transaction-footer padding-bottom-half">
-                        <span v-if="loading">MM/DD/YYYY</span>
-                        <span v-else-if="!loading">{{ displayDateRange?.today?.displayTime }}</span>
-                    </div>
-                </template>
-                <template #after>
-                    <div class="overview-transaction-amount">
-                        <div class="text-income text-align-right">
-                            <small v-if="loading">0.00 USD</small>
-                            <small v-else-if="!loading && transactionOverview.today && transactionOverview.today.valid">{{ getDisplayIncomeAmount(transactionOverview.today) }}</small>
-                        </div>
-                        <div class="text-expense text-align-right">
-                            <small v-if="loading">0.00 USD</small>
-                            <small v-else-if="!loading && transactionOverview.today && transactionOverview.today.valid">{{ getDisplayExpenseAmount(transactionOverview.today) }}</small>
-                        </div>
-                    </div>
-                </template>
-            </f7-list-item>
-
-            <f7-list-item :link="`/transaction/list?${overviewStore.getTransactionListPageParams({ dateType: DateRange.ThisWeek.type })}`" chevron-center>
-                <template #media>
-                    <f7-icon f7="calendar"></f7-icon>
-                </template>
-                <template #title>
-                    <div class="padding-top-half">
-                        <span v-if="loading">This Week</span>
-                        <span v-else-if="!loading">{{ tt('This Week') }}</span>
-                    </div>
-                </template>
-                <template #footer>
-                    <div class="overview-transaction-footer padding-bottom-half">
-                        <span v-if="loading">MM/DD</span>
-                        <span v-else-if="!loading">{{ displayDateRange?.thisWeek?.startTime }}</span>
-                        <span>-</span>
-                        <span v-if="loading">MM/DD</span>
-                        <span v-else-if="!loading">{{ displayDateRange?.thisWeek?.endTime }}</span>
-                    </div>
-                </template>
-                <template #after>
-                    <div class="overview-transaction-amount">
-                        <div class="text-income text-align-right">
-                            <small v-if="loading">0.00 USD</small>
-                            <small v-else-if="!loading && transactionOverview.thisWeek && transactionOverview.thisWeek.valid">{{ getDisplayIncomeAmount(transactionOverview.thisWeek) }}</small>
-                        </div>
-                        <div class="text-expense text-align-right">
-                            <small v-if="loading">0.00 USD</small>
-                            <small v-else-if="!loading && transactionOverview.thisWeek && transactionOverview.thisWeek.valid">{{ getDisplayExpenseAmount(transactionOverview.thisWeek) }}</small>
-                        </div>
-                    </div>
-                </template>
-            </f7-list-item>
-
-            <f7-list-item :link="`/transaction/list?${overviewStore.getTransactionListPageParams({ dateType: DateRange.ThisMonth.type })}`" chevron-center>
-                <template #media>
-                    <f7-icon f7="calendar"></f7-icon>
-                </template>
-                <template #title>
-                    <div class="padding-top-half">
-                        <span v-if="loading">This Month</span>
-                        <span v-else-if="!loading">{{ tt('This Month') }}</span>
-                    </div>
-                </template>
-                <template #footer>
-                    <div class="overview-transaction-footer padding-bottom-half">
-                        <span v-if="loading">MM/DD</span>
-                        <span v-else-if="!loading">{{ displayDateRange?.thisMonth?.startTime }}</span>
-                        <span>-</span>
-                        <span v-if="loading">MM/DD</span>
-                        <span v-else-if="!loading">{{ displayDateRange?.thisMonth?.endTime }}</span>
-                    </div>
-                </template>
-                <template #after>
-                    <div class="overview-transaction-amount">
-                        <div class="text-income text-align-right">
-                            <small v-if="loading">0.00 USD</small>
-                            <small v-else-if="!loading && transactionOverview.thisMonth && transactionOverview.thisMonth.valid">{{ getDisplayIncomeAmount(transactionOverview.thisMonth) }}</small>
-                        </div>
-                        <div class="text-expense text-align-right">
-                            <small v-if="loading">0.00 USD</small>
-                            <small v-else-if="!loading && transactionOverview.thisMonth && transactionOverview.thisMonth.valid">{{ getDisplayExpenseAmount(transactionOverview.thisMonth) }}</small>
-                        </div>
-                    </div>
-                </template>
-            </f7-list-item>
-
-            <f7-list-item :link="`/transaction/list?${overviewStore.getTransactionListPageParams({ dateType: DateRange.ThisYear.type })}`" chevron-center>
-                <template #media>
-                    <f7-icon f7="square_stack_3d_up"></f7-icon>
-                </template>
-                <template #title>
-                    <div class="padding-top-half">
-                        <span v-if="loading">This Year</span>
-                        <span v-else-if="!loading">{{ tt('This Year') }}</span>
-                    </div>
-                </template>
-                <template #footer>
-                    <div class="overview-transaction-footer padding-bottom-half">
-                        <span v-if="loading">YYYY</span>
-                        <span v-else-if="!loading">{{ displayDateRange?.thisYear?.displayTime }}</span>
-                    </div>
-                </template>
-                <template #after>
-                    <div class="overview-transaction-amount">
-                        <div class="text-income text-align-right">
-                            <small v-if="loading">0.00 USD</small>
-                            <small v-else-if="!loading && transactionOverview.thisYear && transactionOverview.thisYear.valid">{{ getDisplayIncomeAmount(transactionOverview.thisYear) }}</small>
-                        </div>
-                        <div class="text-expense text-align-right">
-                            <small v-if="loading">0.00 USD</small>
-                            <small v-else-if="!loading && transactionOverview.thisYear && transactionOverview.thisYear.valid">{{ getDisplayExpenseAmount(transactionOverview.thisYear) }}</small>
-                        </div>
-                    </div>
-                </template>
-            </f7-list-item>
-        </f7-list>
+        <overview-dashboard :layout="layout" :loading="loading" @navigate="onNavigate" />
 
         <f7-toolbar tabbar icons bottom class="main-tabbar">
-            <f7-link class="link" href="/transaction/list">
-                <f7-icon f7="square_list"></f7-icon>
+            <f7-link class="link" href="/transaction/list" :aria-label="tt('Details')">
+                <f7-icon f7="square_list" aria-hidden="true"></f7-icon>
                 <span class="tabbar-label">{{ tt('Details') }}</span>
             </f7-link>
-            <f7-link class="link" href="/account/list">
-                <f7-icon f7="creditcard"></f7-icon>
+            <f7-link class="link" href="/account/list" :aria-label="tt('Accounts')">
+                <f7-icon f7="creditcard" aria-hidden="true"></f7-icon>
                 <span class="tabbar-label">{{ tt('Accounts') }}</span>
             </f7-link>
             <!-- "homepage-add-button" must have the "dragenabled" class, otherwise the popover disappears immediately after the second long press -->
             <f7-link id="homepage-add-button" class="link dragenabled"
-                     href="/transaction/add" @taphold="openTransactionTemplatePopover">
-                <f7-icon f7="plus_square" class="ebk-tarbar-big-icon"></f7-icon>
+                     href="/transaction/add"
+                     :aria-label="tt('Add Transaction')"
+                     @taphold="openTransactionTemplatePopover">
+                <f7-icon f7="plus_square" class="ebk-tarbar-big-icon" aria-hidden="true"></f7-icon>
             </f7-link>
-            <f7-link class="link" href="/statistic/transaction">
-                <f7-icon f7="chart_pie"></f7-icon>
+            <f7-link class="link" href="/statistic/transaction" :aria-label="tt('Statistics')">
+                <f7-icon f7="chart_pie" aria-hidden="true"></f7-icon>
                 <span class="tabbar-label">{{ tt('Statistics') }}</span>
             </f7-link>
-            <f7-link class="link" href="/settings">
-                <f7-icon f7="gear_alt"></f7-icon>
+            <f7-link class="link" href="/settings" :aria-label="tt('Settings')">
+                <f7-icon f7="gear_alt" aria-hidden="true"></f7-icon>
                 <span class="tabbar-label">{{ tt('Settings') }}</span>
             </f7-link>
         </f7-toolbar>
 
         <f7-popover class="template-popover-menu" target-el="#homepage-add-button"
                     v-model:opened="showTransactionTemplatePopover">
-            <f7-list dividers v-if="isTransactionFromAITextRecognitionEnabled() || isTransactionFromAIImageRecognitionEnabled() || (allTransactionTemplates && allTransactionTemplates.length)">
+            <f7-list dividers v-if="hasTransactionAddMenuItems">
                 <f7-list-item key="AIClipboardTextRecognition" link="#" no-chevron popover-close
                               :title="tt('AI Clipboard Text Recognition')"
                               @click="addByRecognizingClipboardText"
@@ -224,13 +69,13 @@
 
 <script setup lang="ts">
 import AIImageRecognitionSheet, { type AIImageRecognitionResult } from '@/components/mobile/AIImageRecognitionSheet.vue';
+import OverviewDashboard from './overview/OverviewDashboard.vue';
 
 import { ref, computed, useTemplateRef } from 'vue';
 import type { Router } from 'framework7/types';
 
 import { useI18n } from '@/locales/helpers.ts';
 import { useI18nUIComponents, isiOS } from '@/lib/ui/mobile.ts';
-import { useHomePageBase } from '@/views/base/HomePageBase.ts';
 
 import { useSettingsStore } from '@/stores/setting.ts';
 import { useAccountsStore } from '@/stores/account.ts';
@@ -238,11 +83,28 @@ import { useTransactionCategoriesStore } from '@/stores/transactionCategory.ts';
 import { useTransactionTemplatesStore } from '@/stores/transactionTemplate.ts';
 import { useOverviewStore } from '@/stores/overview.ts';
 
-import { DateRange } from '@/core/datetime.ts';
+import type { PartialRecord } from '@/core/base.ts';
+import {
+    type MobileOverviewLayout,
+    OverviewWidgetDataRequirement,
+    MobileOverviewWidgetNavigationType
+} from '@/core/overview_layout.ts';
 import { TemplateType } from '@/core/template.ts';
+import { MOBILE_OVERVIEW_WIDGET_DEFINITIONS, DEFAULT_MOBILE_OVERVIEW_LAYOUT } from '@/consts/overview_layout.ts';
+
 import { TransactionTemplate } from '@/models/transaction_template.ts';
 
 import { isFunction } from '@/lib/common.ts';
+import {
+    getOverviewDataRequirements,
+    getOverviewTransactionOverviewMonths,
+    getOverviewUnreconciledTransactionAccountIds,
+    getOverviewRecentTransactionsQueries,
+    getOverviewAssetTrendMonths,
+    getOverviewCalendarHeatmapMonths,
+    getOverviewTransactionCategoryStatisticDateTypes,
+    parseMobileOverviewLayout
+} from '@/lib/overview_layout.ts';
 import { isUserLogined, isUserUnlocked } from '@/lib/userstate.ts';
 import { getShareCacheImageBlob } from '@/lib/cache.ts';
 import {
@@ -260,14 +122,6 @@ const props = defineProps<{
 const { tt } = useI18n();
 const { showToast } = useI18nUIComponents();
 
-const {
-    showAmountInHomePage,
-    displayDateRange,
-    transactionOverview,
-    getDisplayIncomeAmount,
-    getDisplayExpenseAmount
-} = useHomePageBase();
-
 const settingsStore = useSettingsStore();
 const accountsStore = useAccountsStore();
 const transactionCategoriesStore = useTransactionCategoriesStore();
@@ -280,13 +134,24 @@ const loading = ref<boolean>(true);
 const showTransactionTemplatePopover = ref<boolean>(false);
 const showAIReceiptImageRecognitionSheet = ref<boolean>(false);
 
+const layout = computed<MobileOverviewLayout>(() => {
+    try {
+        return parseMobileOverviewLayout(settingsStore.appSettings.mobileOverviewPageLayout);
+    } catch (error) {
+        logger.warn('failed to parse mobile overview page layout, fallback to default layout', error);
+        return DEFAULT_MOBILE_OVERVIEW_LAYOUT;
+    }
+});
+
 const allTransactionTemplates = computed<TransactionTemplate[]>(() => {
     const allTemplates = transactionTemplatesStore.allVisibleTemplates;
     return allTemplates[TemplateType.Normal.type] || [];
 });
 
+const hasTransactionAddMenuItems = computed<boolean>(() => isTransactionFromAITextRecognitionEnabled() || isTransactionFromAIImageRecognitionEnabled() || (allTransactionTemplates.value && allTransactionTemplates.value.length > 0));
+
 function openTransactionTemplatePopover(): void {
-    if (isTransactionFromAIImageRecognitionEnabled() || (allTransactionTemplates.value && allTransactionTemplates.value.length)) {
+    if (hasTransactionAddMenuItems.value) {
         showTransactionTemplatePopover.value = true;
     }
 }
@@ -295,12 +160,12 @@ function init(): void {
     if (isUserLogined() && isUserUnlocked()) {
         loading.value = true;
 
-        const promises = [
+        const promises: Promise<unknown>[] = [
             getShareCacheImageBlob(),
             accountsStore.loadAllAccounts({ force: false }),
             transactionCategoriesStore.loadAllCategories({ force: false }),
             transactionTemplatesStore.loadAllTemplates({ templateType: TemplateType.Normal.type,  force: false }),
-            overviewStore.loadTransactionOverview({ force: false })
+            ...reloadOverviewData(false)
         ];
 
         Promise.all(promises).then(responses => {
@@ -322,10 +187,14 @@ function init(): void {
 
 function reload(done?: () => void): void {
     const force = !!done;
+    const promises: Promise<unknown>[] = reloadOverviewData(force);
 
-    overviewStore.loadTransactionOverview({
-        force: force
-    }).then(() => {
+    if (promises.length < 1) {
+        done?.();
+        return;
+    }
+
+    Promise.all(promises).then(() => {
         done?.();
 
         if (force) {
@@ -338,6 +207,63 @@ function reload(done?: () => void): void {
             showToast(error.message || error);
         }
     });
+}
+
+function reloadOverviewData(force: boolean): Promise<unknown>[] {
+    const requirements: PartialRecord<OverviewWidgetDataRequirement, boolean> = getOverviewDataRequirements(layout.value, MOBILE_OVERVIEW_WIDGET_DEFINITIONS);
+    const promises: Promise<unknown>[] = [];
+
+    if (requirements[OverviewWidgetDataRequirement.TransactionOverview]) {
+        promises.push(overviewStore.loadTransactionOverview({
+            force: force,
+            months: getOverviewTransactionOverviewMonths(layout.value)
+        }));
+    }
+
+    if (requirements[OverviewWidgetDataRequirement.AccountUnreconciledTransactionCounts]) {
+        promises.push(overviewStore.loadTransactionUnreconciledCounts({
+            force: force,
+            accountIds: getOverviewUnreconciledTransactionAccountIds(layout.value)
+        }));
+    }
+
+    if (requirements[OverviewWidgetDataRequirement.TransactionCategoryStatistics]) {
+        for (const dateType of getOverviewTransactionCategoryStatisticDateTypes(layout.value)) {
+            promises.push(overviewStore.loadTransactionCategoryStatistics({
+                force: force,
+                dateType: dateType
+            }));
+        }
+    }
+
+    if (requirements[OverviewWidgetDataRequirement.AssetTrends]) {
+        promises.push(overviewStore.loadTransactionAssetTrends({
+            force: force,
+            months: getOverviewAssetTrendMonths(layout.value)
+        }));
+    }
+
+    if (requirements[OverviewWidgetDataRequirement.RecentTransactions]) {
+        promises.push(overviewStore.loadRecentTransactions({
+            force: force,
+            queries: getOverviewRecentTransactionsQueries(layout.value)
+        }));
+    }
+
+    if (requirements[OverviewWidgetDataRequirement.CurrentMonthTransactions]) {
+        promises.push(overviewStore.loadCurrentMonthTransactions({
+            force: force
+        }));
+    }
+
+    if (requirements[OverviewWidgetDataRequirement.DailyTransactionAmounts]) {
+        promises.push(overviewStore.loadTransactionDailyAmounts({
+            force: force,
+            months: getOverviewCalendarHeatmapMonths(layout.value)
+        }));
+    }
+
+    return promises;
 }
 
 function addByRecognizingClipboardText(): void {
@@ -414,6 +340,16 @@ function onReceiptRecognitionChanged(result: AIImageRecognitionResult): void {
             autoUploadPicture: autoUploadRecognizedImage ? result.imageFile : undefined,
         }
     });
+}
+
+function onNavigate(type: MobileOverviewWidgetNavigationType, path?: string): void {
+    if (type === MobileOverviewWidgetNavigationType.Url && path) {
+        props.f7router.navigate(path);
+    } else if (type === MobileOverviewWidgetNavigationType.AIClipboardTextRecognition) {
+        addByRecognizingClipboardText();
+    } else if (type === MobileOverviewWidgetNavigationType.AIImageRecognition) {
+        showAIReceiptImageRecognitionSheet.value = true;
+    }
 }
 
 function onPageAfterIn(): void {

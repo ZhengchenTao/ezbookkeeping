@@ -14,6 +14,7 @@ import { VBtnToggle } from 'vuetify/components/VBtnToggle';
 import { VCard, VCardActions, VCardItem, VCardSubtitle, VCardText, VCardTitle } from 'vuetify/components/VCard';
 import { VCheckbox, VCheckboxBtn } from 'vuetify/components/VCheckbox';
 import { VChip } from 'vuetify/components/VChip';
+import { VColorPicker } from 'vuetify/components/VColorPicker';
 import { VDataTable } from 'vuetify/components/VDataTable';
 import { VDialog } from 'vuetify/components/VDialog';
 import { VDivider } from 'vuetify/components/VDivider';
@@ -76,8 +77,6 @@ import VChart from 'vue-echarts';
 
 import 'line-awesome/dist/line-awesome/css/line-awesome.css';
 
-import { PerfectScrollbar } from 'vue3-perfect-scrollbar';
-
 import { VueDatePicker } from '@vuepic/vue-datepicker';
 import '@vuepic/vue-datepicker/dist/main.css';
 
@@ -85,7 +84,7 @@ import draggable from 'vuedraggable';
 
 import router from '@/router/desktop.ts';
 
-import { DecimalSeparator } from '@/core/numeral.ts';
+import { DecimalSeparator, DigitGroupingSymbol } from '@/core/numeral.ts';
 import { getI18nOptions, getRtlLocales } from '@/locales/helpers.ts';
 
 import PinCodeInput from '@/components/common/PinCodeInput.vue';
@@ -94,11 +93,17 @@ import DateTimePicker from '@/components/common/DateTimePicker.vue';
 import MonthPicker from '@/components/common/MonthPicker.vue';
 import TransactionCalendar from '@/components/common/TransactionCalendar.vue';
 
+import MainPageLayout from '@/components/desktop/MainPageLayout.vue';
+import OneColumnDialogLayout from '@/components/desktop/OneColumnDialogLayout.vue';
+import TwoColumnDialogLayout from '@/components/desktop/TwoColumnDialogLayout.vue';
+import AuthIllustration from '@/components/desktop/AuthIllustration.vue';
 import ItemIcon from '@/components/desktop/ItemIcon.vue';
+import ToggleButton from '@/components/desktop/ToggleButton.vue';
 import BtnVerticalGroup from '@/components/desktop/BtnVerticalGroup.vue';
 import NumberInput from '@/components/desktop/NumberInput.vue';
 import AmountInput from '@/components/desktop/AmountInput.vue';
 import AmountInputDialog from '@/components/desktop/AmountInputDialog.vue';
+import AmountFilterInput from '@/components/desktop/AmountFilterInput.vue';
 import LanguageSelect from '@/components/desktop/LanguageSelect.vue';
 import LanguageSelectButton from '@/components/desktop/LanguageSelectButton.vue';
 import CurrencySelect from '@/components/desktop/CurrencySelect.vue';
@@ -112,6 +117,10 @@ import TransactionTagAutoComplete from '@/components/desktop/TransactionTagAutoC
 import ScheduleFrequencySelect from '@/components/desktop/ScheduleFrequencySelect.vue';
 import StepsBar from '@/components/desktop/StepsBar.vue';
 import ConfirmDialog from '@/components/desktop/ConfirmDialog.vue';
+import CodeEditor from '@/components/desktop/CodeEditor.vue';
+import DataExportDialog from '@/components/desktop/DataExportDialog.vue';
+import JsonImportDialog from '@/components/desktop/JsonImportDialog.vue';
+import JsonExportDialog from '@/components/desktop/JsonExportDialog.vue';
 import SnackBar from '@/components/desktop/SnackBar.vue';
 import PieChartComponent from '@/components/desktop/PieChart.vue';
 import RadarChartComponent from '@/components/desktop/RadarChart.vue';
@@ -120,23 +129,20 @@ import TrendsChart from '@/components/desktop/TrendsChart.vue';
 import HierarchyChart from '@/components/desktop/HierarchyChart.vue';
 import HeatMapChart from '@/components/desktop/HeatMapChart.vue';
 import CalendarHeatMapChart from '@/components/desktop/CalendarHeatMapChart.vue';
+import DateRangeCalendarHeatMapChart from '@/components/desktop/DateRangeCalendarHeatMapChart.vue';
+import CustomChart from '@/components/desktop/CustomChart.vue';
 import RenameDialog from '@/components/desktop/RenameDialog.vue';
 import DateRangeSelectionDialog from '@/components/desktop/DateRangeSelectionDialog.vue';
 import MonthSelectionDialog from '@/components/desktop/MonthSelectionDialog.vue';
 import MonthRangeSelectionDialog from '@/components/desktop/MonthRangeSelectionDialog.vue';
+import MonthlyIncomeAndExpenseChart from '@/components/desktop/MonthlyIncomeAndExpenseChart.vue';
 import AccountBalanceTrendsChart from '@/components/desktop/AccountBalanceTrendsChart.vue';
 import AccountAndCategorySankeyChart from '@/components/desktop/AccountAndCategorySankeyChart.vue';
 import SwitchToMobileDialog from '@/components/desktop/SwitchToMobileDialog.vue';
 
 import TextFieldAutoWidth from '@/directives/desktop/textfieldAutoWidth.ts';
 
-import '@/styles/desktop/template/vuetify/index.scss';
-import '@/styles/desktop/template/template/index.scss';
-import '@/styles/desktop/template/layout/index.scss';
-import '@/styles/desktop/template/layout/component/index.scss';
-import '@/styles/desktop/template/layout/_default-layout.scss';
-import '@/styles/desktop/global.scss';
-import '@/styles/desktop/font-size.scss';
+import '@/styles/desktop/index.scss';
 import '@/styles/desktop/amount-color.scss';
 
 import App from './DesktopApp.vue';
@@ -163,6 +169,7 @@ const vuetify = createVuetify({
         VCheckbox,
         VCheckboxBtn,
         VChip,
+        VColorPicker,
         VDataTable,
         VDialog,
         VDivider,
@@ -221,6 +228,7 @@ const vuetify = createVuetify({
     },
     defaults: {
         VAlert: {
+            density: 'comfortable',
             VBtn: {
                 color: undefined
             }
@@ -241,24 +249,27 @@ const vuetify = createVuetify({
             color: 'primary'
         },
         VBtn: {
+            variant: 'flat',
             color: 'primary'
         },
         VCheckbox: {
             color: 'primary',
+            density: 'compact',
             hideDetails: 'auto'
         },
         VChip: {
             elevation: 0
         },
         VList: {
-            color: 'primary'
+            color: 'primary',
+            density: 'compact'
         },
         VPagination: {
             density: 'comfortable',
             activeColor: 'primary'
         },
         VRadio: {
-            density: 'comfortable',
+            density: 'compact',
             color: 'primary',
             hideDetails: 'auto'
         },
@@ -274,6 +285,7 @@ const vuetify = createVuetify({
         },
         VSwitch: {
             inset: true,
+            density: 'compact',
             color: 'primary',
             hideDetails: 'auto'
         },
@@ -281,10 +293,12 @@ const vuetify = createVuetify({
             size: 40
         },
         VSnackbar: {
-            timeout: 3000
+            timeout: 3000,
+            zIndex: 9000
         },
         VTable: {
-            hover: true
+            hover: true,
+            density: 'comfortable'
         },
         VTabs: {
             color: 'primary',
@@ -308,10 +322,15 @@ const vuetify = createVuetify({
             color: 'primary'
         },
         VTooltip: {
-            location: 'top'
+            location: 'top',
+            zIndex: 9000
         },
         VWindow: {
             touch: false
+        },
+        VWindowItem: {
+            transition: false,
+            reverseTransition: false
         }
     },
     theme: {
@@ -356,7 +375,6 @@ const vuetify = createVuetify({
                     'grey-700': '#616161',
                     'grey-800': '#424242',
                     'grey-900': '#212121',
-                    'perfect-scrollbar-thumb': '#dedcda',
                     'skin-bordered-background': '#fff',
                     'skin-bordered-surface': '#fff',
                     'expansion-panel-text-custom-bg': '#fafafa'
@@ -366,21 +384,21 @@ const vuetify = createVuetify({
                     'overlay-scrim-background': '#413935',
                     'tooltip-background': '#212121',
                     'tooltip-color': '#ffffff',
-                    'overlay-scrim-opacity': 0.5,
-                    'hover-opacity': 0.04,
+                    'overlay-scrim-opacity': 0.2,
+                    'hover-opacity': 0.08,
                     'focus-opacity': 0.1,
                     'selected-opacity': 0.08,
-                    'activated-opacity': 0.16,
+                    'activated-opacity': 0.08,
                     'pressed-opacity': 0.14,
                     'dragged-opacity': 0.1,
                     'disabled-opacity': 0.4,
                     'border-color': '#413f3b',
                     'border-opacity': 0.12,
-                    'table-header-color': '#fdfcf9',
+                    'table-header-background': '#fdfcf9',
                     'high-emphasis-opacity': 0.9,
                     'medium-emphasis-opacity': 0.7,
 
-                    // 👉 shadows
+                    // shadows
                     'shadow-key-umbra-color': '#413935',
                     'shadow-xs-opacity': '0.16',
                     'shadow-sm-opacity': '0.18',
@@ -415,7 +433,7 @@ const vuetify = createVuetify({
                     'on-background': '#fcf0e3',
                     'surface': '#1a1a1a',
                     'on-surface': '#fcf0e3',
-                    'notification-background': '#1e1e1e',
+                    'notification-background': '#2e2e2e',
                     'on-notification-background': '#fff',
                     'grey': '#4d4c4b',
                     'grey-50': '#212121',
@@ -428,31 +446,30 @@ const vuetify = createVuetify({
                     'grey-700': '#c6c6c6',
                     'grey-800': '#d8d8d8',
                     'grey-900': '#eaeaea',
-                    'perfect-scrollbar-thumb': '#725b4a',
                     'skin-bordered-background': '#4b3b2d',
                     'skin-bordered-surface': '#4b3b2d',
                     'expansion-panel-text-custom-bg': '#503f33'
                 },
                 variables: {
                     'code-color': '#ff8000',
-                    'overlay-scrim-background': '#1a1a1a',
+                    'overlay-scrim-background': '#615955',
                     'tooltip-background': '#333333',
                     'tooltip-color': '#eeeeee',
-                    'overlay-scrim-opacity': 0.6,
-                    'hover-opacity': 0.04,
+                    'overlay-scrim-opacity': 0.2,
+                    'hover-opacity': 0.12,
                     'focus-opacity': 0.1,
                     'selected-opacity': 0.08,
-                    'activated-opacity': 0.16,
+                    'activated-opacity': 0.08,
                     'pressed-opacity': 0.14,
                     'disabled-opacity': 0.4,
                     'dragged-opacity': 0.1,
                     'border-color': '#edece9',
                     'border-opacity': 0.12,
-                    'table-header-color': '#242322',
+                    'table-header-background': '#23201d',
                     'high-emphasis-opacity': 0.9,
                     'medium-emphasis-opacity': 0.7,
 
-                    // 👉 Shadows
+                    // Shadows
                     'shadow-key-umbra-color': '#383736',
                     'shadow-xs-opacity': '0.20',
                     'shadow-sm-opacity': '0.22',
@@ -469,6 +486,7 @@ const vuetify = createVuetify({
             const instance: LocaleInstance = {
                 name: 'ezBookkeeping i18n',
                 decimalSeparator: ref<string>(DecimalSeparator.Default.symbol), // should never use vuetify to format numbers
+                numericGroupSeparator: ref<string>(DigitGroupingSymbol.Default.symbol), // should never use vuetify to format numbers
                 messages: i18nGlobal.messages,
                 current: i18nGlobal.locale,
                 fallback: i18nGlobal.locale, // no need to let vuetify know what fallback locale is
@@ -540,7 +558,6 @@ app.use(vuetify);
 app.use(router);
 
 app.component('VChart', VChart);
-app.component('PerfectScrollbar', PerfectScrollbar);
 app.component('VueDatePicker', VueDatePicker);
 app.component('DraggableList', draggable);
 
@@ -550,11 +567,17 @@ app.component('DateTimePicker', DateTimePicker);
 app.component('MonthPicker', MonthPicker);
 app.component('TransactionCalendar', TransactionCalendar);
 
+app.component('MainPageLayout', MainPageLayout);
+app.component('OneColumnDialogLayout', OneColumnDialogLayout);
+app.component('TwoColumnDialogLayout', TwoColumnDialogLayout);
+app.component('AuthIllustration', AuthIllustration);
 app.component('ItemIcon', ItemIcon);
+app.component('ToggleButton', ToggleButton);
 app.component('BtnVerticalGroup', BtnVerticalGroup);
 app.component('NumberInput', NumberInput);
 app.component('AmountInput', AmountInput);
 app.component('AmountInputDialog', AmountInputDialog);
+app.component('AmountFilterInput', AmountFilterInput);
 app.component('LanguageSelect', LanguageSelect);
 app.component('LanguageSelectButton', LanguageSelectButton);
 app.component('CurrencySelect', CurrencySelect);
@@ -568,6 +591,10 @@ app.component('TransactionTagAutoComplete', TransactionTagAutoComplete);
 app.component('ScheduleFrequencySelect', ScheduleFrequencySelect);
 app.component('StepsBar', StepsBar);
 app.component('ConfirmDialog', ConfirmDialog);
+app.component('CodeEditor', CodeEditor);
+app.component('DataExportDialog', DataExportDialog);
+app.component('JsonImportDialog', JsonImportDialog);
+app.component('JsonExportDialog', JsonExportDialog);
 app.component('SnackBar', SnackBar);
 app.component('PieChart', PieChartComponent);
 app.component('RadarChart', RadarChartComponent);
@@ -576,10 +603,13 @@ app.component('TrendsChart', TrendsChart);
 app.component('HierarchyChart', HierarchyChart);
 app.component('HeatMapChart', HeatMapChart);
 app.component('CalendarHeatMapChart', CalendarHeatMapChart);
+app.component('DateRangeCalendarHeatMapChart', DateRangeCalendarHeatMapChart);
+app.component('CustomChart', CustomChart);
 app.component('RenameDialog', RenameDialog);
 app.component('DateRangeSelectionDialog', DateRangeSelectionDialog);
 app.component('MonthSelectionDialog', MonthSelectionDialog);
 app.component('MonthRangeSelectionDialog', MonthRangeSelectionDialog);
+app.component('MonthlyIncomeAndExpenseChart', MonthlyIncomeAndExpenseChart);
 app.component('AccountBalanceTrendsChart', AccountBalanceTrendsChart);
 app.component('AccountAndCategorySankeyChart', AccountAndCategorySankeyChart);
 app.component('SwitchToMobileDialog', SwitchToMobileDialog);

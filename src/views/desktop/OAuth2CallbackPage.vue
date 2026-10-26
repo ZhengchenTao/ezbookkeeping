@@ -3,32 +3,23 @@
         <router-link to="/">
             <div class="auth-logo d-flex align-start gap-x-3">
                 <img alt="logo" class="login-page-logo" :src="APPLICATION_LOGO_PATH" />
-                <h1 class="font-weight-medium leading-normal text-2xl">{{ tt('global.app.title') }}</h1>
+                <span class="auth-app-title">{{ tt('global.app.title') }}</span>
             </div>
         </router-link>
         <v-row no-gutters class="auth-wrapper">
             <v-col cols="12" md="8" class="auth-image-background d-none d-md-flex align-center justify-center position-relative">
-                <div class="d-flex auth-img-footer" v-if="!isDarkMode">
-                    <v-img class="img-with-direction" src="img/desktop/background.svg"/>
-                </div>
-                <div class="d-flex auth-img-footer" v-if="isDarkMode">
-                    <v-img class="img-with-direction" src="img/desktop/background-dark.svg"/>
-                </div>
-                <div class="d-flex align-center justify-center w-100 pt-10">
-                    <v-img class="img-with-direction" max-width="300px" src="img/desktop/people2.svg" v-if="!isDarkMode"/>
-                    <v-img class="img-with-direction" max-width="300px" src="img/desktop/people2-dark.svg" v-else-if="isDarkMode"/>
-                </div>
+                <auth-illustration variant="connect" />
             </v-col>
             <v-col cols="12" md="4" class="auth-card d-flex flex-column">
                 <div class="d-flex align-center justify-center h-100">
                     <v-card variant="flat" class="w-100 mt-0 px-4 pt-12" max-width="500">
-                        <v-card-text>
-                            <h4 class="text-h4 mb-2">{{ oauth2LoginDisplayName }}</h4>
-                            <p class="mb-0" v-if="!error && !errorMessage && platform && token && !userName">{{ tt('Logging in...') }}</p>
-                            <p class="mb-0" v-else-if="!error && !errorMessage && userName">{{ tt('format.misc.oauth2bindTip', { providerName: oauth2ProviderDisplayName, userName: userName }) }}</p>
-                            <p class="mb-0" v-else-if="error">{{ te({ error }) }}</p>
-                            <p class="mb-0" v-else-if="errorMessage">{{ errorMessage }}</p>
-                            <p class="mb-0" v-else>{{ tt('An error occurred') }}</p>
+                        <v-card-text class="py-0">
+                            <div class="text-headline-small mb-2">{{ oauth2LoginDisplayName }}</div>
+                            <div class="auth-message text-body-large mb-0" v-if="!error && !errorMessage && platform && token && !userName">{{ tt('Logging in...') }}</div>
+                            <div class="auth-message text-body-large mb-0" v-else-if="!error && !errorMessage && userName">{{ tt('format.misc.oauth2bindTip', { providerName: oauth2ProviderDisplayName, userName: userName }) }}</div>
+                            <div class="auth-message text-body-large mb-0" v-else-if="error">{{ te({ error }) }}</div>
+                            <div class="auth-message text-body-large mb-0" v-else-if="errorMessage">{{ errorMessage }}</div>
+                            <div class="auth-message text-body-large mb-0" v-else>{{ tt('An error occurred') }}</div>
                         </v-card-text>
 
                         <v-card-text class="pb-0 mb-6" v-if="!error && userName">
@@ -68,10 +59,10 @@
                                     </v-col>
 
                                     <v-col cols="12">
-                                        <router-link class="d-flex align-center justify-center" to="/login"
+                                        <router-link class="d-flex align-center justify-center mt-2" to="/login"
                                                      :class="{ 'disabled': loggingInByOAuth2 }">
                                             <v-icon class="icon-with-direction" :icon="mdiChevronLeft"/>
-                                            <span>{{ tt('Back to login page') }}</span>
+                                            <span class="text-body-medium">{{ tt('Back to login page') }}</span>
                                         </router-link>
                                     </v-col>
                                 </v-row>
@@ -81,22 +72,18 @@
                 </div>
                 <v-spacer/>
                 <div class="d-flex align-center justify-center">
-                    <v-card variant="flat" class="w-100 px-4 pb-4" max-width="500">
+                    <v-card variant="flat" class="w-100 px-4 pb-3" max-width="500">
                         <v-card-text class="pt-0">
-                            <v-row>
-                                <v-col cols="12" class="text-center">
-                                    <language-select-button :disabled="loggingInByOAuth2" />
-                                </v-col>
+                            <div class="text-center">
+                                <language-select-button :disabled="loggingInByOAuth2" />
+                            </div>
 
-                                <v-col cols="12" class="d-flex align-center pt-0">
-                                    <v-divider />
-                                </v-col>
+                            <v-divider class="mt-2 mb-3" />
 
-                                <v-col cols="12" class="text-center text-sm">
-                                    <span>Powered by </span>
-                                    <a href="https://github.com/mayswind/ezbookkeeping" target="_blank">ezBookkeeping</a>&nbsp;<span>{{ version }}</span>
-                                </v-col>
-                            </v-row>
+                            <div class="auth-powered-by text-center">
+                                <span>Powered by </span>
+                                <a href="https://github.com/mayswind/ezbookkeeping" target="_blank">ezBookkeeping</a>&nbsp;<span>{{ version }}</span>
+                            </div>
                         </v-card-text>
                     </v-card>
                 </div>
@@ -113,14 +100,12 @@ import SnackBar from '@/components/desktop/SnackBar.vue';
 
 import { ref, computed, useTemplateRef, nextTick } from 'vue';
 import { useRouter } from 'vue-router';
-import { useTheme } from 'vuetify';
 
 import { useI18n } from '@/locales/helpers.ts';
 import { useLoginPageBase } from '@/views/base/LoginPageBase.ts';
 
 import { useRootStore } from '@/stores/index.ts';
 
-import { ThemeType } from '@/core/theme.ts';
 import { type ErrorResponse, buildErrorResponse } from '@/core/api.ts';
 import { APPLICATION_LOGO_PATH } from '@/consts/asset.ts';
 import { KnownErrorCode } from '@/consts/api.ts';
@@ -147,7 +132,6 @@ const props = defineProps<{
 }>();
 
 const router = useRouter();
-const theme = useTheme();
 
 const {
     tt,
@@ -171,7 +155,6 @@ const snackbar = useTemplateRef<SnackBarType>('snackbar');
 const passcode = ref<string>('');
 const show2faInput = ref<boolean>(false);
 
-const isDarkMode = computed<boolean>(() => theme.global.name.value === ThemeType.Dark);
 const oauth2ProviderDisplayName = computed<string>(() => getLocalizedOAuth2ProviderName(props.provider ?? '', getOIDCCustomDisplayNames()));
 const oauth2LoginDisplayName = computed<string>(() => getLocalizedOAuth2LoginText(props.provider ?? '', getOIDCCustomDisplayNames()));
 

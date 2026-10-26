@@ -4,7 +4,7 @@
         <f7-toolbar class="toolbar-with-swipe-handler">
             <div class="swipe-handler"></div>
             <div class="left">
-                <f7-link sheet-close icon-f7="xmark"></f7-link>
+                <f7-link sheet-close icon-f7="xmark" :aria-label="tt('Close')"></f7-link>
             </div>
             <f7-searchbar ref="searchbar" custom-searchs
                           :value="filterContent"
@@ -26,7 +26,8 @@
                                   :key="primaryKeyField ? item[primaryKeyField] : item"
                                   v-for="item in filteredItems">
                     <template #media>
-                        <ItemIcon :icon-type="primaryIconType" :icon-id="item[primaryIconField]"
+                        <ItemIcon :icon-type="getIconType(primaryIconType, primaryIconTypeField ? item[primaryIconTypeField] : undefined)"
+                                  :icon-id="item[primaryIconField]"
                                   :color="primaryColorField ? item[primaryColorField] : undefined" v-if="primaryIconField"></ItemIcon>
                     </template>
 
@@ -37,7 +38,8 @@
                                       v-for="subItem in getFilteredSubItems(item)"
                                       @click="onSecondaryItemClicked(subItem)">
                         <template #media>
-                            <ItemIcon :icon-type="secondaryIconType" :icon-id="(subItem as Record<string, unknown>)[secondaryIconField]"
+                            <ItemIcon :icon-type="getIconType(secondaryIconType, secondaryIconTypeField ? (subItem as Record<string, unknown>)[secondaryIconTypeField] : undefined)"
+                                      :icon-id="(subItem as Record<string, unknown>)[secondaryIconField]"
                                       :color="secondaryColorField ? (subItem as Record<string, unknown>)[secondaryColorField] : undefined" v-if="secondaryIconField"></ItemIcon>
                         </template>
                     </f7-treeview-item>
@@ -56,6 +58,7 @@ import { type TwoLevelItemSelectionBaseProps, useTwoLevelItemSelectionBase } fro
 
 import { NormalizedText } from '@/core/text.ts';
 
+import { getIconType } from '@/lib/icon.ts';
 import { scrollToSelectedItem } from '@/lib/ui/common.ts';
 import { type Framework7Dom, scrollSheetToTop } from '@/lib/ui/mobile.ts';
 
@@ -71,7 +74,7 @@ const emit = defineEmits<{
     (e: 'update:show', value: boolean): void;
 }>();
 
-const { ti } = useI18n();
+const { tt, ti } = useI18n();
 
 const {
     filterContent,

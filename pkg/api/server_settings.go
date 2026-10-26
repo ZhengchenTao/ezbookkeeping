@@ -45,6 +45,7 @@ func (a *ServerSettingsApi) ServerSettingsJavascriptHandler(c *core.WebContext) 
 	a.appendBooleanSetting(builder, "f", config.EnableInternalAuth && config.EnableUserForgetPassword)
 	a.appendBooleanSetting(builder, "t", config.EnableAPIToken)
 	a.appendBooleanSetting(builder, "v", config.EnableUserVerifyEmail)
+	a.appendBooleanSetting(builder, "c", config.EnableUserCustomIcon)
 	a.appendBooleanSetting(builder, "p", config.EnableTransactionPictures)
 	a.appendBooleanSetting(builder, "s", config.EnableScheduledTransaction)
 	a.appendBooleanSetting(builder, "e", config.EnableDataExport)
@@ -69,6 +70,12 @@ func (a *ServerSettingsApi) ServerSettingsJavascriptHandler(c *core.WebContext) 
 	if config.ReceiptImageRecognitionLLMConfig != nil && config.ReceiptImageRecognitionLLMConfig.LLMProvider != "" {
 		if config.TransactionFromAIImageRecognition {
 			a.appendBooleanSetting(builder, "llmir", config.TransactionFromAIImageRecognition)
+		}
+	}
+
+	if config.CodingAssistantLLMConfig != nil && config.CodingAssistantLLMConfig.LLMProvider != "" {
+		if config.InsightsExplorerCodingAssistant {
+			a.appendBooleanSetting(builder, "llmec", true)
 		}
 	}
 
@@ -142,6 +149,8 @@ func (a *ServerSettingsApi) ServerSettingsJavascriptHandler(c *core.WebContext) 
 	if config.ExchangeRatesRequestTimeoutExceedDefaultValue {
 		a.appendIntegerSetting(builder, "errt", int(config.ExchangeRatesRequestTimeout))
 	}
+
+	a.appendBooleanSetting(builder, "dlp", config.EnableLanguagePreview)
 
 	builder.WriteString(ezbookkeepingServerSettingsJavascriptFileFooter)
 
