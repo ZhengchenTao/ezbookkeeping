@@ -74,6 +74,32 @@ jobs:
       # 不用 setup-buildx-action：mirror 里没有它，这里也不需要 —— 默认 docker
       # driver 直接用宿主 daemon 的构建缓存，跨 run 持久。
 
+      # The validated frontend build uses a 4 GiB Node heap cap. Build FE and BE one at a time on
+      # cloud-runner-1 (7.4 GiB RAM), then the final build reuses the shared daemon cache.
+      - name: Build frontend and backend stages serially
+        env:
+          FE_STAGE_TAG: ${{ github.run_id }}-fe
+          BE_STAGE_TAG: ${{ github.run_id }}-be
+        run: |
+          docker buildx build \
+              --target fe-builder \
+              --load \
+              --tag "ezbookkeeping-ci-stage:$FE_STAGE_TAG" \
+              --build-arg BUILD_PIPELINE=1 \
+              --build-arg BUILD_NODE_OPTIONS=--max-old-space-size=4096 \
+              --build-arg HTTP_PROXY=http://172.17.0.1:10809 \
+              --build-arg HTTPS_PROXY=http://172.17.0.1:10809 \
+              --build-arg NO_PROXY=localhost,127.0.0.1,git.aifacely.net,git.zhengchentao.win \
+              .
+          docker buildx build \
+              --target be-builder \
+              --load \
+              --tag "ezbookkeeping-ci-stage:$BE_STAGE_TAG" \
+              --build-arg BUILD_PIPELINE=1 \
+              --build-arg HTTP_PROXY=http://172.17.0.1:10809 \
+              --build-arg HTTPS_PROXY=http://172.17.0.1:10809 \
+              --build-arg NO_PROXY=localhost,127.0.0.1,git.aifacely.net,git.zhengchentao.win \
+              .
       - name: Login to Gitea Container Registry
         uses: https://git.aifacely.net/mirror/login-action@v3
         with:
@@ -116,6 +142,7 @@ jobs:
           # 加上之后：apk 3 秒，go 模块 7 秒。
           build-args: |
             BUILD_PIPELINE=1
+            BUILD_NODE_OPTIONS=--max-old-space-size=4096
             HTTP_PROXY=http://172.17.0.1:10809
             HTTPS_PROXY=http://172.17.0.1:10809
             NO_PROXY=localhost,127.0.0.1,git.aifacely.net,git.zhengchentao.win
@@ -129,6 +156,17 @@ jobs:
             ${{ env.IMAGE }}:${{ steps.meta.outputs.image_tag }}
             ${{ env.IMAGE }}:latest
 
+      - name: Cleanup temporary stage images
+        if: always()
+        env:
+          FE_STAGE_TAG: ${{ github.run_id }}-fe
+          BE_STAGE_TAG: ${{ github.run_id }}-be
+        run: |
+          for image in "ezbookkeeping-ci-stage:$FE_STAGE_TAG" "ezbookkeeping-ci-stage:$BE_STAGE_TAG"; do
+            if docker image inspect "$image" >/dev/null 2>&1; then
+              docker image rm "$image"
+            fi
+          done
       - name: Build summary
         if: always()
         run: |
