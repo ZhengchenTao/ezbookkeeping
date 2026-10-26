@@ -25,6 +25,8 @@
 - 桌面端 ListPage：账户卡片余额旁显示「Available: ¥xxx」
 - 语言包：中英繁均已添加 `"Credit Limit"` / `"Available"`
 
+> **2026-10-26 上游 v2.1.1 起：本条已由上游原生实现**（`AccountExtend.CreditCardLimit` + `creditCardLimit` API/前端字段），fork 不再有自己的一套额度实现。保留的只有**旧数据读兼容**：fork 旧库 `extend` JSON 里是 `creditLimit`，`AccountExtend.LegacyCreditLimit` 在 `FromDB` 时映射到 `CreditCardLimit`，下次保存时写成新字段。线上 10 条信用卡账户里 8 条带旧字段，读取正常（见 vault `NAS/archive/2026-10-26 ezBookkeeping v2.1.1 生产上线与配置迁移`）。
+
 ### 2. 🟢 按账户筛选交易时顶部显示账户信息卡
 **描述：** 在按单个账户筛选的交易列表顶部，显示账户图标、名称和余额/可用额度。
 
@@ -222,3 +224,16 @@
 | 13 | cron 锁完成后释放 | 🟢 已完成 |
 | 14 | OIDC 新用户默认币种 CNY | 🟢 已完成 |
 | 15 | 关闭密码登录时敏感操作免输密码 | 🟢 已完成 |
+
+> 2026-10-26 合并上游 v2.1.1 后，#1 已转为上游原生能力（fork 只留旧数据读兼容），其余条目的代码 delta 仍在 `src/` / `pkg/` 的 46 个文件里，见下节。
+
+---
+
+## 附：上游 v2.1.1 合并后的 delta 现状（2026-10-26）
+
+- 同步：merge commit `ce8de48b`（父 `e92dae4f` + 上游 `v2.1.1` = `3dcc316e`），313 个上游 commit，719 文件变更；`main` 已重置到 v2.1.1。
+- **fork delta = `git diff origin/main custom`：46 文件 / +1332 −247**。其中 `.gitea/workflows/` 5 个、`CLAUDE.md` / `FORK.md` / `LICENSE` / `README.md` 属 fork 自带；代码部分是下面这些能力。
+- #1 信用卡额度：**已被上游吸收**，delta 仅剩 `pkg/models/account.go` 的 `LegacyCreditLimit` 读兼容（见第一节）。
+- 仍为 fork delta 的：#2 账户信息卡（`src/views/*/transactions/ListPage.vue`）、#3 调整余额（`pkg/services/transactions.go`、`pkg/models/transaction.go`、`src/stores/transaction.ts`）、#4 记账页余额（`src/views/*/transactions/EditPage.vue`、`.../list/dialogs/EditDialog.vue`）、#6 小键盘布局（`src/components/mobile/NumberPadSheet.vue`）、#7 详情编辑/删除、#9 分类默认展开（`TreeViewSelectionSheet.vue`）、#10 动画加速（`src/styles/mobile/override/_framework7.scss`）、#13 cron 锁（`pkg/cron/cron_job.go`）、#14 CNY 默认币种（`pkg/services/users.go`）、#15 免密敏感操作（`pkg/api/tokens.go`、`pkg/api/data_managements.go`、`PasswordInputSheet.vue` 等）。
+- 合并后验证与遗留：Go 测试 / `go vet` / `vue-tsc` / 38,606 项前端测试 / 生产 build 通过；全目录 ESLint 因本机内存不足未跑完（改动文件级通过），`npm audit` 8 项漏洞未处理。
+

@@ -30,7 +30,7 @@ git.zhengchentao.win/dev/ezbookkeeping     （origin，本地唯一 remote）
 
 | 分支 | 职责 | force push? |
 |---|---|---|
-| `main` | **锚定上游 release tag**（当前 v1.6.1）。被 `.gitea/workflows/sync-upstream.yml` `git reset --hard <tag>` 覆写。**别在 main 上做任何改动** | merge 模型下 main 是 custom 的祖先，追新 tag 通常纯 fast-forward，一般不再需要 force |
+| `main` | **锚定上游 release tag**（当前 v2.1.1，commit `3dcc316e`）。被 `.gitea/workflows/sync-upstream.yml` `git reset --hard <tag>` 覆写。**别在 main 上做任何改动** | merge 模型下 main 是 custom 的祖先；追新 tag 一般是纯 fast-forward，但**上游重写过历史时会分叉**，那就得按 workflow 的 `reset --hard` + `--force-with-lease` 语义强推（2026-10-26 v2.1.1 即如此） |
 | `custom` | **所有个人改动 + workflow 文件都在这**：信用额度功能、UI 调整、个人需求清单、`.gitea/workflows/*.yml` 等。具体改动清单见 [`FORK.md`](FORK.md)。日常开发分支，**default branch** | **否**（2026-07-22 起 merge 模型，历史 append-only，普通 push） |
 
 ⚠️ **default branch 是 `custom`**。`git clone` 默认 checkout custom，直接是开发分支。
@@ -51,12 +51,12 @@ git.zhengchentao.win/dev/ezbookkeeping     （origin，本地唯一 remote）
 
 ## custom 分支 workflow 清单
 
-`.gitea/workflows/` 当前有 2 个 workflow（2026-05-04 起 build+deploy 合并为单 workflow 双 job）：
+`.gitea/workflows/` 当前有 2 个 workflow（2026-07-17 起为单 workflow 单 job：build 完在同一 job 内 ssh 触发 NAS 部署，不再是双 job + dependency graph）：
 
 | 文件 | 触发 | 干什么 | 状态 |
 |---|---|---|---|
 | `sync-upstream.yml` | 手动（`workflow_dispatch`，可填 tag） | 服务端把 `dev/main` 强制 reset 到 mirror 上的指定 release tag（默认最新），然后 `push --force-with-lease` + 推 tags | ✅ 在用 |
-| `build-image.yml` | **自动**（push 到 custom 触发，`paths-ignore` 屏蔽 `**.md` / `.gitignore` / `LICENSE` / `screenshot/**` / `sync-upstream.yml`）+ 手动备选 | **两个 job 串联在同一 run 里**：①`build` job 装 buildkit v0.13.2 → 登录 Gitea registry → 构建镜像（带 OCI 标签 source/revision，Gitea 自动关联包到 repo）→ push 到 `git.zhengchentao.win/dev/ezbookkeeping:<hash>` 与 `:latest`，`build-args: BUILD_PIPELINE=1` 跳过活 API 测试。②`deploy` job (`needs: build`) 登录 registry → clone nas-infra → `docker compose pull && up -d` 重启 ezbookkeeping。私有 nas-infra 需要 `secrets.NAS_INFRA_TOKEN`，公开仓库不需要。UI 上 Actions 列表显示一条 run，run 详情里 dependency graph 显示 build → deploy | ✅ 日常发布通道 + 自动 CD |
+| `build-image.yml` | **自动**（push 到 custom 触发，`paths-ignore` 屏蔽 `**.md` / `.gitignore` / `LICENSE` / `screenshot/**` / `sync-upstream.yml`）+ 手动备选 | **单 job `build`**（2026-07-17 起跑在云端 runner `cloud-runner-1`，与 `git.aifacely.net` 同机，推镜像等于推 localhost）：① 先串行 buildx 构建 `fe-builder` → `be-builder` 两个 stage（`BUILD_PIPELINE=1` 跳活 API 测试、`BUILD_NODE_OPTIONS=--max-old-space-size=4096`、HTTP(S)_PROXY 指向宿主 xray `172.17.0.1:10809`）；② 再整镜像 build + push 到 `git.aifacely.net/zhengchen.tao/ezbookkeeping:<short-sha>` 与 `:latest`（OCI 标签 source/revision，Gitea 自动关联包到 repo）；③ 同 job 的 `Deploy to NAS` 步骤 ssh 到 NAS 执行**强制命令** `deploy ezbookkeeping`（nas-infra `scripts/ci-deploy.sh` 白名单，拿不到 shell）。secrets：`AIFACELY_REGISTRY_TOKEN` / `NAS_CI_SSH_KEY` / `NAS_SSH_HOST` / `NAS_SSH_KNOWN_HOSTS` | ✅ 日常发布通道 + 自动 CD |
 
 **已删**：
 - `docker-snapshot.yml` / `docker-release.yml`（2026-05-02，依赖未配的 `secrets.DOCKER_REPO`，永远失败）
@@ -71,7 +71,7 @@ git.zhengchentao.win/dev/ezbookkeeping     （origin，本地唯一 remote）
 > 2026-07-22 从 rebase 模型切换为 merge 模型。历史上 custom 曾经每次同步都 rebase + force-push，此后不再。
 
 1. 上游出新 release（如 v1.6.1）→ Gitea pull mirror 自动把 tag 同步到 mirror
-2. 人工触发 `Sync from upstream` workflow → 服务端把 dev/main reset 到该 tag（v1.6.1 起 main 是 custom 的祖先，reset 到新 tag 通常是纯 fast-forward，本地直接 `git push origin <tag>:refs/heads/main` 也行）
+2. 人工触发 `Sync from upstream` workflow → 服务端把 dev/main reset 到该 tag（v1.6.1 起 main 是 custom 的祖先，reset 到新 tag 通常是纯 fast-forward，本地直接 `git push origin <tag>:refs/heads/main` 也行；**上游重写过历史时 tag 与旧 main 分叉，不是 fast-forward，按 workflow 的 `reset --hard` + `--force-with-lease` 语义强推** —— 2026-10-26 升 v2.1.1 就是这种情况）
 3. 本地 `git fetch && git checkout custom && git merge origin/main`
 4. 解冲突（**对着最终状态一次性解**，rerere 已开启会自动复用历史解法）→ 验证（`go vet/test` + `npx vue-tsc --noEmit` + `npx eslint src` + `npm test` + `npm run build`）→ 普通 `git push`
 5. **build-image workflow 自动触发**，构建新镜像；不需要手动点
@@ -98,6 +98,8 @@ git.zhengchentao.win/dev/ezbookkeeping     （origin，本地唯一 remote）
 - **不要在 `main` 分支上提交任何东西**（会被 CI 覆写）
 - **workflow 文件改动直接在 custom 上做**（2026-05-02 起，不再是 ci 分支）
 - **不要 force-push custom**（merge 模型下历史 append-only；旧文档/记忆里"force-with-lease 是常规操作"已过时）
+- **main 例外**：同步上游时 main 归 `sync-upstream.yml` 强推重置；本地推进 main 用 `git push --force-with-lease=refs/heads/main:<旧SHA>`，先确认 `custom` 已包含目标 tag
+- 看 fork 全部 delta 用 `git diff origin/main custom`（main = 当前 release tag，2026-10-26 起为 v2.1.1）
 - 如果发现本地配了 upstream remote，那是历史遗留，不要依赖；以 origin/main 为准
 - `.claude/` 在 `.gitignore` 里（个人本地配置不入库），但 `CLAUDE.md` 本身入库
 
@@ -114,6 +116,7 @@ git.zhengchentao.win/dev/ezbookkeeping     （origin，本地唯一 remote）
 - **2026-05-02 (numpad fix)**：FORK.md #11 定位 + 修复。小键盘点击卡顿真因是 `.numpad-button` 的 `touch-action: none`（上游 e178a079 引入）与 F7 tap 处理叠加，改为 `touch-action: manipulation`（commit `75b4d78d`）
 - **2026-07-22**：**同步模型从 rebase 切换为 merge** + 首次 merge 同步 v1.4.0-dev(422f1844) → v1.6.1（193 个上游 commit，merge commit `57cafadd`）。main fast-forward 到 v1.6.1（本地直接 push，没走 workflow）。开启 `rerere.enabled`。冲突 22 个文件，解决要点见 merge commit message；关键决策：ModifyBalance 保留 fork delta 语义（上游"更新期末余额"走普通收支交易，与 fork 不冲突）；NumberPadSheet `touch-action: manipulation` 已被上游吸收（FORK.md #11 第一阶段不再是 delta）。验证 go vet/test + vue-tsc + eslint + vitest + 生产 build 全过
 - **2026-05-04**：把 `deploy.yml` 合并进 `build-image.yml` 作为第二个 job（`needs: build`），删除 `deploy.yml`。原先 `workflow_run` 链路会在 Actions 列表产生两条独立 run（build 完一条、deploy 又一条），用户视角割裂；合并后 UI 列表单条 run，run 详情里 dependency graph 显示 build → deploy 串联。代价：失去"不 rebuild 只 redeploy"的 UI 单点触发，临时只想重启容器需直接 ssh NAS 跑 compose。`paths-ignore` 移除已不存在的 `deploy.yml` 项
+- **2026-10-26**：**merge 同步 v1.6.1 → v2.1.1**（313 个上游 commit；merge commit `ce8de48b`，父 `e92dae4f` + `3dcc316e`；719 文件、+60261 −25907）。合并后 fork delta 收敛到 **46 文件 / +1332 −247**（`git diff origin/main custom`）：信用卡额度（FORK.md #1）已被上游原生实现吸收（`AccountExtend.CreditCardLimit` 上游自带），fork 只保留旧 `creditLimit` JSON 字段的读兼容（`LegacyCreditLimit` → `CreditCardLimit`，`FromDB` 里映射）。**main 这次不是 fast-forward**：本仓 v1.6.1 tag 指向的 `6ccd0c46` 不在 v2.1.1 历史里（上游同内容 commit 是 `fc7372ce`，SHA 不同），按 `sync-upstream.yml` 的 `reset --hard` + `--force-with-lease` 语义把 main 强推到 v2.1.1（`3dcc316e`），并补推 `v2.0.0` / `v2.0.1` / `v2.1.0` / `v2.1.1` 四个 tag。构建工作流修了 v2.1.1 首次完整构建的 OOM：Node 默认 ~2 GiB heap 不够，加 `BUILD_NODE_OPTIONS=--max-old-space-size=4096` 并按 FE→BE→final 串行构建（commit `75cfb078`）。生产：`custom` push 触发 run `1293`，NAS 从 1.6.1 升到 2.1.1，DB schema 1→6、交易数 13,499 未变；执行与回退证据见 vault `NAS/archive/2026-10-26 ezBookkeeping v2.1.1 生产上线与配置迁移`。**遗留**：全目录 ESLint 因本机内存不足没跑完（改动文件级通过）、`npm audit` 报 8 项漏洞未处理、定时交易保留固定 UTC+8 offset 未批量重存
 
 ## 给后续 Claude 会话：CI 故障排查路径
 
