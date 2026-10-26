@@ -232,7 +232,7 @@
 ## 附：上游 v2.1.1 合并后的 delta 现状（2026-10-26）
 
 - 同步：merge commit `ce8de48b`（父 `e92dae4f` + 上游 `v2.1.1` = `3dcc316e`），313 个上游 commit，719 文件变更；`main` 已重置到 v2.1.1。
-- **fork delta = `git diff origin/main custom`：46 文件 / +1332 −247**。其中 `.gitea/workflows/` 5 个、`CLAUDE.md` / `FORK.md` / `LICENSE` / `README.md` 属 fork 自带；代码部分是下面这些能力。
+- **fork delta = `git diff origin/main custom`：46 文件 / 约 +1.3k 行（含本文件与 `CLAUDE.md` 的更新；合并当时是 +1332 −247）**。其中 `.gitea/workflows/` 5 个、`CLAUDE.md` / `FORK.md` / `LICENSE` / `README.md` 属 fork 自带；代码部分是下面这些能力。
 - #1 信用卡额度：**已被上游吸收**，delta 仅剩 `pkg/models/account.go` 的 `LegacyCreditLimit` 读兼容（见第一节）。
 - 仍为 fork delta 的：#2 账户信息卡（`src/views/*/transactions/ListPage.vue`）、#3 调整余额（`pkg/services/transactions.go`、`pkg/models/transaction.go`、`src/stores/transaction.ts`）、#4 记账页余额（`src/views/*/transactions/EditPage.vue`、`.../list/dialogs/EditDialog.vue`）、#6 小键盘布局（`src/components/mobile/NumberPadSheet.vue`）、#7 详情编辑/删除、#9 分类默认展开（`TreeViewSelectionSheet.vue`）、#10 动画加速（`src/styles/mobile/override/_framework7.scss`）、#13 cron 锁（`pkg/cron/cron_job.go`）、#14 CNY 默认币种（`pkg/services/users.go`）、#15 免密敏感操作（`pkg/api/tokens.go`、`pkg/api/data_managements.go`、`PasswordInputSheet.vue` 等）。
 - 合并后验证与遗留：Go 测试 / `go vet` / `vue-tsc` / 38,606 项前端测试 / 生产 build 通过；全目录 ESLint 因本机内存不足未跑完（改动文件级通过），`npm audit` 8 项漏洞未处理。
