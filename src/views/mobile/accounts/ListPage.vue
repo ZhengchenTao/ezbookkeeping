@@ -56,21 +56,14 @@
                 <f7-list-item group-title class="justify-content-space-between" :sortable="false">
                     <small>
                         <span>{{ tt(accountCategory.name) }}</span>
-                        <span style="margin-inline-start: 10px">{{ accountCategoryTotalBalance(accountCategory, showAvailableCreditForCreditCard) }}</span>
-                    </small>
-                    <small class="account-list-credit-card-amount-link" :class="{ 'disabled': sortable }"
-                         v-if="accountCategory.type === AccountCategory.CreditCard.type">
-                        <f7-link href="#" class="text-color-gray" popover-open=".credit-card-amount-popover">
-                            <span class="text-truncate">{{ showAvailableCreditForCreditCard ? tt('pageSpecific.accountListPage.availableBalance') : tt('pageSpecific.accountListPage.outstandingBalance') }}</span>
-                            <f7-icon class="picker-chevron bold-chevron" f7="chevron_up_chevron_down"></f7-icon>
-                        </f7-link>
+                        <span style="margin-inline-start: 10px">{{ accountCategoryTotalBalance(accountCategory, false) }}</span>
                     </small>
                 </f7-list-item>
                 <f7-list-item swipeout
                               class="nested-list-item"
                               :id="getAccountDomId(account)"
                               :class="{ 'has-child-list-item': account.type === AccountType.MultiSubAccounts.type && hasVisibleSubAccount(account), 'actual-first-child': account.id === firstShowingIds.accounts[accountCategory.type], 'actual-last-child': account.id === lastShowingIds.accounts[accountCategory.type] }"
-                              :after="account.type === AccountType.SingleAccount.type ? accountBalanceOrAvailableCredit(account, undefined, showAvailableCreditForCreditCard, showAccountBalance) : ''"
+                              :after="account.type === AccountType.SingleAccount.type ? accountBalance(account, undefined, showAccountBalance) : ''"
                               :link="!sortable ? '/transaction/list?accountIds=' + account.id : null"
                               :key="account.id"
                               v-for="account in allCategorizedAccountsMap[accountCategory.type]!.accounts"
@@ -96,9 +89,10 @@
                             <div class="nested-list-item-title">
                                 <span>{{ account.name }}</span>
                                 <div class="item-footer" v-if="account.comment">{{ account.comment }}</div>
+                                <div class="item-footer" v-if="accountAvailableCredit(account, showAccountBalance)">{{ tt('Available Credit') }}: {{ accountAvailableCredit(account, showAccountBalance) }}</div>
                             </div>
                             <div class="nested-list-item-after" v-if="account.type === AccountType.MultiSubAccounts.type">
-                                <span>{{ accountBalanceOrAvailableCredit(account, undefined, showAvailableCreditForCreditCard, showAccountBalance) }}</span>
+                                <span>{{ accountBalance(account, undefined, showAccountBalance) }}</span>
                             </div>
                         </div>
                         <li v-if="account.type === AccountType.MultiSubAccounts.type">
@@ -107,7 +101,7 @@
                                               :class="{ 'actual-first-child': subAccount.id === firstShowingIds.subAccounts[account.id], 'actual-last-child': subAccount.id === lastShowingIds.subAccounts[account.id] }"
                                               :id="getAccountDomId(subAccount)"
                                               :title="subAccount.name" :footer="subAccount.comment"
-                                              :after="!showAvailableCreditForCreditCard || account.category !== AccountCategory.CreditCard.type ? accountBalance(account, subAccount.id, showAccountBalance) : ''"
+                                              :after="accountBalance(account, subAccount.id, showAccountBalance)"
                                               :link="!sortable ? '/transaction/list?accountIds=' + subAccount.id : null"
                                               :key="subAccount.id"
                                               v-for="subAccount in account.subAccounts"
@@ -196,27 +190,6 @@
             </f7-actions-group>
         </f7-actions>
 
-        <f7-popover class="credit-card-amount-popover">
-            <f7-list dividers>
-                <f7-list-item link="#" no-chevron popover-close
-                              :title="tt('Outstanding Balance')"
-                              :class="{ 'list-item-selected': !showAvailableCreditForCreditCard }"
-                              @click="showAvailableCreditForCreditCard = false">
-                    <template #after>
-                        <f7-icon class="list-item-checked-icon" f7="checkmark_alt" v-if="!showAvailableCreditForCreditCard" />
-                    </template>
-                </f7-list-item>
-                <f7-list-item link="#" no-chevron popover-close
-                              :title="tt('Available Credit')"
-                              :class="{ 'list-item-selected': showAvailableCreditForCreditCard }"
-                              @click="showAvailableCreditForCreditCard = true">
-                    <template #after>
-                        <f7-icon class="list-item-checked-icon" f7="checkmark_alt" v-if="showAvailableCreditForCreditCard" />
-                    </template>
-                </f7-list-item>
-            </f7-list>
-        </f7-popover>
-
         <password-input-sheet :title="tt('Are you sure you want to clear all transactions?')"
                               :hint="tt('format.misc.clearTransactionsInAccountTip', { account: accountToClearTransactions?.name ?? 'undefined' })"
                               :confirm-disabled="clearingData"
@@ -240,11 +213,10 @@ import { useI18nUIComponents, showLoading, hideLoading } from '@/lib/ui/mobile.t
 import { useAccountListPageBase } from '@/views/base/accounts/AccountListPageBase.ts';
 
 import { useRootStore } from '@/stores/index.ts';
-import { useSettingsStore } from '@/stores/setting.ts';
 import { useAccountsStore } from '@/stores/account.ts';
 
 import { TextDirection } from '@/core/text.ts';
-import { AccountType, AccountCategory, CreditCardAmountDisplayType } from '@/core/account.ts';
+import { AccountType, AccountCategory } from '@/core/account.ts';
 import type { Account, AccountShowingIds } from '@/models/account.ts';
 
 import { getCurrentUnixTime } from '@/lib/datetime.ts';
@@ -270,11 +242,10 @@ const {
     maxCategoryAccountCount,
     accountCategoryTotalBalance,
     accountBalance,
-    accountBalanceOrAvailableCredit
+    accountAvailableCredit
 } = useAccountListPageBase();
 
 const rootStore = useRootStore();
-const settingsStore = useSettingsStore();
 const accountsStore = useAccountsStore();
 
 const loadingError = ref<unknown | null>(null);
@@ -292,7 +263,6 @@ const showInputPasswordSheetForClearAllTransactions = ref<boolean>(false);
 const displayOrderSaving = ref<boolean>(false);
 
 const textDirection = computed<TextDirection>(() => getCurrentLanguageTextDirection());
-const showAvailableCreditForCreditCard = ref<boolean>(settingsStore.appSettings.defaultCreditCardAmountDisplayTypeInMobile === CreditCardAmountDisplayType.AvailableCredit.type);
 const firstShowingIds = computed<AccountShowingIds>(() => accountsStore.getFirstShowingIds(showHidden.value));
 const lastShowingIds = computed<AccountShowingIds>(() => accountsStore.getLastShowingIds(showHidden.value));
 const hasAnyVisibleAccount = computed<boolean>(() => accountsStore.allVisibleAccountsCount > 0);
@@ -665,20 +635,4 @@ init();
     padding-top: 4px;
 }
 
-.account-list-credit-card-amount-link {
-    display: flex;
-    min-width: 0;
-    margin-inline-start: 4px;
-
-    > .link {
-        display: flex;
-        min-width: 0;
-        max-width: 100%;
-
-        > .picker-chevron {
-            flex-shrink: 0;
-            font-weight: bold;
-        }
-    }
-}
 </style>
